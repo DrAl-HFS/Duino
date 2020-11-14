@@ -1,4 +1,4 @@
-// Duino/Common/numCh.hpp - Arduino-AVR numeric/char hacks
+// Duino/Common/numCh.hpp - Arduino-AVR hardware counter hacks (broken)
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Oct-Nov 2020

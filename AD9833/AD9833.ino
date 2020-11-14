@@ -1,7 +1,7 @@
 // Duino/Common/AD9833.ino - Arduino IDE & AVR specific main code for
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
-// Licence: GPL V3
+// Licence: GPL V3A
 // (c) Project Contributors Nov 2020
 
 #include <math.h>
