@@ -23,6 +23,8 @@ latency is <3us per 16bit message (untested).
 *   UART communication with host, providing a simple but adequately flexible
 command interface e.g. 
 
--    "4k5" - 4.5kHz signal
--    "1k,10k,100m" - sweep from 1kHz to 10kHz every 100msec
+	- "S" or "T" - sine or triangle waveform output from DAC (0.3Vpp) 
+	- "C" or "D" - clock or double-rate-clock direct output (Vcc 3~5V)
+	- "4.5E3" or "4.5k" or "4k5" - 4.5kHz signal
+	- "1k,10k,100m" - sweep from 1kHz to 10kHz every 100msec
 
