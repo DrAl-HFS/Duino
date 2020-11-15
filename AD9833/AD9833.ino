@@ -81,8 +81,8 @@ void setup (void)
 {
    noInterrupts();
    //sei();
-   const uint8_t cs[]={10,45};
-   gClock.setHM(cs);
+   //const uint8_t cs[]={16,49};
+   //gClock.setHM(cs);
    gClock.start();
   
    pinMode(LED_BUILTIN, OUTPUT);
