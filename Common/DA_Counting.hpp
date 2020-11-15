@@ -44,10 +44,10 @@ public:
 #ifdef AVR
     //ASSR= (1 << EXCLK) | ;
     TCNT1=  0;   // preload timer
-    TCCR1A= 0; // 1 << WGM12 // CTC
-    TCCR1B= (1 << CS12) | (1 << CS11) | (1 << CS10);  // external "clock" source, rising edge on T1
-    OCR1A=  1000;
-    TIMSK1= (1 << TOIE1); // | (1 << OCIE1A);  // Overflow Interrupt Enable/Output compare
+    TCCR1A= 0; //
+    TCCR1B= (1 << WGM12) | (1 << CS12) | (1 << CS11) | (1 << CS10);  // CTC & external "clock" source, rising edge on T1
+    OCR1A=  10000;
+    TIMSK1= (1 << OCIE1A);  // Output Compare A Interrupt Enable (1 << TOIE1) Overflow Interrupt Enable
 #endif
   } // CExtClockCountBase
   

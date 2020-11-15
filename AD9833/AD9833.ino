@@ -17,7 +17,7 @@
 #include "Common/DA_StrmCmd.hpp"
 #include "Common/DA_ad9833.hpp"
 #include "Common/DA_Timing.hpp"
-//#include "Common/DA_Counting.hpp"
+#include "Common/DA_Counting.hpp"
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
@@ -56,8 +56,8 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 CCountExtBase gCount;
 
-SIGNAL(TIMER1_OVF_vect) { gCount.o++; }
-SIGNAL(TIMER1_OCA_vect) { gCount.c++; }
+//SIGNAL(TIMER1_OVF_vect) { gCount.o++; }
+ISR(TIMER1_COMPA_vect) { gCount.c++; }
 
 #endif // DA_COUNTING_H
 
@@ -84,8 +84,8 @@ void setup (void)
    noInterrupts();
    //sei();
 
-   const uint8_t cs[]={19,18};
-   gClock.setHM(cs);
+   //const uint8_t cs[]={19,18};
+   //gClock.setHM(cs);
    gClock.start();
   
    pinMode(LED_BUILTIN, OUTPUT);
@@ -123,9 +123,12 @@ static uint8_t msP=-1;
          n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
          //n+= snprintf(str+n, sizeof(str)-n, " %uHz", gSigGen.getF());
+#ifdef DA_COUNTING_H
+         n+= snprintf(str+n, sizeof(str)-n, " C=%u ", gCount.c);
+#else
          str[n++]= ' ';
          str[n]= 0;
-         //n+= snprintf(str+n, sizeof(str)-n, " C,O=%u,%u", gCount.c, gCount.o);
+#endif
          Serial.print(str);
          gSigGen.changeMon(true);
       }
