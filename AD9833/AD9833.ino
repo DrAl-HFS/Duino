@@ -17,7 +17,7 @@
 #include "Common/DA_StrmCmd.hpp"
 #include "Common/DA_ad9833.hpp"
 #include "Common/DA_Timing.hpp"
-#include "Common/DA_Counting.hpp"
+//#include "Common/DA_Counting.hpp"
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
@@ -43,7 +43,9 @@ SIGNAL(TIMER1_OVF_vect) { gClock.nextIvl(); }
 #else // OFLO vs. OCMP
 
 #if (2 == AVR_CLOCK_TN)
-SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
+SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
+//SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
+//SIGNAL(TIMER2_OCB_vect) { gClock.nextIvl(); }
 #endif
 
 #endif // OFLO vs. OCMP
@@ -81,8 +83,9 @@ void setup (void)
 {
    noInterrupts();
    //sei();
-   //const uint8_t cs[]={16,49};
-   //gClock.setHM(cs);
+
+   const uint8_t cs[]={19,18};
+   gClock.setHM(cs);
    gClock.start();
   
    pinMode(LED_BUILTIN, OUTPUT);

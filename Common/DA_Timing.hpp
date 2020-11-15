@@ -11,9 +11,9 @@
 
 #ifdef AVR
 // 0.08
-#define AVR_CLOCK_TRIM  -25 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% faster
+#define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
 
-#define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
+//#define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
 #define AVR_CLOCK_TN 2
 // NB: Timer0 used for delay() etc.
 #if (0 == AVR_CLOCK_TN) || (2 == AVR_CLOCK_TN)
@@ -38,11 +38,12 @@ typedef uint16_t TimerIvl;
 typedef uint8_t TimerIvl;
 #endif
 
+#ifdef AVR_CLOCK_OFLO
+// Inaccurate due to RMW sequence
 // temporary hack for timer overflow interrupt
 // (until compare & reload is working)
-void ofloIvl (TimerIvl ivl)
+void updateOverflow (TimerIvl ivl)
 {
-#ifdef AVR_CLOCK_OFLO // TODO: address clock cycle gain during RMW sequence
 #if (2 == AVR_CLOCK_TN)
    TCNT2-= ivl;
 #endif // (0 == AVR_CLOCK_TN)
@@ -52,8 +53,21 @@ void ofloIvl (TimerIvl ivl)
 #if (1 == AVR_CLOCK_TN)
    TCNT1-= ivl;
 #endif // (1 == AVR_CLOCK_TN)
+} // updateOverflow
+#define UPDATE(ivl) updateOverflow(ivl)
+#else
+#if (1000000000==AVR_CLOCK_TRIM)
+#define UPDATE(ivl) //updateOutCmp(ivl) 
+#else
+void updateOutCmp (TimerIvl ivl)
+{
+#if (2 == AVR_CLOCK_TN)
+   OCR2A=  ivl - 1;
+#endif
+}
+#define UPDATE(ivl) updateOutCmp(ivl) 
+#endif // (0==AVR_CLOCK_TRIM)
 #endif // AVR_CLOCK_OFLO
-} // ofloIvl
 
 // Highly AVR-specific base class using 8 or 16bit hardware timers
 // Objective is to generate interrupts at 1ms intervals.
@@ -82,7 +96,7 @@ public:
 #else // Compare
       TCNT2=  0;
       OCR2A=  ivl - 1; // set interval
-      TCCR2A= 1 << WGM21; // CTC
+      TCCR2A= 1 << WGM21; // CTC 22:21:20=010
       TCCR2B= (1 << CS22);   // 1/64 prescaler @ 16MHz -> 250k ticks/sec, 4us per ms granularity (0.4%)
       TIMSK2= (1 << OCIE2A); // Compare A Interrupt Enable
 #endif
@@ -104,7 +118,7 @@ public:
   
    void nextIvl (void)
    { // called from SIGNAL (blocking ISR) => interrupts already masked
-      ofloIvl(ivl);
+      UPDATE(ivl);
       ++nIvl;
    } // nextIvl
 
@@ -163,10 +177,10 @@ public:
    }
    void nextIvl (void) // overload
    {
-      if (0 == set) { ofloIvl(ivl); }
+      if (0 == set) { UPDATE(ivl); }
       else
       {
-         ofloIvl(ivl+trimVal());
+         UPDATE(ivl+trimVal());
          trimStep();
       }
       ++nIvl;
