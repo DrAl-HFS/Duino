@@ -14,7 +14,7 @@
 // See following include for basic definitions & information
 #include "MBD/ad9833Util.h" // Transitional
 #include "DA_Args.hpp"
-#include "DA_NumCh.hpp"
+//#include "DA_Util.h"
 
 
 /***/
@@ -319,7 +319,7 @@ public:
    uint8_t lastFN;
    void changeMon (bool force=false, const char *ids=NULL)
    {
-      if (iFN > 0) { sweep.log(); }
+      if (iFN > 0) { sweep.logK(); }
       if (force || (iFN != lastFN))
       {
          if (ids) { Serial.print(ids); }

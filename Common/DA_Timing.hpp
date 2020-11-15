@@ -7,7 +7,7 @@
 #define DA_TIMING_H
 
 #include <avr/sleep.h>
-#include "DA_NumCh.hpp"
+#include "DA_Util.h"
 
 #ifdef AVR
 #define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
@@ -25,36 +25,7 @@
 
 /***/
 
-// TODO : assess compiler generated (fast?) division by constant
 
-uint_fast16_t convTimeD (uint_fast8_t d[1], uint_fast16_t t)
-{
-  d[0]= t / (24 * 60);
-  return(t - (d[0] * 24 * 60));
-} // convTimeD
-
-void convTimeHM (uint_fast8_t hm[2], uint_fast16_t t)
-{
-   hm[0]= t / 60;
-   hm[1]= t - (hm[0] * 60);
-} // convTimeHM
-
-// generate specified number of BCD bytes (yielding 2, 4 or 5 digits)
-void convMilliBCD (uint_fast8_t bcd[], const int8_t n, uint_fast16_t m)
-{
-   if (n > 0)
-   {  // TODO : investigate feasibility of divmod()
-      uint8_t c, s= m / 1000;
-      bcd[0]= conv2BCD4(s); // set seconds digits
-      if (n > 1)
-      {
-         m-= s * 1000;  // get remainder
-         c= m / 10;
-         bcd[1]= conv2BCD4(c);  // centi-seconds
-         if (n > 2) { bcd[2]= swapHiLo4U8(m - c * 10); }
-      }
-   }
-} // convMilliBCD
 
 
 /***/
