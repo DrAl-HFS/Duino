@@ -106,7 +106,8 @@ public:
          //s.print("cmdF:"); s.println(cs.cmdF[0],HEX);
          resid(a-n);
       }
-      return(n);
+      uint8_t r= n; n= 0;
+      return(r);
    } // StreamCmd::read
   
 }; // StreamCmd
