@@ -13,6 +13,8 @@
 // 0.08
 #define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
 
+#define AVR_FAST_TIMER  1
+
 //#define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
 #define AVR_CLOCK_TN 2
 // NB: Timer0 used for delay() etc.
@@ -39,7 +41,7 @@ typedef uint8_t TimerIvl;
 #endif
 
 #ifdef AVR_CLOCK_OFLO
-// Inaccurate due to RMW sequence
+// DEPECATE: Inaccurate due to RMW sequence
 // temporary hack for timer overflow interrupt
 // (until compare & reload is working)
 void updateOverflow (TimerIvl ivl)
@@ -69,7 +71,7 @@ void updateOutCmp (TimerIvl ivl)
 #endif // (0==AVR_CLOCK_TRIM)
 #endif // AVR_CLOCK_OFLO
 
-// Highly AVR-specific base class using 8 or 16bit hardware timers
+// Highly AVR-specific base class using 8bit hardware timer
 // Objective is to generate interrupts at 1ms intervals.
 // NB : ISR vector/handler/function requires class instance and so
 // must be defined elsewhere. C++ does not provide a clean solution.
@@ -79,7 +81,6 @@ protected:
    TimerIvl ivl;
    volatile uint8_t nIvl;  // ISR mini-counter
    uint8_t nRet; // Previous mini-counter (since last "upstream" application)
-  
    
 public:
    CBaseTimer () : ivl{AVR_CLOCK_IVL} { ; } // (all zero on reset) nIvl= 0; }
@@ -88,31 +89,12 @@ public:
    { // TODO - test compare (auto reload) accuracy
 #ifdef AVR_CLOCK_TN
 #if (2 == AVR_CLOCK_TN)
-#ifdef AVR_CLOCK_OFLO
-      TCNT2=  (0xFF - ivl) + 1;   // preload timer
-      TCCR2A=  0;
-      TCCR2B= (1 << CS22);  // 1/64 prescaler @ 16MHz -> 250k ticks/sec, 4us per ms granularity (0.4%)
-      TIMSK2= (1 << TOIE2); // Overflow Interrupt Enable
-#else // Compare
       TCNT2=  0;
-      OCR2A=  ivl - 1; // set interval
+      OCR2A=  ivl - 1; // set compare interval
       TCCR2A= 1 << WGM21; // CTC 22:21:20=010
       TCCR2B= (1 << CS22);   // 1/64 prescaler @ 16MHz -> 250k ticks/sec, 4us per ms granularity (0.4%)
       TIMSK2= (1 << OCIE2A); // Compare A Interrupt Enable
-#endif
 #endif // (2 == AVR_CLOCK_TN)
-#if (0 == AVR_CLOCK_TN)
-      TCNT0=  (0xFF - ivl) + 1;   // preload timer
-      TCCR0A=  0;
-      TCCR0B= (1 << CS01)|(1 << CS00);  // 1/64 prescaler as above
-      TIMSK0= (1 << TOIE0);  // Overflow Interrupt Enable
-#endif // (0 == AVR_CLOCK_TN)
-#if (1 == AVR_CLOCK_TN)
-      TCNT1=  (0xFFFF - ivl) + 1;   // preload timer
-      TCCR1A= 0;
-      TCCR1B= (1 << CS11);  // 1/8 prescaler @ 16MHz -> 2M ticks/sec, 0.5us per ms granularity (0.05%)
-      TIMSK1= (1 << TOIE1);  // Overflow Interrupt Enable
-#endif // (1 == AVR_CLOCK_TN)
 #endif // AVR_CLOCK_TN
    } // init
   
@@ -133,6 +115,7 @@ public:
    void retire (uint8_t d) { nRet+= d; }
 }; // CBaseTimer
 
+#ifdef AVR_CLOCK_TRIM
 #define TT_SETF_NEG 0x1
 #define TT_CYCF_TRM 0x1
 #define TT_CYC_MASK 0xFE
@@ -186,6 +169,7 @@ public:
       ++nIvl;
    }
 }; // CTrimTimer
+#endif // AVR_CLOCK_TRIM
 
 #if 0
 // Extend base timer with simple synchronisation delay
@@ -218,16 +202,50 @@ public:
 }; // CDelayTimer
 #endif
 
+class CIntervalTimer
+{
+   public:
+      uint16_t interval, next;
+   CIntervalTimer (uint16_t ivl=1000, uint16_t start=0) { interval= ivl; intervalStart(start); }
+   void intervalStart (uint16_t when) { next= when+interval; 
+      Serial.print("ivlSt()="); Serial.println(next); } // Serial.print(now); Serial.print(" "); 
+   bool intervalComplete (uint16_t now)
+   {
+      int16_t d= now - next;
+      return((d >= 0) && (d < interval));
+   }
+   bool intervalUpdate (uint16_t now, uint16_t rollover=60000)
+   {
+      //Serial.print("CIT"); Serial.print(now); Serial.print(" "); Serial.println(next); 
+      if (intervalComplete(now))
+      {
+         next+= interval;
+         if (next >= rollover) { next-= rollover; }
+         return(true);
+      }
+      return(false);
+   }
+}; // CIntervalTimer
 
 // Simple clock running off timer class, handy for debug logging 
 // A high precision crystal resonator <=20ppm, temperature compensation,
 // battery backup and some calendar awareness could facilitate a tolerable
 // chronometer...
-class CClock : public CTrimTimer
+class CClock : public CIntervalTimer
+#ifdef AVR_CLOCK_TRIM
+  , public CTrimTimer
+#else
+  , public CBaseTimer
+#endif
 {
 public:
    uint16_t tick, tock; // milliseconds (rollover 60 sec) and minutes (rollover ~45.5 days)
-   CClock (int8_t trim=0) : CTrimTimer(trim) { ; } // if (pS) { setHM(pS); } }
+   CClock (uint16_t ivl=3000,int8_t trim=0) : CIntervalTimer(ivl)
+#ifdef AVR_CLOCK_TRIM
+      , CTrimTimer(trim)
+#endif
+      { ; } // CClock
+
    uint8_t update (void)
    {
       uint8_t d= diff();
@@ -244,7 +262,14 @@ public:
       return(d);
    } // update
 
+   // Simple case for single interval
+   // For multi-interval should set flags
+   void intervalStart (void) { return CIntervalTimer::intervalStart(tick); }
+   bool intervalUpdate (void) { return CIntervalTimer::intervalUpdate(tick); }
+   
+#ifdef AVR_CLOCK_TRIM
    using CTrimTimer::nextIvl; // void nextIvl (void) { CTrimTimer::nextIvl(); }
+#endif
    
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
@@ -265,5 +290,42 @@ public:
    } // getStrHM
 
 }; // CClock
+
+#ifdef AVR_FAST_TIMER
+class CFastPollTimer
+{
+public:
+  uint16_t last;
+  
+  CFastPollTimer (void)
+  {
+#if (1 == AVR_FAST_TIMER)
+      TCCR1A= 0;
+      TCCR1B= (1 << CS10);  // no prescale @ 16MHz -> 0.0625us per ms (granularity 0.00625%)
+      TCCR1C= 0;            //   rollover at 4ms
+      // OCR1A / B, ICR1 unused
+      TIMSK1= 0; // (1 << TOIE1);  // Overflow Interrupt Enable
+      TCNT1=  0;   // set
+#endif // AVR
+  } // CFastPollTimer
+  
+  uint16_t stamp (void)
+  {
+#if (1 == AVR_FAST_TIMER)
+      return TCNT1;
+#endif // AVR
+  } // stamp
+  
+  uint16_t diff (void)
+  {
+     uint16_t now= stamp();
+     int16_t dt= now - last;
+     last= now;
+     if (dt < 0) { dt += 0xFFFF; }
+     return(dt);
+  } // diff
+  
+}; // CFastPollTimer
+#endif // AVR_FAST_TIMER
 
 #endif // DA_TIMING_H
