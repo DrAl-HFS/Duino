@@ -307,22 +307,39 @@ public:
             if (f & 0x10) { ++iFN; }
             if (f & 0x7)
             {
-               static const U8 ctrlB0[]={ 0x00, AD9833_FL0_TRI, AD9833_FL0_CLK, AD9833_FL0_CLK|AD9833_FL0_DCLK };
-               uint8_t i= (f & 0x7) - 1;
+static const U8 ctrlB0[]=
+{ 
+   0x00,  // sine wave
+   AD9833_FL0_TRI, // triangular (symmetric)
+   AD9833_FL0_CLK|AD9833_FL0_SLP_DAC, // clock output (clock running, DAC off)
+   AD9833_FL0_CLK|AD9833_FL0_DCLK|AD9833_FL0_SLP_DAC // doubled "
+};
+               uint8_t i= (f & 0x7) - 1; // lazy change
                if (ctrlB0[i] != reg.ctrl.u8[0]) { reg.ctrl.u8[0]= ctrlB0[i]; rwm|= 0x1; }
                //pR-ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
             }
-            if (f & 0x20) { reg.ctrl.u8[0]^=  AD9833_FL0_SLP1; rwm|= 0x1; }
-            if (f & 0x40) { reg.ctrl.u8[0]^=  AD9833_FL0_SLP1|AD9833_FL0_SLP2; rwm|= 0x1; }
+            if (f & 0x20)
+            {  // leave DAC off in clock modes
+               if (0 == (reg.ctrl.u8[0] & AD9833_FL0_CLK))
+               { reg.ctrl.u8[0]^= AD9833_FL0_SLP_DAC; rwm|= 0x1; }
+            } 
+            if (f & 0x40) // on/off
+            {  // toggle MCLK & DAC together
+               if (reg.ctrl.u8[0] & (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_CLK)) // any on -> 
+               { reg.ctrl.u8[0] &= ~(AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_CLK); } // all off,
+               else { reg.ctrl.u8[0] |= (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_CLK); } // all on
+               rwm|= 0x1;
+            }
             if (f & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; rwm|= 0x81; }
          }
          if ((1 == nV) && (cs.v[0].u > 0))
          {  // Set shadow HW registers directly, leaving sweep state untouched
-            reg.setFSR(cs.v[0].toFSR(), 0); rwm|= 0x6;
+            reg.setFSR(cs.v[0].toFSR(), 0); rwm|= 0x7; // no phase glitch when ctrl written
+            iFN= 0; // disable sweep functions
          }
          else if (sweep.setParam(cs.v, nV) > 0)
          {
-            reg.setFSR(sweep.getFSR(), 0); rwm|= 0x6;
+            reg.setFSR(sweep.getFSR(), 0); rwm|= 0x7; // no phase glitch when ctrl written
             if ((0 == iFN) && (0 == (f & 0x10))) { iFN= 1; } // defaultFN
          }
 
@@ -377,6 +394,11 @@ public:
             lastFN= iFN;
          }
       }
+   }
+   
+   int8_t getModeCh (char mc[], int8_t max) const
+   {
+      if (reg.ctrl.u8[0] & AD9833_FL0_TRI) { mc[0]= 'T'; }
    }
 }; // DA_AD9833Control
 
