@@ -17,21 +17,23 @@
 #include "DA_ad9833HW.hpp"
 #include "Common/DA_StrmCmd.hpp"
 #include "Common/DA_Timing.hpp"
-//#include "Common/DA_Counting.hpp"
+#ifndef AVR_FAST_TIMER // resource contention
+#include "Common/DA_Counting.hpp"
+#endif
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
-CClock gClock(AVR_CLOCK_TRIM);
+CClock gClock(3000,AVR_CLOCK_TRIM);
 
 // Connect clock to timer interupt
 // SIGNAL blocks other ISRs - check use of sleep()
-#ifdef AVR_CLOCK_TN
+#ifdef AVR_CLOCK_TIMER
 
-#if (2 == AVR_CLOCK_TN)
+#if (2 == AVR_CLOCK_TIMER)
 SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 //SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
 //SIGNAL(TIMER2_OCB_vect) { gClock.nextIvl(); }
-#endif
+#endif // AVR_CLOCK_TIMER
 
 #endif // AVR_CLOCK_TN
 
@@ -93,12 +95,13 @@ void sysLog (Stream& s, uint8_t events)
   int8_t m=sizeof(str)-1, n=0;
   
   convMilliBCD(msBCD, 1, gClock.tick);
+/*
   { // DEPRECATE
 static uint8_t msP=-1;
     if (((0x0F & msBCD[0]) == (0x0F & msP))) return;
     msP= msBCD[0];
   }
-
+*/
   str[n++]= 'V';
   n+= hex2ChU8(str+n, events);
   str[n++]= ' ';
@@ -122,25 +125,27 @@ static uint8_t msP=-1;
 } // sysLog
 
 CmdSeg cmd; // Would be temp on stack but problems arise...
+uint8_t lev;
 
 void loop (void)
 {
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
+    if (gClock.intervalUpdate()) { ev|= 0x80; }
     if (gSigGen.resetClear()) { Serial.println("-RST"); } // Previously started reset completes
     if (gStreamCmd.read(cmd,Serial))
     {
-      ev|= 0x80;
+      ev|= 0x40;
       gSigGen.apply(cmd);
     }
+    if (lev & 0xF0) { ev|= 0x20; }
     if (gSigGen.resetPending()) { Serial.println("+RST"); } // Reset begins (completes next cycle) 
     else { gSigGen.sweepStep(ev&0xF); }
     
-    if (gClock.intervalUpdate()) { ev|= 0x40; }
-    if (ev & 0xF0) { sysLog(Serial,ev); }
+    if ((ev^lev) & 0xF0) { sysLog(Serial,ev); }
     gSigGen.commit(); // send whatever needs sent
-    ev= 0;
+    lev= ev;
   }
 } // loop
 
