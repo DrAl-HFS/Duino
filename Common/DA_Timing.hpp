@@ -16,14 +16,14 @@
 #define AVR_FAST_TIMER  1
 
 //#define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
-#define AVR_CLOCK_TN 2
+#define AVR_CLOCK_TIMER 2
 // NB: Timer0 used for delay() etc.
-#if (0 == AVR_CLOCK_TN) || (2 == AVR_CLOCK_TN)
+#if (0 == AVR_CLOCK_TIMER) || (2 == AVR_CLOCK_TIMER)
 #define AVR_CLOCK_IVL 250
 #else 
 #define AVR_CLOCK_IVL 2000
 //#define AVR_CLOCK_TRIM -3 // 0.15% faster
-#endif // AVR_CLOCK_TN
+#endif // AVR_CLOCK_TIMER
 #endif
 
 
@@ -34,7 +34,7 @@
 
 /***/
 
-#if (1 == AVR_CLOCK_TN)
+#if (1 == AVR_CLOCK_TIMER)
 typedef uint16_t TimerIvl;
 #else
 typedef uint8_t TimerIvl;
@@ -46,15 +46,15 @@ typedef uint8_t TimerIvl;
 // (until compare & reload is working)
 void updateOverflow (TimerIvl ivl)
 {
-#if (2 == AVR_CLOCK_TN)
+#if (2 == AVR_CLOCK_TIMER)
    TCNT2-= ivl;
-#endif // (0 == AVR_CLOCK_TN)
-#if (0 == AVR_CLOCK_TN)
+#endif // (0 == AVR_CLOCK_TIMER)
+#if (0 == AVR_CLOCK_TIMER)
    TCNT0-= ivl;
-#endif // (0 == AVR_CLOCK_TN)
-#if (1 == AVR_CLOCK_TN)
+#endif // (0 == AVR_CLOCK_TIMER)
+#if (1 == AVR_CLOCK_TIMER)
    TCNT1-= ivl;
-#endif // (1 == AVR_CLOCK_TN)
+#endif // (1 == AVR_CLOCK_TIMER)
 } // updateOverflow
 #define UPDATE(ivl) updateOverflow(ivl)
 #else
@@ -63,7 +63,7 @@ void updateOverflow (TimerIvl ivl)
 #else
 void updateOutCmp (TimerIvl ivl)
 {
-#if (2 == AVR_CLOCK_TN)
+#if (2 == AVR_CLOCK_TIMER)
    OCR2A=  ivl - 1;
 #endif
 }
@@ -87,15 +87,15 @@ public:
   
    void start (void) const
    { // TODO - test compare (auto reload) accuracy
-#ifdef AVR_CLOCK_TN
-#if (2 == AVR_CLOCK_TN)
+#ifdef AVR_CLOCK_TIMER
+#if (2 == AVR_CLOCK_TIMER)
       TCNT2=  0;
       OCR2A=  ivl - 1; // set compare interval
       TCCR2A= 1 << WGM21; // CTC 22:21:20=010
       TCCR2B= (1 << CS22);   // 1/64 prescaler @ 16MHz -> 250k ticks/sec, 4us per ms granularity (0.4%)
       TIMSK2= (1 << OCIE2A); // Compare A Interrupt Enable
-#endif // (2 == AVR_CLOCK_TN)
-#endif // AVR_CLOCK_TN
+#endif // (2 == AVR_CLOCK_TIMER)
+#endif // AVR_CLOCK_TIMER
    } // init
   
    void nextIvl (void)
@@ -207,16 +207,16 @@ class CIntervalTimer
    public:
       uint16_t interval, next;
    CIntervalTimer (uint16_t ivl=1000, uint16_t start=0) { interval= ivl; intervalStart(start); }
-   void intervalStart (uint16_t when) { next= when+interval; 
-      Serial.print("ivlSt()="); Serial.println(next); } // Serial.print(now); Serial.print(" "); 
+   void intervalStart (uint16_t when) { next= when+interval; }
+      //Serial.print("ivlSt()="); Serial.println(next); } // Serial.print(now); Serial.print(" "); 
    bool intervalComplete (uint16_t now)
    {
       int16_t d= now - next;
+      //Serial.print("IVLC"); Serial.print(now); Serial.print("-"); Serial.print(next);  Serial.print("="); Serial.println(d);
       return((d >= 0) && (d < interval));
    }
    bool intervalUpdate (uint16_t now, uint16_t rollover=60000)
    {
-      //Serial.print("CIT"); Serial.print(now); Serial.print(" "); Serial.println(next); 
       if (intervalComplete(now))
       {
          next+= interval;
@@ -231,11 +231,11 @@ class CIntervalTimer
 // A high precision crystal resonator <=20ppm, temperature compensation,
 // battery backup and some calendar awareness could facilitate a tolerable
 // chronometer...
-class CClock : public CIntervalTimer
+class CClock : public CIntervalTimer,
 #ifdef AVR_CLOCK_TRIM
-  , public CTrimTimer
+    public CTrimTimer
 #else
-  , public CBaseTimer
+    public CBaseTimer
 #endif
 {
 public:
@@ -279,12 +279,14 @@ public:
       if (max > 5)
       {
          uint8_t hm[2];
+         int8_t n;
          getHM(hm);
-         hex2ChU8(str+0, conv2BCD4(hm[0]));
-         str[2]= ':';
-         hex2ChU8(str+3, conv2BCD4(hm[1]));
-         str[5]= end;
-         return(5+(0!=end));
+         n= hex2ChU8(str+0, conv2BCD4(hm[0]));
+         str[n++]= ':';
+         n+= hex2ChU8(str+n, conv2BCD4(hm[1]));
+         str[n]= end;
+         n+= (0!=end);
+         return(n);
       }
       return(0);
    } // getStrHM
