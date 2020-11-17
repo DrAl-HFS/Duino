@@ -64,30 +64,6 @@ void setSigGen (uint32_t fsr)
 } // setSigGen
 */
 
-void setup (void)
-{
-   noInterrupts();
-   //sei();
-
-   //const uint8_t cs[]={19,18};
-   //gClock.setHM(cs);
-   gClock.start();
-  
-   pinMode(LED_BUILTIN, OUTPUT);
-
-   gSigGen.reg.setFSR(FSR_1KHZ, 0);
-   gSigGen.reg.setFSR(FSR_1KHZ, 1);
-   gSigGen.reg.write();
-   Serial.println("+RST"); // default flags include reset
-
-   Serial.begin(BAUDRATE);
-   Serial.println("SigGen " __DATE__ " " __TIME__);
-   //Serial.println(r);
-   interrupts();//SEI;
-   //cli();
-   gClock.intervalStart();
-} // setup
-
 void sysLog (Stream& s, uint8_t events)
 {
   uint8_t msBCD[3];
@@ -124,11 +100,33 @@ static uint8_t msP=-1;
   gSigGen.changeMon(true);
 } // sysLog
 
+
+void setup (void)
+{
+   noInterrupts();
+   //const uint8_t cs[]={19,18};
+   //gClock.setHM(cs);
+   gClock.start();
+  
+   pinMode(LED_BUILTIN, OUTPUT);
+
+   gSigGen.reg.setFSR(FSR_1KHZ, 0);
+   gSigGen.reg.setFSR(FSR_1KHZ, 1);
+   gSigGen.reg.write(-1);
+
+   Serial.begin(BAUDRATE);
+   Serial.println("SigGen " __DATE__ " " __TIME__);
+   Serial.println("+RST"); // default flags include reset
+   interrupts();
+   gClock.intervalStart();
+   sysLog(Serial,0);
+} // setup
+
 CmdSeg cmd; // Would be temp on stack but problems arise...
-uint8_t lev;
 
 void loop (void)
 {
+//static uint8_t lev;//=0
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
@@ -139,13 +137,13 @@ void loop (void)
       ev|= 0x40;
       gSigGen.apply(cmd);
     }
-    if (lev & 0xF0) { ev|= 0x20; }
+    //if (lev) { ev|= 0x20; }
     if (gSigGen.resetPending()) { Serial.println("+RST"); } // Reset begins (completes next cycle) 
     else { gSigGen.sweepStep(ev&0xF); }
     
-    if ((ev^lev) & 0xF0) { sysLog(Serial,ev); }
+    if (ev & 0xF0) { sysLog(Serial,ev); }
     gSigGen.commit(); // send whatever needs sent
-    lev= ev;
+    //lev^= ev & 0xF0;
   }
 } // loop
 

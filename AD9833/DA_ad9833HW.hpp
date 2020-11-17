@@ -19,6 +19,7 @@
 
 /***/
 
+#ifdef AVR // 328P specific ?
 // Pin number used for SPI select (active low)
 // any logic 1|0 output will do...
 // Just use SS pin - must be an output to prevent
@@ -29,6 +30,7 @@
 // Hardware SPI pins used implicitly
 //#define PIN_SCK SCK   // (#13 on Uno)
 //#define PIN_DAT MOSI  // (#11 on Uno)
+#endif
 
 
 /***/
@@ -74,11 +76,11 @@ public:
 
 //uint16_t rd16BE (const uint8_t b[2]) { return((256*(uint16_t)(b[0])) | b[1]); }
 
-#if (SS == PIN_SEL) // Directly toggle SS=PB2 for performance
+#if (SS == PIN_SEL) // Directly toggle SS (PB2) for performance
 #define SET_SEL_LO() PORTB &= ~(1<<2) // should generate CBI / SBI 
 #define SET_SEL_HI() PORTB |= (1<<2)  // instructions as below
 /* ...arduino.../hardware/tools/avr/avr/include/avr/iom328p.h
-#define SET_SEL_LO() { asm("CBI 0x25, 2"); }
+#define SET_SEL_LO() { asm("CBI 0x25, 2"); } // IO address 0x20 + 0x5 ?
 #define SET_SEL_HI() { asm("SBI 0x25, 2"); }
 TODO - properly comprehend gcc assembler arg handling...
 #define ASM_CBI(port,bit) { asm("CBI %0, %1" : "=r" (port) : "0" (u)); }
@@ -98,14 +100,14 @@ public:
    DA_AD9833SPI ()
    {
       SPI.begin();
-#if (SS != PIN_SEL) // SS is already an output
+#if (PIN_SEL != SS) // SS is already an output
       pinMode(PIN_SEL, OUTPUT);
 #endif
       digitalWrite(PIN_SEL, HIGH);
    }
-   void write (const uint8_t b[], const uint8_t n)
+   void writeSeq (const uint8_t b[], const uint8_t n)
    {
-      stamp(); // significant overheads in Wire lib SPI - throughput 0.3~0.5 MByte/s
+      stamp(); // significant overheads in SPI - throughput 0.3~0.5 MByte/s
       SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2));
       for (uint8_t i=0; i<n; i+= 2)
       {
@@ -118,7 +120,7 @@ public:
       SPI.endTransaction();
       dbgTransClk= diff();
       dbgTransBytes= n;
-   }
+   } // writeSeq
 }; // class DA_AD9833SPI
 
 class DA_AD9833Reg : public DA_AD9833SPI
@@ -130,14 +132,30 @@ public:
       struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[2]; };
    };
    
-   DA_AD9833Reg () { ctrl.u16= AD_F_B28|AD_F_RST; fpr[0].setPAddr(0); fpr[1].setPAddr(1); }
+   DA_AD9833Reg () { ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_RST; fpr[0].setPAddr(0); fpr[1].setPAddr(1); }
    
    void setFSR (uint32_t fsr, const uint8_t ia=0) { fpr[ia].setFSR(fsr); fpr[ia].setFAddr(ia); }
    void setPSR (const uint16_t psr, const uint8_t ia=0) { fpr[ia].setPSR(psr); fpr[ia].setPAddr(ia); }
    
-   void write (uint8_t n=7) { DA_AD9833SPI::write(b, n<<1); }
-   // NB: word index!
-   //const uint8_t *operator [] (const uint8_t i) const { return(b+(i<<1)); }
+   void write (uint8_t f, uint8_t c) { return writeSeq(b+(f<<1), c<<1); }
+   
+   void write (const uint8_t wm=0x7F)
+   {
+      uint8_t tm= wm & 0x7F;
+      if (0x7F == tm) { writeSeq(b, sizeof(b)); }
+      else
+      {
+         uint8_t first=0, count=0;
+         while (0 == (tm & 0x1)) { tm>>= 1; ++first; }
+         while (tm) { tm>>= 1; ++count; }
+         write(first,count);
+      }
+      if ((wm & 0x80) && (ctrl.u8[1] & AD9833_FL1_RST))
+      {
+         ctrl.u8[1]^= AD9833_FL1_RST;
+         writeSeq(b,2);
+      }
+   } // write
 }; // class DA_AD9833Reg
 
 
@@ -273,7 +291,7 @@ class DA_AD9833Control
 public:
    DA_AD9833Reg   reg;
    DA_AD9833Sweep sweep;
-   uint8_t iFN, nr; // sweep function state, # 16bit registers to write
+   uint8_t iFN, rwm; // sweep function state, # 16bit register write mask
    
    DA_AD9833Control () { iFN= 0; } // : DA_AD9833Reg(), DA_AD9833Sweep();
    
@@ -291,21 +309,20 @@ public:
             {
                static const U8 ctrlB0[]={ 0x00, AD9833_FL0_TRI, AD9833_FL0_CLK, AD9833_FL0_CLK|AD9833_FL0_DCLK };
                uint8_t i= (f & 0x7) - 1;
-               if (ctrlB0[i] != reg.ctrl.u8[0]) { reg.ctrl.u8[0]= ctrlB0[i]; } // dMask|= 0x1;
+               if (ctrlB0[i] != reg.ctrl.u8[0]) { reg.ctrl.u8[0]= ctrlB0[i]; rwm|= 0x1; }
                //pR-ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
             }
-            if (f & 0x20) { reg.ctrl.u8[0]^=  AD9833_FL0_SLP1; }  // dMask|= 0x1;
-            if (f & 0x40) { reg.ctrl.u8[0]^=  AD9833_FL0_SLP1|AD9833_FL0_SLP2; }  // dMask|= 0x1;
-            if (f & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; }  // dMask|= 0x1;
-            if (0 != (f & 0xE7)) { nr= max(1,nr); }
+            if (f & 0x20) { reg.ctrl.u8[0]^=  AD9833_FL0_SLP1; rwm|= 0x1; }
+            if (f & 0x40) { reg.ctrl.u8[0]^=  AD9833_FL0_SLP1|AD9833_FL0_SLP2; rwm|= 0x1; }
+            if (f & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; rwm|= 0x81; }
          }
          if ((1 == nV) && (cs.v[0].u > 0))
          {  // Set shadow HW registers directly, leaving sweep state untouched
-            reg.setFSR(cs.v[0].toFSR(), 0); nr= max(3,nr); // dMask|= 0x2;
+            reg.setFSR(cs.v[0].toFSR(), 0); rwm|= 0x6;
          }
          else if (sweep.setParam(cs.v, nV) > 0)
          {
-            reg.setFSR(sweep.getFSR(), 0); nr= max(3,nr); // dMask|= 0x2;
+            reg.setFSR(sweep.getFSR(), 0); rwm|= 0x6;
             if ((0 == iFN) && (0 == (f & 0x10))) { iFN= 1; } // defaultFN
          }
 
@@ -325,8 +342,7 @@ public:
          case 2 : m= 0x82; break; // power "
       }
       m= sweep.stepFSR(nStep, m);
-      reg.setFSR(sweep.getFSR());
-      nr= max(3,nr);
+      reg.setFSR(sweep.getFSR()); rwm|= 0x7; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
    } // sweepStep
    
    uint8_t resetPending (void) { return(reg.ctrl.u8[1] & AD9833_FL1_RST); }
@@ -334,14 +350,13 @@ public:
    {
       if (resetPending())
       {
-         reg.ctrl.u8[1]^= AD9833_FL1_RST;
-         nr= 1; // ctrl only
+         reg.ctrl.u8[1]^= AD9833_FL1_RST; rwm|= 0x1;
          return(true);
       }
       return(false);
    } // resetClear
    
-   void commit (void) { if (nr > 0) { reg.write(nr); nr= 0; } }
+   void commit (void) { if (rwm > 0) { reg.write(rwm); rwm= 0; } }
    
    // 10.737418 * 16 = 171.79869
    uint32_t getF () const { return((reg.fpr[0].getFSR(2)<<2) / 172); }
