@@ -37,6 +37,16 @@ protected:
    void resid (uint8_t r) { last= min(r,0xF); }
 };
 
+void help (Stream& s)
+{
+   s.println("*");
+   s.println("*\tS T C D - waveform: Sin,Tri,Clock,Double");
+   s.println("*\tF - Function (cyclic)");
+   s.println("*\tH O R - set: Hold,On/Off,Reset");
+   s.println("*\t? - help (this text)");
+   s.println("*");
+} // help
+
 class StreamCmd : StreamFilter
 {
 protected:
@@ -76,15 +86,15 @@ protected:
             ch= s.read(); ++n;
             if (isUpperCase(ch))
             {
-               uint8_t t= idxMatch(ch, "STCDWHOR");
+               uint8_t t= idxMatch(ch, "STCDFHOR");
                if (t >= 0)
                { 
                   if (t < 4) { f= (f & 0xF8) | (1+t); } // waveform
-                  else { f|= 1<<t; } // sweep,hold,on/off,reset
+                  else { f|= 1<<t; } // function,hold,on/off,reset
                   ++i;
                   //s.print("SC:"); s.print(ch); s.print(" t:"); s.print(t); s.print(" f:"); s.println(f, HEX);
                }
-            }
+            } else if ('?' == ch) { help(s); }
          }
       } while ((n < a) && (n > n0));
       return swapHiLo4U8(i);
