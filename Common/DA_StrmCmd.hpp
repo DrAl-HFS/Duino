@@ -3,8 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
 
-#ifndef DA_STRM_CMD_H
-#define DA_STRM_CMD_H
+#ifndef DA_STRM_CMD_HPP
+#define DA_STRM_CMD_HPP
 
 #include "DA_Args.hpp"
 
@@ -39,12 +39,29 @@ protected:
 
 void help (Stream& s)
 {
-   s.println("*");
-   s.println("*\tS T C D - waveform: Sin,Tri,Clock,Double");
-   s.println("*\tF - Function (cyclic)");
-   s.println("*\tH O R - set: Hold,On/Off,Reset");
-   s.println("*\t? - help (this text)");
-   s.println("*");
+#if 0
+// PROGMEM - ineffective on multi-dimensional array?
+static 
+const char* st[]=
+{
+   "*\t",
+   "S T C D - waveform: Sin,Tri,Clock,Double",
+   "F - Function (cyclic)",
+   "H O R - set: Hold,On/Off,Reset",
+   "? - help (this text)"
+};
+static const int8_t nST= sizeof(st)/sizeof(st[0]);
+   s.println(st[0]);
+   for (int8_t i=1; i<nST; i++) { s.print(st[0]); s.println(st[i]); }
+   s.println(st[0]);
+#else
+   s.println('*');
+   s.print(F("*\t")); s.println(F("S T C D - waveform: Sin,Tri,Clock,Double"));
+   s.print(F("*\t")); s.println(F("F - Function (cyclic)"));
+   s.print(F("*\t")); s.println(F("H O R - set: Hold,On/Off,Reset"));
+   s.print(F("*\t")); s.println(F("? - help (this text)"));
+   s.println('*');
+#endif
 } // help
 
 class StreamCmd : StreamFilter
@@ -122,4 +139,4 @@ public:
   
 }; // StreamCmd
 
-#endif // DA_STRM_CMD_H
+#endif // DA_STRM_CMD_HPP

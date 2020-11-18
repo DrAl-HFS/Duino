@@ -9,8 +9,8 @@
 /***/
 
 #define BAUDRATE  115200
-#define FSR_1KHZ  10737 // Default signal frequency = F_TO_FSR(1E3) = 1kHz
-
+#define FSR_1KHZ  0x29F1 // Default signal frequency 1kHz, F_TO_FSR(1E3) = 10737
+// 0xFFFF -> 6.103kHz
 
 /***/
 
@@ -22,7 +22,7 @@
 #endif
 
 StreamCmd gStreamCmd;
-DA_AD9833Control gSigGen;
+DA_AD9833Control gSigGen(true);
 CClock gClock(3000,AVR_CLOCK_TRIM);
 
 // Connect clock to timer interupt
@@ -37,32 +37,19 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 #endif // AVR_CLOCK_TN
 
-#ifdef DA_COUNTING_H
+#ifdef DA_COUNTING_HPP
 
 CCountExtBase gCount;
 
 //SIGNAL(TIMER1_OVF_vect) { gCount.o++; }
 ISR(TIMER1_COMPA_vect) { gCount.c++; }
 
-#endif // DA_COUNTING_H
+#endif // DA_COUNTING_HPP
 
 //#ifdef SAMD_CLOCK_TN
 //#endif
 
-/*
-void setSigGen (uint32_t fsr)
-{
-   reg2.ctrl.u16=         (0x0<<14) | AD_F_B28|AD_F_RST;
-   reg2.fpr[0].fr[0].u16= (0x1<<14) | (AD_FS_MASK & fsr);
-   reg2.fpr[0].fr[1].u16= (0x1<<14) | (AD_FS_MASK & (fsr>>14));
-   reg2.fpr[0].pr.u16=    (0x6<<13) | (AD_PS_MASK & psr);
-   reg2.fpr[1].fr[0].u16= (0x2<<14) | (AD_FS_MASK & fsr);
-   reg2.fpr[1].fr[1].u16= (0x2<<14) | (AD_FS_MASK & (fsr>>14));
-   reg2.fpr[1].pr.u16=    (0x7<<13) | (AD_PS_MASK & psr);
-   reg2.ctrl.u16^= AD_F_RST;
-   while ((reg.b[r] == reg2.b[r]) && (r < 14)) { ++r; }
-} // setSigGen
-*/
+char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
 void sysLog (Stream& s, uint8_t events)
 {
@@ -71,24 +58,34 @@ void sysLog (Stream& s, uint8_t events)
   int8_t m=sizeof(str)-1, n=0;
   
   convMilliBCD(msBCD, 1, gClock.tick);
-/*
-  { // DEPRECATE
-static uint8_t msP=-1;
-    if (((0x0F & msBCD[0]) == (0x0F & msP))) return;
-    msP= msBCD[0];
-  }
-*/
+#if 0
   str[n++]= 'V';
   n+= hex2ChU8(str+n, events);
   str[n++]= ' ';
+#endif
+#if 1
+  s.print('G');
+  m=sizeof(gSigGen.reg.guard);
+  for (int i=0; i<m; i++)
+    { s.print(hackCh(gSigGen.reg.guard[i])); }
+  s.println('|');
+  m=sizeof(str)-1;
+#endif
+#if 1
+  str[n++]= 'I';
+  str[n++]= '0'+gSigGen.reg.ix;
+  str[n++]= ' ';
+#endif
   n+= gClock.getStrHM(str+n, m-n, ':');
   n+= hex2ChU8(str+n, msBCD[0]); // seconds
 #if 0
   str[n++]= '.';
   n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
-  n+= snprintf(str+n, m-n, " S%u,B%u,%04X", gSigGen.reg.dbgTransClk, gSigGen.reg.dbgTransBytes, gSigGen.reg.last);
+#if 1
+  n+= snprintf(str+n, m-n, " S%u,B%u", gSigGen.reg.dbgTransClk, gSigGen.reg.dbgTransBytes);
   gSigGen.reg.dbgTransClk= gSigGen.reg.dbgTransBytes= 0;
+#endif
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
 #ifdef DA_COUNTING_H
   n+= snprintf(str+n, m-n, " C=%u ", gCount.c);
@@ -104,7 +101,7 @@ static uint8_t msP=-1;
 void setup (void)
 {
    noInterrupts();
-   //const uint8_t cs[]={19,18};
+   //const uint8_t cs[]={22,35};
    //gClock.setHM(cs);
    gClock.start();
   

@@ -3,8 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
 
-#ifndef DA_ARGS_H
-#define DA_ARGS_H
+#ifndef DA_ARGS_HPP
+#define DA_ARGS_HPP
 
 #include "DA_Util.h"
 
@@ -153,4 +153,4 @@ public:
   operator () (void) const { return(0 != nFV); }
 };
 
-#endif // DA_ARGS_H
+#endif // DA_ARGS_HPP

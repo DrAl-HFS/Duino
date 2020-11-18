@@ -3,8 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
 
-#ifndef DA_TIMING_H
-#define DA_TIMING_H
+#ifndef DA_TIMING_HPP
+#define DA_TIMING_HPP
 
 #include <avr/sleep.h>
 #include "DA_Util.h"
@@ -293,7 +293,7 @@ public:
 
 }; // CClock
 
-#ifdef AVR_FAST_TIMER
+#ifdef AVR_FAST_TIMER // help prevent resource contention disasters...
 class CFastPollTimer
 {
 public:
@@ -330,4 +330,4 @@ public:
 }; // CFastPollTimer
 #endif // AVR_FAST_TIMER
 
-#endif // DA_TIMING_H
+#endif // DA_TIMING_HPP

@@ -6,8 +6,8 @@
 
 // HW Ref:  http://www.analog.com/media/en/technical-documentation/data-sheets/AD9833.pdf
 
-#ifndef DA_AD9833_HW_H
-#define DA_AD9833_HW_H
+#ifndef DA_AD9833_HW_HPP
+#define DA_AD9833_HW_HPP
 
 #include <SPI.h>
 
@@ -46,30 +46,31 @@ public:
    
    void setFSR (const uint32_t fsr)
    {
-      fr[0].u16=  AD_FS_MASK & fsr;
-      fr[1].u16=  AD_FS_MASK & (fsr >> 14);
+      fr[0].u16=  AD9833_FS_MASK & fsr;
+      fr[1].u16=  AD9833_FS_MASK & (fsr >> 14);
    } // setFSR
 //=0
    uint32_t getFSR (uint8_t lsh) const
    {
       switch(lsh)
       {
-         case 2 : return( (fr[0].u16 << 2) | (((uint32_t)fr[1].u16 & AD_FS_MASK) << 16) );
-         default : return( (fr[0].u16 & AD_FS_MASK) | (((uint32_t)fr[1].u16 & AD_FS_MASK) << 14) );
+         case 2 : return( (fr[0].u16 << 2) | (((uint32_t)fr[1].u16 & AD9833_FS_MASK) << 16) );
+         default : return( (fr[0].u16 & AD9833_FS_MASK) | (((uint32_t)fr[1].u16 & AD9833_FS_MASK) << 14) );
       }
    } // getFSR
 
-   void setPSR (const uint16_t psr) { pr.u16= AD_PS_MASK & psr; }
+   void setPSR (const uint16_t psr) { pr.u16= AD9833_PS_MASK & psr; }
    
    // Masking of address bits. NB: assumes all zero! 
    
    void setFAddr (const uint8_t ia) // assert((ia & 0x1) == ia));
    {  // High (MS) bytes - odd numbered in little endian order
-      fr[0].u8[1]|= ((ia+0x1)<<6);
-      fr[1].u8[1]|= ((ia+0x1)<<6);
+      const uint8_t a= (ia+0x1) << 6;
+      fr[0].u8[1]|= a;
+      fr[1].u8[1]|= a;
    } // setFAddr
    
-   void setPAddr (const uint8_t ia) { pr.u8[1]|= ((0x6+ia)<<5); }
+   void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
 
 #include "Common/DA_Timing.hpp"
@@ -95,19 +96,24 @@ TODO - properly comprehend gcc assembler arg handling...
 class DA_AD9833SPI : public CFastPollTimer
 {
 public:
+#ifdef DA_TIMING_HPP
    uint8_t dbgTransClk, dbgTransBytes;
-
+#endif // DA_TIMING_HPP
    DA_AD9833SPI ()
    {
       SPI.begin();
 #if (PIN_SEL != SS) // SS is already an output
       pinMode(PIN_SEL, OUTPUT);
-#endif
+#endif // PIN_SEL
       digitalWrite(PIN_SEL, HIGH);
    }
    void writeSeq (const uint8_t b[], const uint8_t n)
    {
-      stamp(); // significant overheads in SPI - throughput 0.3~0.5 MByte/s
+#ifdef DA_TIMING_HPP
+      // Direct twiddling of select-pin helps performance but variable latency
+      // ('duino interrupts & setup?) results in throughput of 0.6~0.8 MByte/s
+      stamp();
+#endif // DA_TIMING_HPP
       SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2));
       for (uint8_t i=0; i<n; i+= 2)
       {
@@ -118,8 +124,10 @@ public:
          SET_SEL_HI(); // Rising edge latches to target register
       }
       SPI.endTransaction();
+#ifdef DA_TIMING_HPP
       dbgTransClk= diff();
       dbgTransBytes= n;
+#endif // DA_TIMING_HPP
    } // writeSeq
 }; // class DA_AD9833SPI
 
@@ -131,11 +139,34 @@ public:
       byte b[14]; // compatibility hack
       struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[2]; };
    };
+//protected:
+   uint8_t guard[3], ix; // dbg hack
+public:
+
+   DA_AD9833Reg (bool inv=false)
+   {
+      for (int8_t i=0; i<sizeof(guard); i++) { guard[i]= 0; }
+      ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_RST;
+      if (inv)
+      {  // register order inversion test: behaviour is same...
+         ctrl.u8[1]|= AD9833_FL1_FSEL|AD9833_FL1_PSEL;
+         ix= 1;
+      } else ix= 0; // (default??)
+      fpr[0].setPAddr(ix); fpr[1].setPAddr(ix^1);
+   } // DA_AD9833Reg
    
-   DA_AD9833Reg () { ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_RST; fpr[0].setPAddr(0); fpr[1].setPAddr(1); }
-   
-   void setFSR (uint32_t fsr, const uint8_t ia=0) { fpr[ia].setFSR(fsr); fpr[ia].setFAddr(ia); }
-   void setPSR (const uint16_t psr, const uint8_t ia=0) { fpr[ia].setPSR(psr); fpr[ia].setPAddr(ia); }
+   void setFSR (uint32_t fsr, const uint8_t ia=0)
+   { 
+      fpr[ia].setFSR(fsr);
+      if (ix > 1) { fpr[ia].setFAddr(ia); }
+      else { fpr[ia].setFAddr(ia^ix); }
+   }
+   void setPSR (const uint16_t psr, const uint8_t ia=0)
+   {
+      fpr[ia].setPSR(psr);
+      if (ix > 1) { fpr[ia].setPAddr(ia); }
+      else { fpr[ia].setPAddr(ia^ix); }
+   }
    
    void write (uint8_t f, uint8_t c) { return writeSeq(b+(f<<1), c<<1); }
    
@@ -285,6 +316,7 @@ public:
 }; // DA_AD9833Sweep
 
 #define FMMM 0x3
+#define FUGM 0x6 // frequency update glitch mask
 
 class DA_AD9833Control
 {
@@ -293,7 +325,7 @@ public:
    DA_AD9833Sweep sweep;
    uint8_t iFN, rwm; // sweep function state, # 16bit register write mask
    
-   DA_AD9833Control () { iFN= 0; } // : DA_AD9833Reg(), DA_AD9833Sweep();
+   DA_AD9833Control (bool regInv=false) { reg= DA_AD9833Reg(regInv); } // iFN= 0, DA_AD9833Sweep();
    
    void apply (CmdSeg& cs)
    {
@@ -334,13 +366,13 @@ static const U8 ctrlB0[]=
          }
          if ((1 == nV) && (cs.v[0].u > 0))
          {  // Set shadow HW registers directly, leaving sweep state untouched
-            reg.setFSR(cs.v[0].toFSR(), 0); rwm|= 0x7; // no phase glitch when ctrl written
+            reg.setFSR(cs.v[0].toFSR(), 0); rwm|= FUGM; // no phase glitch when ctrl written
             iFN= 0; // disable sweep functions
          }
          else if (sweep.setParam(cs.v, nV) > 0)
          {
-            reg.setFSR(sweep.getFSR(), 0); rwm|= 0x7; // no phase glitch when ctrl written
-            if ((0 == iFN) && (0 == (f & 0x10))) { iFN= 1; } // defaultFN
+            reg.setFSR(sweep.getFSR(), 0); rwm|= FUGM; // no phase glitch when ctrl written
+            if ((0 == iFN) && (0 == (f & 0x10))) { iFN= 1; } // auto-on if off : defaultFN
          }
 
          cs.clean();
@@ -359,7 +391,7 @@ static const U8 ctrlB0[]=
          case 2 : m= 0x82; break; // power "
       }
       m= sweep.stepFSR(nStep, m);
-      reg.setFSR(sweep.getFSR()); rwm|= 0x7; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
+      reg.setFSR(sweep.getFSR()); rwm|= FUGM; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
    } // sweepStep
    
    uint8_t resetPending (void) { return(reg.ctrl.u8[1] & AD9833_FL1_RST); }
@@ -402,4 +434,4 @@ static const U8 ctrlB0[]=
    }
 }; // DA_AD9833Control
 
-#endif // DA_AD9833_HW_H
+#endif // DA_AD9833_HW_HPP

@@ -3,8 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Oct-Nov 2020
 
-#ifndef DA_COUNTING_H
-#define DA_COUNTING_H
+#ifndef DA_COUNTING_HPP
+#define DA_COUNTING_HPP
 
 //#include <?>
 
@@ -55,5 +55,5 @@ public:
 }; // CCountExtBase 
 
 
-#endif //  DA_COUNTING_H
+#endif //  DA_COUNTING_HPP
 
