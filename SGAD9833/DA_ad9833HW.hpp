@@ -38,28 +38,28 @@
 // Classes are used because Arduino has limited support for modularisation and sanitary source reuse.
 // Default build settings (minimise size) prevent default class-method-declaration inlining
 class DA_AD9833FreqPhaseReg
-{
-public:
+{  // Associate registers for frequency (pair) and phase to simplify higher API -
+public:  // - not concerned with frequency/phase-shift keying...
    UU16 fr[2], pr;
    
    DA_AD9833FreqPhaseReg  () {;} // should all be zero on reset
    
    void setFSR (const uint32_t fsr)
    {
-      fr[0].u16=  AD9833_FS_MASK & fsr;
-      fr[1].u16=  AD9833_FS_MASK & (fsr >> 14);
+      fr[0].u16=  AD9833_FSR_MASK & fsr;
+      fr[1].u16=  AD9833_FSR_MASK & (fsr >> 14);
    } // setFSR
 //=0
    uint32_t getFSR (uint8_t lsh) const
    {
       switch(lsh)
       {
-         case 2 : return( (fr[0].u16 << 2) | (((uint32_t)fr[1].u16 & AD9833_FS_MASK) << 16) );
-         default : return( (fr[0].u16 & AD9833_FS_MASK) | (((uint32_t)fr[1].u16 & AD9833_FS_MASK) << 14) );
+         case 2 : return( (fr[0].u16 << 2) | (((uint32_t)fr[1].u16 & AD9833_FSR_MASK) << 16) );
+         default : return( (fr[0].u16 & AD9833_FSR_MASK) | (((uint32_t)fr[1].u16 & AD9833_FSR_MASK) << 14) );
       }
    } // getFSR
 
-   void setPSR (const uint16_t psr) { pr.u16= AD9833_PS_MASK & psr; }
+   void setPSR (const uint16_t psr) { pr.u16= AD9833_PSR_MASK & psr; }
    
    // Masking of address bits. NB: assumes all zero! 
    
@@ -69,6 +69,14 @@ public:
       fr[0].u8[1]|= a;
       fr[1].u8[1]|= a;
    } // setFAddr
+   
+   void setZeroFSR (const uint8_t ia)
+   {  // zero data, set address
+      const uint8_t a= (ia+0x1) << 6;
+      fr[1].u8[0]= fr[0].u8[0]= 0;
+      fr[1].u8[1]= fr[0].u8[1]= a;
+   } // setZeroFSR
+   bool isZeroFSR (void) { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); }
    
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
@@ -140,32 +148,31 @@ public:
       struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[2]; };
    };
 //protected:
-   uint8_t guard[3], ix; // dbg hack
+//   uint8_t guard[3], ix; // dbg hack
 public:
 
-   DA_AD9833Reg (bool inv=false)
+   DA_AD9833Reg (void)
    {
-      for (int8_t i=0; i<sizeof(guard); i++) { guard[i]= 0; }
       ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_RST;
-      if (inv)
-      {  // register order inversion test: behaviour is same...
-         ctrl.u8[1]|= AD9833_FL1_FSEL|AD9833_FL1_PSEL;
-         ix= 1;
-      } else ix= 0; // (default??)
-      fpr[0].setPAddr(ix); fpr[1].setPAddr(ix^1);
+      fpr[0].setPAddr(0); fpr[1].setPAddr(1);
+      // register order inversion test: no change...
+      //if (inv) { ix= 1; ctrl.u8[1]|= AD9833_FL1_FSEL|AD9833_FL1_PSEL; }
    } // DA_AD9833Reg
    
    void setFSR (uint32_t fsr, const uint8_t ia=0)
    { 
       fpr[ia].setFSR(fsr);
-      if (ix > 1) { fpr[ia].setFAddr(ia); }
-      else { fpr[ia].setFAddr(ia^ix); }
+      fpr[ia].setFAddr(ia);
+      //else { fpr[ia].setFAddr(ia^ix); }
    }
+   void setZeroFSR (const uint8_t ia=0) { fpr[ia].setZeroFSR(ia); }
+   bool isZeroFSR (const uint8_t ia=0) { fpr[ia].isZeroFSR(); }
+   
    void setPSR (const uint16_t psr, const uint8_t ia=0)
    {
       fpr[ia].setPSR(psr);
-      if (ix > 1) { fpr[ia].setPAddr(ia); }
-      else { fpr[ia].setPAddr(ia^ix); }
+      fpr[ia].setPAddr(ia);
+      //else { fpr[ia].setPAddr(ia^ix); }
    }
    
    void write (uint8_t f, uint8_t c) { return writeSeq(b+(f<<1), c<<1); }
@@ -238,7 +245,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    } // set
 
 public:
-   DA_AD9833Sweep () { ; }
+   DA_AD9833Sweep (void) { ; }
    
    int8_t setParam (USciExp v[], int8_t n)
    {
@@ -308,74 +315,128 @@ public:
    void logK (Stream& s=Serial) const
    {
       //s.print("df="); s.print(range); s.print(" dt="); s.print(dt);
-      s.print(" sLin="); s.print(sLin); 
+      s.print("\tsLin="); s.print(sLin); 
       s.print(" rPow="); s.print(rPow,HEX); 
-      s.print(" f="); s.println(fsr.u32);
+      s.print(" f="); s.print(fsr.u32);
       s.print(" q="); s.print(q52.u32[1],HEX); s.print(":"); s.println(q52.u32[0],HEX);
    }
 }; // DA_AD9833Sweep
 
-#define FMMM 0x3
-#define FUGM 0x6 // frequency update glitch mask
+#define FMMM 0x3 // function mode mask
+#define FUGM 0x7 // frequency update (de-)glitch mask
 
+// set/clear/flip mask byte
+uint8_t scfByte (uint8_t b, uint8_t m, int8_t opr)
+{
+   if (opr < 0) { return(b ^ m); }
+   else if (0 == opr) { return(b & ~m); }
+   else { return(b | m); }
+} // maskByte
+
+// Top level API provides convenience and sanity (?) checking
 class DA_AD9833Control
 {
+//protected:
 public:
    DA_AD9833Reg   reg;
    DA_AD9833Sweep sweep;
-   uint8_t iFN, rwm; // sweep function state, # 16bit register write mask
+   uint32_t fsr;  // backup for hold feature
+   uint8_t iFN, rwm; // sweep function state, write mask for hardware registers (16bit per flag)
    
-   DA_AD9833Control (bool regInv=false) { reg= DA_AD9833Reg(regInv); } // iFN= 0, DA_AD9833Sweep();
+   DA_AD9833Control (void) { iFN= 0; rwm= 0; } // , DA_AD9833Sweep();
+   
+   int8_t waveform (int8_t w=0) // overwrite any sleep/hold setting
+   {
+static const U8 ctrlB0[]=
+{ 
+   0x00,  // sine wave
+   AD9833_FL0_TRI, // triangular (symmetric)
+   AD9833_FL0_OCLK|AD9833_FL0_SLP_DAC, // clock output (clock running, DAC off)
+   AD9833_FL0_OCLK|AD9833_FL0_DCLK|AD9833_FL0_SLP_DAC // doubled "
+};
+      if ((w >= 0) && (w < 4))
+      {  // lazy change if (ctrlB0[w] != reg.ctrl.u8[0]) { 
+         reg.ctrl.u8[0]= ctrlB0[w];
+         return(w);
+      }
+      return(-1);
+   } // waveform
+   
+   int8_t mclock (int8_t scf=-1) // seems useless (output zero for all waveforms, hardware bug?)
+   {  // master clock required in clock modes...
+      if (0 == (reg.ctrl.u8[0] & AD9833_FL0_OCLK))
+      {
+         reg.ctrl.u8[0]= scfByte(reg.ctrl.u8[0], AD9833_FL0_SLP_MCLK, scf);
+         return((reg.ctrl.u8[0] & AD9833_FL0_SLP_MCLK) > 0);
+      }
+      return(-1);
+   } // mclock
+   
+   int8_t hold (int8_t scf=-1)
+   {  // hold voltage output - mclock(); broken so zero fsr registers
+      if (scf < 0) { scf= 0x1 ^ reg.isZeroFSR(); }
+      if (0 == scf) { reg.setZeroFSR(); reg.setPSR(0x3FF); }
+      else { reg.setFSR(fsr); } // restore backup copy
+      return(scf);
+   } // hold
+   
+   int8_t onOff (int8_t scf=-1)
+   {  // toggle MCLK & DAC together
+      if (scf < 0)
+      {  // any on -> off, all off -> all on
+         scf= 0x1 ^ ((reg.ctrl.u8[0] & (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_MCLK)) > 0);
+      }
+      reg.ctrl.u8[0]= scfByte(reg.ctrl.u8[0], AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_MCLK, scf);
+      //if (0 == stateFlip) { reg.ctrl.u8[0] &= ~(AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_MCLK); } // all off,
+      //else { reg.ctrl.u8[0] |= (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_MCLK); } // all on
+      return(scf);
+   } // onOff
    
    void apply (CmdSeg& cs)
    {
       if (cs())
       {
-         uint8_t f= cs.cmdF[0];
          uint8_t nV= cs.getNV();
-         
-         if (f)
-         {  //Serial.print("*f="); Serial.println(f,HEX);
-            if (f & 0x10) { ++iFN; }
-            if (f & 0x7)
+
+         if (cs.cmdF[0] & 0xF0)
+         {
+            if (cs.cmdF[0] & 0x10)
+            { 
+               iFN= ++iFN & FMMM;
+               if (0 == iFN) { reg.setFSR(fsr, 0); rwm|= FUGM; Serial.print("fsr="); Serial.println(fsr); }
+               cs.cmdR[0]|= 0x10;
+            }
+            if (cs.cmdF[0] & 0x20)
             {
-static const U8 ctrlB0[]=
-{ 
-   0x00,  // sine wave
-   AD9833_FL0_TRI, // triangular (symmetric)
-   AD9833_FL0_CLK|AD9833_FL0_SLP_DAC, // clock output (clock running, DAC off)
-   AD9833_FL0_CLK|AD9833_FL0_DCLK|AD9833_FL0_SLP_DAC // doubled "
-};
-               uint8_t i= (f & 0x7) - 1; // lazy change
-               if (ctrlB0[i] != reg.ctrl.u8[0]) { reg.ctrl.u8[0]= ctrlB0[i]; rwm|= 0x1; }
-               //pR-ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
-            }
-            if (f & 0x20)
-            {  // leave DAC off in clock modes
-               if (0 == (reg.ctrl.u8[0] & AD9833_FL0_CLK))
-               { reg.ctrl.u8[0]^= AD9833_FL0_SLP_DAC; rwm|= 0x1; }
+               hold(); cs.cmdR[0]|= 0x40;
+               //if ((mclock() | hold()) >= 0) { rwm|= 0x1; }
             } 
-            if (f & 0x40) // on/off
-            {  // toggle MCLK & DAC together
-               if (reg.ctrl.u8[0] & (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_CLK)) // any on -> 
-               { reg.ctrl.u8[0] &= ~(AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_CLK); } // all off,
-               else { reg.ctrl.u8[0] |= (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_CLK); } // all on
-               rwm|= 0x1;
+            if (cs.cmdF[0] & 0x40) // on/off
+            {  
+               onOff(); cs.cmdR[0]|= 0x80;
+               //if (onOff() >= 0) { rwm|= 0x1; }
             }
-            if (f & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; rwm|= 0x81; }
+            if (cs.cmdF[0] & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; rwm|= 0x81; cs.cmdR[0]|= 0x80; }
+            else if (cs.cmdR[0] & 0x60) { rwm|= 0x1; }
+         }
+         if (cs.cmdF[1] & 0x0F)
+         {
+            waveform(cs.cmdF[1] & 0x3); cs.cmdR[1]|= cs.cmdF[1] & 0x0F; rwm|= 0x1;
+            //reg.ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
          }
          if ((1 == nV) && (cs.v[0].u > 0))
-         {  // Set shadow HW registers directly, leaving sweep state untouched
-            reg.setFSR(cs.v[0].toFSR(), 0); rwm|= FUGM; // no phase glitch when ctrl written
+         {  // Set backup & shadow HW registers (sweep state remains independant)
+            fsr= cs.v[0].toFSR();
+            // if (0 == iFN) ???
+            reg.setFSR(fsr, 0); rwm|= FUGM; // avoid phase discontinuity
             iFN= 0; // disable sweep functions
          }
          else if (sweep.setParam(cs.v, nV) > 0)
          {
             reg.setFSR(sweep.getFSR(), 0); rwm|= FUGM; // no phase glitch when ctrl written
-            if ((0 == iFN) && (0 == (f & 0x10))) { iFN= 1; } // auto-on if off : defaultFN
+            if ((0 == iFN) && (0 == (cs.cmdR[0] & 0x10))) { iFN= 1; } // auto-on if off : defaultFN
          }
 
-         cs.clean();
          iFN&= FMMM;
          //changeMon(true);
       }
@@ -414,7 +475,7 @@ static const U8 ctrlB0[]=
    uint8_t lastFN;
    void changeMon (bool force=false, const char *ids=NULL)
    {
-      if (iFN > 0) { sweep.logK(); }
+      //if (iFN > 0) { sweep.logK(); }
       if (force || (iFN != lastFN))
       {
          if (ids) { Serial.print(ids); }

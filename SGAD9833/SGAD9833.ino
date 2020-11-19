@@ -22,14 +22,14 @@
 #endif
 
 StreamCmd gStreamCmd;
-DA_AD9833Control gSigGen(true);
-CClock gClock(3000,AVR_CLOCK_TRIM);
+DA_AD9833Control gSigGen;
+CClock gClock(15000,AVR_CLOCK_TRIM);
 
-// Connect clock to timer interupt
-// SIGNAL blocks other ISRs - check use of sleep()
 #ifdef AVR_CLOCK_TIMER
 
 #if (2 == AVR_CLOCK_TIMER)
+// Connect clock to timer interrupt
+// SIGNAL blocks other ISRs - check use of sleep()
 SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 //SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
 //SIGNAL(TIMER2_OCB_vect) { gClock.nextIvl(); }
@@ -63,19 +63,6 @@ void sysLog (Stream& s, uint8_t events)
   n+= hex2ChU8(str+n, events);
   str[n++]= ' ';
 #endif
-#if 1
-  s.print('G');
-  m=sizeof(gSigGen.reg.guard);
-  for (int i=0; i<m; i++)
-    { s.print(hackCh(gSigGen.reg.guard[i])); }
-  s.println('|');
-  m=sizeof(str)-1;
-#endif
-#if 1
-  str[n++]= 'I';
-  str[n++]= '0'+gSigGen.reg.ix;
-  str[n++]= ' ';
-#endif
   n+= gClock.getStrHM(str+n, m-n, ':');
   n+= hex2ChU8(str+n, msBCD[0]); // seconds
 #if 0
@@ -93,8 +80,8 @@ void sysLog (Stream& s, uint8_t events)
   str[n++]= ' ';
   str[n]= 0;
 #endif
-  s.print(str);
-  gSigGen.changeMon(true);
+  s.println(str);
+  gSigGen.changeMon();
 } // sysLog
 
 
@@ -107,8 +94,9 @@ void setup (void)
   
    pinMode(LED_BUILTIN, OUTPUT);
 
-   gSigGen.reg.setFSR(FSR_1KHZ, 0);
-   gSigGen.reg.setFSR(FSR_1KHZ, 1);
+   gSigGen.fsr= FSR_1KHZ;
+   gSigGen.reg.setFSR(gSigGen.fsr, 0);
+   gSigGen.reg.setFSR(gSigGen.fsr, 1);
    gSigGen.reg.write(-1);
 
    Serial.begin(BAUDRATE);
@@ -134,11 +122,24 @@ void loop (void)
       ev|= 0x40;
       gSigGen.apply(cmd);
     }
+
+    //if (ev & 0x40) { Serial.print("1)rwm="); Serial.println(gSigGen.rwm,HEX); }
+
     //if (lev) { ev|= 0x20; }
     if (gSigGen.resetPending()) { Serial.println("+RST"); } // Reset begins (completes next cycle) 
     else { gSigGen.sweepStep(ev&0xF); }
+
+    //if (ev & 0x40) { Serial.print("2)rwm="); Serial.println(gSigGen.rwm,HEX); }
     
-    if (ev & 0xF0) { sysLog(Serial,ev); }
+    if (ev & 0xF0)
+    { 
+      sysLog(Serial,ev);
+      if (ev & 0x40)
+      {
+        gStreamCmd.respond(cmd,Serial);
+        cmd.clean();
+      }
+    }
     gSigGen.commit(); // send whatever needs sent
     //lev^= ev & 0xF0;
   }
