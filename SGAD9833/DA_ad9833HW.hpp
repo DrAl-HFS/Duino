@@ -41,9 +41,9 @@ class DA_AD9833FreqPhaseReg
 {  // Associate registers for frequency (pair) and phase to simplify higher API -
 public:  // - not concerned with frequency/phase-shift keying...
    UU16 fr[2], pr;
-   
+
    DA_AD9833FreqPhaseReg  () {;} // should all be zero on reset
-   
+
    void setFSR (const uint32_t fsr)
    {
       fr[0].u16=  AD9833_FSR_MASK & fsr;
@@ -60,16 +60,16 @@ public:  // - not concerned with frequency/phase-shift keying...
    } // getFSR
 
    void setPSR (const uint16_t psr) { pr.u16= AD9833_PSR_MASK & psr; }
-   
+
    // Masking of address bits. NB: assumes all zero! 
-   
+
    void setFAddr (const uint8_t ia) // assert((ia & 0x1) == ia));
    {  // High (MS) bytes - odd numbered in little endian order
       const uint8_t a= (ia+0x1) << 6;
       fr[0].u8[1]|= a;
       fr[1].u8[1]|= a;
    } // setFAddr
-   
+
    void setZeroFSR (const uint8_t ia)
    {  // zero data, set address
       const uint8_t a= (ia+0x1) << 6;
@@ -77,7 +77,7 @@ public:  // - not concerned with frequency/phase-shift keying...
       fr[1].u8[1]= fr[0].u8[1]= a;
    } // setZeroFSR
    bool isZeroFSR (void) { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); }
-   
+
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
 
@@ -143,7 +143,7 @@ class DA_AD9833Reg : public DA_AD9833SPI
 {
 public:
    union
-   { 
+   {
       byte b[14]; // compatibility hack
       struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[2]; };
    };
@@ -158,25 +158,25 @@ public:
       // register order inversion test: no change...
       //if (inv) { ix= 1; ctrl.u8[1]|= AD9833_FL1_FSEL|AD9833_FL1_PSEL; }
    } // DA_AD9833Reg
-   
+
    void setFSR (uint32_t fsr, const uint8_t ia=0)
-   { 
+   {
       fpr[ia].setFSR(fsr);
       fpr[ia].setFAddr(ia);
       //else { fpr[ia].setFAddr(ia^ix); }
    }
    void setZeroFSR (const uint8_t ia=0) { fpr[ia].setZeroFSR(ia); }
    bool isZeroFSR (const uint8_t ia=0) { fpr[ia].isZeroFSR(); }
-   
+
    void setPSR (const uint16_t psr, const uint8_t ia=0)
    {
       fpr[ia].setPSR(psr);
       fpr[ia].setPAddr(ia);
       //else { fpr[ia].setPAddr(ia^ix); }
    }
-   
+
    void write (uint8_t f, uint8_t c) { return writeSeq(b+(f<<1), c<<1); }
-   
+
    void write (const uint8_t wm=0x7F)
    {
       uint8_t tm= wm & 0x7F;
@@ -208,7 +208,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    int32_t  sLin; // linear step
    uint32_t rPow; // power-law (growth) rate
    UU64 q52; // temp val
-   
+
    // Primitive operations
    uint8_t setF (USciExp fv[2])
    {
@@ -223,7 +223,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
       if (0 == fsr.u32) { fsr.u32= fsrLim[0]; }
       return(m);
    } // setF
-   
+
    bool setDT (USciExp v[1])
    {
       uint32_t t= dt;
@@ -232,7 +232,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
       else { dt= v[0].u * uexp10(3+v[0].e); }
       return(dt != t);
    } // setDT
-   
+
    int8_t setFT (USciExp v[], int8_t n)
    {
       int8_t r=0;
@@ -246,7 +246,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
 
 public:
    DA_AD9833Sweep (void) { ; }
-   
+
    int8_t setParam (USciExp v[], int8_t n)
    {
       int8_t r= setFT(v,n);
@@ -282,7 +282,7 @@ public:
       {
          if ((mode & 0x1) && (fsr.u32 < fsrLim[0])) { actState|= 0x1; }
          if ((mode & 0x2) && (fsr.u32 > fsrLim[1])) { actState|= 0x2; }
-         
+
          if ((actState >= 0x1) && (actState <= 0x2)) // ignore if limits not distinct
          {  // TODO : time-conserving wrap & mirror ?
             if (mode & 0x03)
@@ -309,9 +309,9 @@ public:
       }
       return(actState);
    } // stepFSR
-   
+
    uint32_t getFSR (void) const { if (fsr.u32 > 0) { return(fsr.u32); } else return(12345); }
-   
+
    void logK (Stream& s=Serial) const
    {
       //s.print("df="); s.print(range); s.print(" dt="); s.print(dt);
@@ -342,13 +342,13 @@ public:
    DA_AD9833Sweep sweep;
    uint32_t fsr;  // backup for hold feature
    uint8_t iFN, rwm; // sweep function state, write mask for hardware registers (16bit per flag)
-   
+
    DA_AD9833Control (void) { iFN= 0; rwm= 0; } // , DA_AD9833Sweep();
-   
+
    int8_t waveform (int8_t w=0) // overwrite any sleep/hold setting
    {
 static const U8 ctrlB0[]=
-{ 
+{
    0x00,  // sine wave
    AD9833_FL0_TRI, // triangular (symmetric)
    AD9833_FL0_OCLK|AD9833_FL0_SLP_DAC, // clock output (clock running, DAC off)
@@ -361,7 +361,7 @@ static const U8 ctrlB0[]=
       }
       return(-1);
    } // waveform
-   
+
    int8_t mclock (int8_t scf=-1) // seems useless (output zero for all waveforms, hardware bug?)
    {  // master clock required in clock modes...
       if (0 == (reg.ctrl.u8[0] & AD9833_FL0_OCLK))
@@ -371,15 +371,15 @@ static const U8 ctrlB0[]=
       }
       return(-1);
    } // mclock
-   
+
    int8_t hold (int8_t scf=-1)
    {  // hold voltage output - mclock(); broken so zero fsr registers
-      if (scf < 0) { scf= 0x1 ^ reg.isZeroFSR(); }
-      if (0 == scf) { reg.setZeroFSR(); reg.setPSR(0x3FF); }
-      else { reg.setFSR(fsr); } // restore backup copy
+      if (scf < 0) { scf= reg.isZeroFSR(); }
+      if (0 == scf) { reg.setZeroFSR(); reg.setPSR(0xFF); }
+      else { reg.setFSR(fsr); reg.setPSR(0); } // restore backup copy
       return(scf);
    } // hold
-   
+
    int8_t onOff (int8_t scf=-1)
    {  // toggle MCLK & DAC together
       if (scf < 0)
@@ -391,37 +391,34 @@ static const U8 ctrlB0[]=
       //else { reg.ctrl.u8[0] |= (AD9833_FL0_SLP_DAC|AD9833_SH0_SLP_MCLK); } // all on
       return(scf);
    } // onOff
-   
+
    void apply (CmdSeg& cs)
    {
       if (cs())
       {
-         uint8_t nV= cs.getNV();
+         uint8_t t, nV= cs.getNV();
 
          if (cs.cmdF[0] & 0xF0)
          {
             if (cs.cmdF[0] & 0x10)
-            { 
-               iFN= ++iFN & FMMM;
-               if (0 == iFN) { reg.setFSR(fsr, 0); rwm|= FUGM; Serial.print("fsr="); Serial.println(fsr); }
+            {
+               iFN= ++iFN & FMMM;   // check if function parameters defined ???
+               if (0 == iFN)
+               {
+                  reg.setFSR(fsr, 0);
+                  cs.cmdS|= 0x10;
+                  rwm|= FUGM;
+               }
                cs.cmdR[0]|= 0x10;
             }
-            if (cs.cmdF[0] & 0x20)
-            {
-               hold(); cs.cmdR[0]|= 0x40;
-               //if ((mclock() | hold()) >= 0) { rwm|= 0x1; }
-            } 
-            if (cs.cmdF[0] & 0x40) // on/off
-            {  
-               onOff(); cs.cmdR[0]|= 0x80;
-               //if (onOff() >= 0) { rwm|= 0x1; }
-            }
-            if (cs.cmdF[0] & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; rwm|= 0x81; cs.cmdR[0]|= 0x80; }
-            else if (cs.cmdR[0] & 0x60) { rwm|= 0x1; }
+            if (cs.cmdF[0] & 0x20) { t= hold(); if (t >= 0) { cs.cmdR[0]|= 0x20; cs.cmdS|= t<<5; rwm|= 0xF; } } 
+            if (cs.cmdF[0] & 0x40) { t= onOff(); if (t >= 0) { cs.cmdR[0]|= 0x40; cs.cmdS|= t<<6; } }
+            if (cs.cmdF[0] & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x80; cs.cmdS|= 0x80; rwm|= 0x81; }
+            else if (cs.cmdR[0]) { rwm|= 0x1; }
          }
          if (cs.cmdF[1] & 0x0F)
          {
-            waveform(cs.cmdF[1] & 0x3); cs.cmdR[1]|= cs.cmdF[1] & 0x0F; rwm|= 0x1;
+            if (waveform(cs.cmdF[1] & 0x3) >= 0) { cs.cmdR[1]|= cs.cmdF[1] & 0x0F; rwm|= 0x1; }
             //reg.ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
          }
          if ((1 == nV) && (cs.v[0].u > 0))
@@ -441,7 +438,7 @@ static const U8 ctrlB0[]=
          //changeMon(true);
       }
    } // apply
-   
+
    void sweepStep (uint8_t nStep)
    {
       uint8_t m=0;
@@ -454,7 +451,7 @@ static const U8 ctrlB0[]=
       m= sweep.stepFSR(nStep, m);
       reg.setFSR(sweep.getFSR()); rwm|= FUGM; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
    } // sweepStep
-   
+
    uint8_t resetPending (void) { return(reg.ctrl.u8[1] & AD9833_FL1_RST); }
    bool resetClear (void)
    {
@@ -465,9 +462,9 @@ static const U8 ctrlB0[]=
       }
       return(false);
    } // resetClear
-   
+
    void commit (void) { if (rwm > 0) { reg.write(rwm); rwm= 0; } }
-   
+
    // 10.737418 * 16 = 171.79869
    uint32_t getF () const { return((reg.fpr[0].getFSR(2)<<2) / 172); }
 
@@ -488,7 +485,7 @@ static const U8 ctrlB0[]=
          }
       }
    }
-   
+
    int8_t getModeCh (char mc[], int8_t max) const
    {
       if (reg.ctrl.u8[0] & AD9833_FL0_TRI) { mc[0]= 'T'; }

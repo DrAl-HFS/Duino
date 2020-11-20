@@ -10,7 +10,7 @@
 
 #define BAUDRATE  115200
 #define FSR_1KHZ  0x29F1 // Default signal frequency 1kHz, F_TO_FSR(1E3) = 10737
-// 0xFFFF -> 6.103kHz
+// 0xFFFF -> 6.103kHz, 10kHz->0x1A36A, 100kHz->0x106224, 1MHz->0xA3D568, 10MHz->0x6665610
 
 /***/
 

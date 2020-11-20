@@ -12,7 +12,7 @@
 /***/
 
 uint32_t uexp10 (const int8_t e)
-{ 
+{
    if (e >= 1)
    {
       uint32_t s=10;
@@ -43,14 +43,14 @@ public:
   union { uint8_t bcd[4]; uint16_t u; }; // NB: u overlaps first 2 bytes of bcd (4 digits)
   int8_t   e;
   uint8_t  nU;  // extended info, # additional digits 0..4, flags? valid? sign?
-  
+
   USciExp () {;}
-  
+
   // 2^28 / 25e6 = 10.737(418..) = 10737E-3
   uint32_t toFSR () const  // this doesn't belong here...
   {
       if (u > 0)
-      { 
+      {
 #if 0
         float f= u;
         if (e > 0) { f*= uexp10(e); }
@@ -95,11 +95,11 @@ public:
     }
     return(i);
   } // readStreamBCD
-  
+
   int8_t readStream (Stream& s, const uint8_t a)
   {
     uint8_t point= 0xFF, nO=0, nD= readStreamBCD(s, bcd, 0, min(a,8));
-    
+
     if (nD > 0)
     {
       e= 0;
@@ -108,14 +108,14 @@ public:
       {
         char ch= toupper(s.read()); nO++; // discard
         if (i < 7)
-        { 
+        {
           switch(i)
           {
             case 6 : e= -1; break; // deci
             case 5 : e= 2; break; // hecto
             default : e= 6 - 3 * i; break; // Mega kilo 0 milli micro
           }
-          point= nD; 
+          point= nD;
           if ((a > (nD+1)) && isDigit(s.peek()))
           { // fractional part
             nD= readStreamBCD(s, bcd, nD, min(a,8-nD));
@@ -146,10 +146,10 @@ class CmdSeg
 public:
   USciExp v[SCI_VAL_MAX];
   char sep[SEP_CH_MAX];
-  uint8_t nFV, cmdF[2], cmdR[2];
-  
+  uint8_t nFV, cmdF[2], cmdR[2], cmdS;
+
   uint8_t getNV (void) const { return(nFV & 0xF); }
-  void clean () { nFV=0; cmdF[0]= 0; cmdF[1]= 0; cmdR[0]= 0; cmdR[1]= 0; }
+  void clean () { nFV=0; cmdF[0]= 0; cmdF[1]= 0; cmdR[0]= 0; cmdR[1]= 0; cmdS= 0; }
   operator () (void) const { return(0 != nFV); }
 };
 
