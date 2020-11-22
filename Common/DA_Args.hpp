@@ -139,6 +139,7 @@ public:
   } // readStream
 }; // USciExp
 
+// TODO : cleanup command flags
 #define SCI_VAL_MAX 4
 #define SEP_CH_MAX 8
 class CmdSeg
@@ -146,10 +147,11 @@ class CmdSeg
 public:
   USciExp v[SCI_VAL_MAX];
   char sep[SEP_CH_MAX];
-  uint8_t nFV, cmdF[2], cmdR[2], cmdS;
+  uint8_t nFV, cmdF[2], cmdR[2];
+  int8_t  iRes;
 
   uint8_t getNV (void) const { return(nFV & 0xF); }
-  void clean () { nFV=0; cmdF[0]= 0; cmdF[1]= 0; cmdR[0]= 0; cmdR[1]= 0; cmdS= 0; }
+  void clean () { nFV=0; cmdF[0]= 0; cmdF[1]= 0; cmdR[0]= 0; cmdR[1]= 0; iRes= 0; }
   operator () (void) const { return(0 != nFV); }
 };
 

@@ -117,15 +117,15 @@ protected:
       return swapHiLo4U8(i);
    } // scanC
 
-   int8_t setRSS (char rs[], const uint8_t f1, const uint8_t s1)
+   int8_t setRS1 (char rs[], const uint8_t f1)
    {
       int8_t i= 0;
       if (f1 & 0xF0)
       {
-         if (f1 & 0x10) { rs[i++]= 'F'; rs[i++]= '0'+((s1 & 0x10)>0); }
-         if (f1 & 0x20) { rs[i++]= 'H'; rs[i++]= '0'+((s1 & 0x20)>0); }
-         if (f1 & 0x40) { rs[i++]= 'O'; rs[i++]= '0'+((s1 & 0x40)>0); }
-         if (f1 & 0x80) { rs[i++]= 'R'; rs[i++]= '0'+((s1 & 0x80)>0); }
+         if (f1 & 0x10) { rs[i++]= 'F'; }
+         if (f1 & 0x20) { rs[i++]= 'H'; }
+         if (f1 & 0x40) { rs[i++]= 'O'; }
+         if (f1 & 0x80) { rs[i++]= 'R'; }
       }
       return(i);
    } // setRS1
@@ -165,13 +165,25 @@ public:
       char rs[12];
       int8_t i;
 
-      i= setRSS(rs, cs.cmdR[0], cs.cmdS);
+      i= setRS1(rs, cs.cmdR[0]);
       i+= setRS2(rs+i, cs.cmdR[1]);
-      if (i > 0) { rs[i]= 0; s.print(rs); s.println(" OK"); }
+      if (i > 0)
+      { 
+         rs[i]= 0;
+         s.print(rs);
+         if (cs.iRes >= 0) { s.print(cs.iRes); }
+         s.println(" OK");
+      }
 
-      i= setRSS(rs, cs.cmdR[0] ^ cs.cmdF[0], 0);
+      i= setRS1(rs, cs.cmdR[0] ^ cs.cmdF[0]);
       i+= setRS2(rs+i, cs.cmdR[1] ^ cs.cmdF[1]);
-      if (i > 0) { rs[i]= 0; s.print(rs); s.println(" ERR"); }
+      if (i > 0)
+      {
+         rs[i]= 0;
+         s.print(rs); 
+         if (cs.iRes < 0) { s.print(cs.iRes); }
+         s.println(" ERR");
+      }
    } // respond
 }; // StreamCmd
 
