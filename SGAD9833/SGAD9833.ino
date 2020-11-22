@@ -21,6 +21,8 @@
 #include "Common/DA_Counting.hpp"
 #endif
 
+#define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
+
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
 CClock gClock(15000,AVR_CLOCK_TRIM);
@@ -92,7 +94,7 @@ void setup (void)
    //gClock.setHM(cs);
    gClock.start();
   
-   pinMode(LED_BUILTIN, OUTPUT);
+   pinMode(PIN_PULSE, OUTPUT);
 
    gSigGen.fsr= FSR_1KHZ;
    gSigGen.reg.setFSR(gSigGen.fsr, 0);
@@ -111,7 +113,6 @@ CmdSeg cmd; // Would be temp on stack but problems arise...
 
 void loop (void)
 {
-//static uint8_t lev;//=0
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
@@ -132,7 +133,7 @@ void loop (void)
     //if (ev & 0x40) { Serial.print("2)rwm="); Serial.println(gSigGen.rwm,HEX); }
     
     if (ev & 0xF0)
-    { 
+    {
       sysLog(Serial,ev);
       if (ev & 0x40)
       {
@@ -140,8 +141,21 @@ void loop (void)
         cmd.clean();
       }
     }
+{ // pulse hack (SPI CLK conflict)
+static uint16_t gHackCount= 0;
+    if (((++gHackCount) & 0xFFF) >= 1000) { gHackCount-= 1000; }
+    if (((gHackCount & 0xFFF) < 100) && (0 == gSigGen.rwm))
+    {
+      SPI.end(); gHackCount|= 1<<15;
+      digitalWrite(PIN_PULSE, HIGH);
+    }
+    else
+    {
+      digitalWrite(PIN_PULSE, LOW);
+      if ((0 != gSigGen.rwm) && (gHackCount & 1<<15)) { SPI.begin(); gHackCount &= 0xFFF; }
+    }
+}
     gSigGen.commit(); // send whatever needs sent
-    //lev^= ev & 0xF0;
   }
 } // loop
 

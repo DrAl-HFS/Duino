@@ -76,7 +76,11 @@ public:  // - not concerned with frequency/phase-shift keying...
       fr[1].u8[0]= fr[0].u8[0]= 0;
       fr[1].u8[1]= fr[0].u8[1]= a;
    } // setZeroFSR
-   bool isZeroFSR (void) { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); }
+   bool isZeroFSR (void)
+   { 
+      if (0 != (fr[0].u8[0] | fr[1].u8[0])) { return(false); }
+      return(0 == (0x3F & (fr[0].u8[1] | fr[1].u8[1]))); 
+   } // isZeroFSR
 
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
@@ -374,9 +378,12 @@ static const U8 ctrlB0[]=
 
    int8_t hold (int8_t scf=-1)
    {  // hold voltage output - mclock(); broken so zero fsr registers
-      if (scf < 0) { scf= reg.isZeroFSR(); }
-      if (0 == scf) { reg.setZeroFSR(); reg.setPSR(0xFF); }
-      else { reg.setFSR(fsr); reg.setPSR(0); } // restore backup copy
+      uint8_t m=0;
+      if (scf < 0) { scf= reg.isZeroFSR(); m|= 2|scf; }
+      if (scf) { reg.setFSR(fsr); reg.setPSR(0); m|= 8; }
+      else { reg.setZeroFSR(); reg.setPSR(0xFF); m|= 4; }
+      Serial.print("*H="); Serial.println(m,HEX); // ???
+      Serial.print(reg.fpr[0].fr[0].u16,HEX); Serial.print(":"); Serial.println(reg.fpr[0].fr[1].u16,HEX);
       return(scf);
    } // hold
 
@@ -396,7 +403,7 @@ static const U8 ctrlB0[]=
    {
       if (cs())
       {
-         uint8_t t, nV= cs.getNV();
+         uint8_t nV= cs.getNV();
 
          if (cs.cmdF[0] & 0xF0)
          {
@@ -406,14 +413,14 @@ static const U8 ctrlB0[]=
                if (0 == iFN)
                {
                   reg.setFSR(fsr, 0);
-                  cs.cmdS|= 0x10;
+                  //cs.cmdS|= 0x10;
                   rwm|= FUGM;
                }
                cs.cmdR[0]|= 0x10;
             }
-            if (cs.cmdF[0] & 0x20) { t= hold(); if (t >= 0) { cs.cmdR[0]|= 0x20; cs.cmdS|= t<<5; rwm|= 0xF; } } 
-            if (cs.cmdF[0] & 0x40) { t= onOff(); if (t >= 0) { cs.cmdR[0]|= 0x40; cs.cmdS|= t<<6; } }
-            if (cs.cmdF[0] & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x80; cs.cmdS|= 0x80; rwm|= 0x81; }
+            if (cs.cmdF[0] & 0x20) { cs.iRes= hold(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x20; rwm|= 0xF; } } 
+            if (cs.cmdF[0] & 0x40) { cs.iRes= onOff(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x40; } }
+            if (cs.cmdF[0] & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x80; rwm|= 0x81; }
             else if (cs.cmdR[0]) { rwm|= 0x1; }
          }
          if (cs.cmdF[1] & 0x0F)
