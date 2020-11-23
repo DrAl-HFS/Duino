@@ -369,6 +369,7 @@ static const U8 ctrlB0[]=
    {  // master clock required in clock modes...
       if (0 == (reg.ctrl.u8[0] & AD9833_FL0_OCLK))
       {
+         Serial.println("*K");
          reg.ctrl.u8[0]= scfByte(reg.ctrl.u8[0], AD9833_FL0_SLP_MCLK, scf);
          return((reg.ctrl.u8[0] & AD9833_FL0_SLP_MCLK) > 0);
       }
@@ -381,7 +382,7 @@ static const U8 ctrlB0[]=
       if (hf) { reg.setFSR(fsr); reg.setPSR(0); }
       else { reg.setZeroFSR(); reg.setPSR(0xFF); }
 #if 0
-      Serial.print("*H"); Serial.print(scf); Serial.print(hf);
+      Serial.print("*H"); Serial.print(hf);
       Serial.print("fr="); Serial.print(reg.fpr[0].fr[1].u16,HEX);
       Serial.print(":"); Serial.println(reg.fpr[0].fr[0].u16,HEX);
 #endif
@@ -406,23 +407,23 @@ static const U8 ctrlB0[]=
       {
          uint8_t nV= cs.getNV();
 
-         if (cs.cmdF[0] & 0xF0)
+         if (cs.cmdF[0])
          {
-            if (cs.cmdF[0] & 0x10)
+            if (cs.cmdF[0] & 0x01)
             {
                iFN= ++iFN & FMMM;   // check if function parameters defined ???
                if (0 == iFN)
                {
                   reg.setFSR(fsr, 0);
-                  //cs.cmdS|= 0x10;
                   rwm|= FUGM;
                }
-               cs.cmdR[0]|= 0x10;
+               cs.cmdR[0]|= 0x01;
             }
-            if (cs.cmdF[0] & 0x20) { cs.iRes= hold(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x20; rwm|= 0xF; } } 
-            if (cs.cmdF[0] & 0x40) { cs.iRes= onOff(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x40; } }
-            if (cs.cmdF[0] & 0x80) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x80; rwm|= 0x81; }
-            else if (cs.cmdR[0]) { rwm|= 0x1; }
+            if (cs.cmdF[0] & 0x02) { cs.iRes= hold(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x02; rwm|= 0xF; } } 
+            if (cs.cmdF[0] & 0x04) { cs.iRes= mclock(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x04; } }
+            if (cs.cmdF[0] & 0x08) { cs.iRes= onOff(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x08; } }
+            if (cs.cmdF[0] & 0x10) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x10; rwm|= 0x81; }
+            else if (cs.cmdR[0]) { rwm|= 0x10; }
          }
          if (cs.cmdF[1] & 0x0F)
          {
@@ -439,7 +440,7 @@ static const U8 ctrlB0[]=
          else if (sweep.setParam(cs.v, nV) > 0)
          {
             reg.setFSR(sweep.getFSR(), 0); rwm|= FUGM; // no phase glitch when ctrl written
-            if ((0 == iFN) && (0 == (cs.cmdR[0] & 0x10))) { iFN= 1; } // auto-on if off : defaultFN
+            if ((0 == iFN) && (0 == (cs.cmdR[0] & 0x01))) { iFN= 1; } // auto-on if off : defaultFN
          }
 
          iFN&= FMMM;

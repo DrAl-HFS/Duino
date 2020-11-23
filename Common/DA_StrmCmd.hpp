@@ -104,11 +104,11 @@ protected:
             ch= s.read(); ++n;
             if (isUpperCase(ch))
             {
-               uint8_t t= idxMatch(ch, "STCDFHOR");
+               uint8_t t= idxMatch(ch, "STCDFHKOR");
                if (t >= 0)
                { 
                   if (t < 4) { f[1]= t | 0x4; } // waveform
-                  else { f[0]|= 1<<t; } // function,hold,on/off,reset
+                  else { f[0]|= 1<<(t-4); } // Function,Hold,on/Off,Reset,mclK
                   ++i;
                }
             } else if ('?' == ch) { help(s); }
@@ -120,12 +120,13 @@ protected:
    int8_t setRS1 (char rs[], const uint8_t f1)
    {
       int8_t i= 0;
-      if (f1 & 0xF0)
+      if (f1)
       {
-         if (f1 & 0x10) { rs[i++]= 'F'; }
-         if (f1 & 0x20) { rs[i++]= 'H'; }
-         if (f1 & 0x40) { rs[i++]= 'O'; }
-         if (f1 & 0x80) { rs[i++]= 'R'; }
+         if (f1 & 0x01) { rs[i++]= 'F'; }
+         if (f1 & 0x02) { rs[i++]= 'H'; }
+         if (f1 & 0x04) { rs[i++]= 'K'; }
+         if (f1 & 0x08) { rs[i++]= 'O'; }
+         if (f1 & 0x10) { rs[i++]= 'R'; }
       }
       return(i);
    } // setRS1
@@ -169,20 +170,20 @@ public:
       i+= setRS2(rs+i, cs.cmdR[1]);
       if (i > 0)
       { 
+         s.println("OK:");
          rs[i]= 0;
          s.print(rs);
          if (cs.iRes >= 0) { s.print(cs.iRes); }
-         s.println(" OK");
       }
 
       i= setRS1(rs, cs.cmdR[0] ^ cs.cmdF[0]);
       i+= setRS2(rs+i, cs.cmdR[1] ^ cs.cmdF[1]);
       if (i > 0)
       {
+         s.println("ERR:");
          rs[i]= 0;
          s.print(rs); 
          if (cs.iRes < 0) { s.print(cs.iRes); }
-         s.println(" ERR");
       }
    } // respond
 }; // StreamCmd
