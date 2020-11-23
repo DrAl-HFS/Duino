@@ -13,17 +13,17 @@ of better flexibility and higher performance, at the expense of greater
 complexity. C++ is quite useful in making this more manageable, although
 it falls down with regard to interrupt handling. Key features are:-
 
-*   Cyclic executive main loop, processing events.
+*   Cyclic executive main loop, state machine processing.
 
-*   Interrupt triggered events - timer at 1ms interval.
+*   Timer interrupt control - events processed at 1ms intervals.
 
-*   Hardware SPI communication with AD9833 using 8MHz bus clock - expected
-latency is <3us per 16bit message (untested).
+*   Hardware SPI communication with AD9833 using 8MHz bus clock - minimum
+latency is ~40 CPU cycles (~2.5us @ 16MHz) per 16bit message.
 
 *   UART communication with host, providing a simple but adequately flexible
 command interface e.g. 
 
-	- "S" or "T" - sine or triangle waveform output from DAC (0.3Vpp) 
+	- "S" or "T" - sine or triangle waveform output from DAC (0.6Vpp) 
 	- "C" or "D" - clock or double-rate-clock direct output (Vcc 3~5V)
 	- "4.5E3" or "4.5k" or "4k5" - 4.5kHz signal
 	- "1k,10k,100m" - sweep from 1kHz to 10kHz every 100msec

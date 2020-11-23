@@ -35,6 +35,13 @@
 
 /***/
 
+/*
+extern "C" bool isZero (const UU16 fr[2])
+{  // not working as expected... ???
+   if (0 == (fr[0].u8[0] | fr[1].u8[0])) { return(0 == (AD9833_FSR_MASK_8H & (fr[0].u8[1] | fr[1].u8[1]))); }
+   return(false);
+} // isZeroFSR
+*/
 // Classes are used because Arduino has limited support for modularisation and sanitary source reuse.
 // Default build settings (minimise size) prevent default class-method-declaration inlining
 class DA_AD9833FreqPhaseReg
@@ -76,11 +83,7 @@ public:  // - not concerned with frequency/phase-shift keying...
       fr[1].u8[0]= fr[0].u8[0]= 0;
       fr[1].u8[1]= fr[0].u8[1]= a;
    } // setZeroFSR
-   bool isZeroFSR (void)
-   { 
-      if (0 != (fr[0].u8[0] | fr[1].u8[0])) { return(false); }
-      return(0 == (0x3F & (fr[0].u8[1] | fr[1].u8[1]))); 
-   } // isZeroFSR
+   bool isZeroFSR (void) const { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); } // { return isZero(fr); }
 
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
@@ -151,9 +154,6 @@ public:
       byte b[14]; // compatibility hack
       struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[2]; };
    };
-//protected:
-//   uint8_t guard[3], ix; // dbg hack
-public:
 
    DA_AD9833Reg (void)
    {
@@ -170,7 +170,7 @@ public:
       //else { fpr[ia].setFAddr(ia^ix); }
    }
    void setZeroFSR (const uint8_t ia=0) { fpr[ia].setZeroFSR(ia); }
-   bool isZeroFSR (const uint8_t ia=0) { fpr[ia].isZeroFSR(); }
+   bool isZeroFSR (const uint8_t ia=0) { return fpr[ia].isZeroFSR(); }
 
    void setPSR (const uint16_t psr, const uint8_t ia=0)
    {
@@ -183,11 +183,10 @@ public:
 
    void write (const uint8_t wm=0x7F)
    {
-      uint8_t tm= wm & 0x7F;
-      if (0x7F == tm) { writeSeq(b, sizeof(b)); }
+      if (0x07 == wm) { return writeSeq(b, 6); }
       else
       {
-         uint8_t first=0, count=0;
+         uint8_t first= 0, count=0, tm= wm & 0x7F;
          while (0 == (tm & 0x1)) { tm>>= 1; ++first; }
          while (tm) { tm>>= 1; ++count; }
          write(first,count);
@@ -306,7 +305,7 @@ public:
                switch (mode & 0xC0)
                {
                   case 0x40 : sLin= -sLin; actState|= 0x40; break;
-                  case 0x80 : rPow= (1<<24) / rPow; actState|= 0x80; break;
+                  case 0x80 : rPow= ((uint32_t)1<<24) / rPow; actState|= 0x80; break;
                }
             } // mirror
          }
@@ -345,10 +344,10 @@ public:
    DA_AD9833Reg   reg;
    DA_AD9833Sweep sweep;
    uint32_t fsr;  // backup for hold feature
-   uint8_t iFN, rwm; // sweep function state, write mask for hardware registers (16bit per flag)
+   uint8_t iFN, rwm; // sweep function state, write mask for hw reg (16bits per flag)
 
-   DA_AD9833Control (void) { iFN= 0; rwm= 0; } // , DA_AD9833Sweep();
-
+   DA_AD9833Control (void) { iFN= 0; rwm= 0; } // Not reliably cleared by reset (?)
+   
    int8_t waveform (int8_t w=0) // overwrite any sleep/hold setting
    {
 static const U8 ctrlB0[]=
@@ -376,15 +375,17 @@ static const U8 ctrlB0[]=
       return(-1);
    } // mclock
 
-   int8_t hold (int8_t scf=-1)
+   int8_t hold (int8_t hf=-1)
    {  // hold voltage output - mclock(); broken so zero fsr registers
-      uint8_t m=0;
-      if (scf < 0) { scf= reg.isZeroFSR(); m|= 2|scf; }
-      if (scf) { reg.setFSR(fsr); reg.setPSR(0); m|= 8; }
-      else { reg.setZeroFSR(); reg.setPSR(0xFF); m|= 4; }
-      Serial.print("*H="); Serial.println(m,HEX); // ???
-      Serial.print(reg.fpr[0].fr[0].u16,HEX); Serial.print(":"); Serial.println(reg.fpr[0].fr[1].u16,HEX);
-      return(scf);
+      if (hf < 0) { hf= reg.isZeroFSR(); }
+      if (hf) { reg.setFSR(fsr); reg.setPSR(0); }
+      else { reg.setZeroFSR(); reg.setPSR(0xFF); }
+#if 0
+      Serial.print("*H"); Serial.print(scf); Serial.print(hf);
+      Serial.print("fr="); Serial.print(reg.fpr[0].fr[1].u16,HEX);
+      Serial.print(":"); Serial.println(reg.fpr[0].fr[0].u16,HEX);
+#endif
+      return(hf);
    } // hold
 
    int8_t onOff (int8_t scf=-1)
