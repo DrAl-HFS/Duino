@@ -80,7 +80,7 @@ protected:
          i+= (n > n0);
          do
          {
-            ch= idxMatch(s.peek(), ",;:*&@\/#$%"); // space? tab ?
+            ch= idxMatch(s.peek(), ",;:*&@#$%/\\"); // space? tab ?
             if (ch >= 0)
             {
                ch= s.read(); n++;

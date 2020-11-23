@@ -152,7 +152,7 @@ public:
 
   uint8_t getNV (void) const { return(nFV & 0xF); }
   void clean () { nFV=0; cmdF[0]= 0; cmdF[1]= 0; cmdR[0]= 0; cmdR[1]= 0; iRes= 0; }
-  operator () (void) const { return(0 != nFV); }
+  bool operator () (void) const { return(0 != nFV); }
 };
 
 #endif // DA_ARGS_HPP
