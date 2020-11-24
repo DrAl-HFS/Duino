@@ -225,7 +225,7 @@ public :
       if ((mode & CYCM_CMP_LO) && (v < lim[0])) { state|= CYCM_CMP_LO; } // lo
 
       // ignore if limits not distinct
-      if (CYCM_CMP_HI == (state & CYCM_CMP_HI|CYCM_CMP_LO))
+      if (CYCM_CMP_HI == state)
       {
          switch (mode & (CYCM_MIRR_HI|CYCM_WRAP_HI))
          {
@@ -240,7 +240,7 @@ public :
             default : return(lim[1]); // simple mirror / clamp hi
          }
       }
-      else if (CYCM_CMP_LO == state)
+      if (CYCM_CMP_LO == state)
       {  
          switch (mode & (CYCM_MIRR_LO|CYCM_WRAP_LO))
          {
@@ -264,7 +264,7 @@ class DA_AD9833Sweep
 protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fraction of 25MHz)
    DA_Cycle cycle; // uint32_t lim[2];
    uint32_t dt; // sweep start&end (lo&hi?) limits, interval (millisecond ticks)
-   int32_t range; // signed difference between end and start
+   int32_t range; // signed (?) difference between end and start
    UU32 fsr;
    int32_t  sLin; // linear step
    uint32_t rPow; // power-law (growth) rate
@@ -273,16 +273,18 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    // Primitive operations
    uint8_t setF (USciExp fv[2])
    {
-      uint32_t t= cycle.lim[0];
       uint8_t m=0;
       cycle.lim[0]= fv[0].toFSR();
       cycle.lim[1]= fv[1].toFSR();
-      //if (cycle.lim[0] > cycle.lim[1]) { SWAP(); }
-      m= (cycle.lim[0] != t);
-      t= cycle.lim[1];
-      m|= (cycle.lim[0] != t)<<1;
+      if (cycle.lim[0] > cycle.lim[1])
+      {  // swap
+         uint32_t t= cycle.lim[0];
+         cycle.lim[0]= cycle.lim[1];
+         cycle.lim[1]= t;
+         m|= 0x1;
+      }
       range= (cycle.lim[1] - cycle.lim[0]);
-      if (0 == fsr.u32) { fsr.u32= cycle.lim[0]; }
+      if (0 == fsr.u32) { fsr.u32= cycle.lim[m&0x1]; }
       return(m);
    } // setF
 
@@ -307,7 +309,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    } // set
 
 public:
-   DA_AD9833Sweep (void) { cycle.mode= CYCM_CMP_HI|CYCM_WRAP_HI; }
+   DA_AD9833Sweep (void) { cycle.mode= CYCM_CMP_HI|CYCM_WRAP_HI; } // |CYCM_CONS_HI; }
 
    int8_t setParam (USciExp v[], int8_t n)
    {
@@ -327,7 +329,6 @@ public:
    {
       switch(mode)
       {
-         case 0 : return;
          case 1 :
             if (1==nStep) { fsr.u32+= sLin; } else { fsr.u32+= nStep * sLin; }
             fsr.u32= cycle(fsr.u32);
@@ -349,6 +350,15 @@ public:
             break;
          }
       }
+#if 0
+      if (cycle.state)
+      { 
+         Serial.print("*SC: M=");
+         Serial.print(cycle.mode,HEX);
+         Serial.print(" S=");
+         Serial.println(cycle.state,HEX);
+      }
+#endif
    } // stepFSR
 
    uint32_t getFSR (void) const { if (fsr.u32 > 0) { return(fsr.u32); } else return(12345); }

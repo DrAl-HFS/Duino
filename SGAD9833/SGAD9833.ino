@@ -86,6 +86,7 @@ void sysLog (Stream& s, uint8_t events)
   gSigGen.changeMon();
 } // sysLog
 
+void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
 
 void setup (void)
 {
@@ -103,7 +104,8 @@ void setup (void)
 
    Serial.begin(BAUDRATE);
    Serial.println("SigGen " __DATE__ " " __TIME__);
-   Serial.println("+RST"); // default flags include reset
+   dumpT0(Serial);
+   
    interrupts();
    gClock.intervalStart();
    sysLog(Serial,0);
@@ -129,6 +131,7 @@ static uint16_t gHackCount= 0;
 
 void loop (void)
 {
+//static uint16_t n=0;  if (0 == n++)  { dumpT0(Serial); }
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
