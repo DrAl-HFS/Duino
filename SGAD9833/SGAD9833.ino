@@ -117,7 +117,7 @@ void pulseHack (void)
 { // SPI CLK conflict
 static uint16_t gHackCount= 0;
   if (((++gHackCount) & 0xFFF) >= 1000) { gHackCount-= 1000; }
-  if (((gHackCount & 0xFFF) < 100) && (0 == gSigGen.rwm))
+  if (((gHackCount & 0xFFF) < 20) && (0 == gSigGen.rwm))
   {
     SPI.end(); gHackCount|= 1<<15;
     digitalWrite(PIN_PULSE, HIGH);

@@ -392,8 +392,10 @@ public:
    DA_AD9833Reg   reg;
    DA_AD9833Sweep sweep;
    uint32_t fsr;  // backup for hold feature
-   uint8_t iFN, rwm; // sweep function state, write mask for hw reg (16bits per flag)
-
+   uint8_t rwm; // sweep function state, write mask for hw reg (16bits per flag)
+   int8_t iFN;
+   uint16_t hph;
+   
    DA_AD9833Control (void) { iFN= 0; rwm= 0; } // Not reliably cleared by reset (?)
    
    int8_t waveform (int8_t w=0) // overwrite any sleep/hold setting
@@ -467,7 +469,7 @@ static const U8 ctrlB0[]=
                }
                cs.cmdR[0]|= 0x01;
             }
-            if (cs.cmdF[0] & 0x02) { cs.iRes= hold(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x02; rwm|= 0xF; } } 
+            if (cs.cmdF[0] & 0x02) { cs.iRes= hold(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x02; rwm|= 0xF; iFN= -1; } } 
             if (cs.cmdF[0] & 0x04) { cs.iRes= mclock(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x04; } }
             if (cs.cmdF[0] & 0x08) { cs.iRes= onOff(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x08; } }
             if (cs.cmdF[0] & 0x10) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x10; rwm|= 0x81; }
@@ -491,7 +493,7 @@ static const U8 ctrlB0[]=
             if ((0 == iFN) && (0 == (cs.cmdR[0] & 0x01))) { iFN= 1; } // auto-on if off : defaultFN
          }
 
-         iFN&= FMMM;
+         if (iFN > 0) { iFN&= FMMM; }
          //changeMon(true);
       }
    } // apply
@@ -502,6 +504,10 @@ static const U8 ctrlB0[]=
       {
          sweep.stepFSR(nStep, iFN);
          reg.setFSR(sweep.getFSR()); rwm|= FUGM; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
+      }
+      else if (iFN < 0)
+      {
+         reg.setPSR(++hph); rwm|= 0x8;
       }
    } // update
 
