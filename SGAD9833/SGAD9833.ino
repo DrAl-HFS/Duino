@@ -111,27 +111,36 @@ void setup (void)
 
 CmdSeg cmd; // Would be temp on stack but problems arise...
 
+void pulseHack (void)
+{ // SPI CLK conflict
+static uint16_t gHackCount= 0;
+  if (((++gHackCount) & 0xFFF) >= 1000) { gHackCount-= 1000; }
+  if (((gHackCount & 0xFFF) < 100) && (0 == gSigGen.rwm))
+  {
+    SPI.end(); gHackCount|= 1<<15;
+    digitalWrite(PIN_PULSE, HIGH);
+  }
+  else
+  {
+    digitalWrite(PIN_PULSE, LOW);
+    if ((0 != gSigGen.rwm) && (gHackCount & 1<<15)) { SPI.begin(); gHackCount &= 0xFFF; }
+  }
+} // pulseHack
+
 void loop (void)
 {
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
     if (gClock.intervalUpdate()) { ev|= 0x80; }
-    if (gSigGen.resetClear()) { Serial.println("-RST"); } // Previously started reset completes
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;
       gSigGen.apply(cmd);
     }
 
-    //if (ev & 0x40) { Serial.print("1)rwm="); Serial.println(gSigGen.rwm,HEX); }
+    gSigGen.update(ev&0xF);
 
-    //if (lev) { ev|= 0x20; }
-    if (gSigGen.resetPending()) { Serial.println("+RST"); } // Reset begins (completes next cycle) 
-    else { gSigGen.sweepStep(ev&0xF); }
-
-    //if (ev & 0x40) { Serial.print("2)rwm="); Serial.println(gSigGen.rwm,HEX); }
-    
     if (ev & 0xF0)
     {
       sysLog(Serial,ev);
@@ -141,20 +150,7 @@ void loop (void)
         cmd.clean();
       }
     }
-{ // pulse hack (SPI CLK conflict)
-static uint16_t gHackCount= 0;
-    if (((++gHackCount) & 0xFFF) >= 1000) { gHackCount-= 1000; }
-    if (((gHackCount & 0xFFF) < 100) && (0 == gSigGen.rwm))
-    {
-      SPI.end(); gHackCount|= 1<<15;
-      digitalWrite(PIN_PULSE, HIGH);
-    }
-    else
-    {
-      digitalWrite(PIN_PULSE, LOW);
-      if ((0 != gSigGen.rwm) && (gHackCount & 1<<15)) { SPI.begin(); gHackCount &= 0xFFF; }
-    }
-}
+    pulseHack();
     gSigGen.commit(); // send whatever needs sent
   }
 } // loop

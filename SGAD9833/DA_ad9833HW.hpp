@@ -202,10 +202,68 @@ public:
 
 /*** application level split DA_AD9833UIF? ***/
 
+#define CYCM_CMP_HI  0x08
+#define CYCM_CONS_HI 0x04
+#define CYCM_CMP_LO  0x02
+#define CYCM_CONS_LO 0x01
+#define CYCM_WRAP_HI 0x40
+#define CYCM_MIRR_HI 0x80
+#define CYCM_WRAP_LO 0x10
+#define CYCM_MIRR_LO 0x20
+
+class DA_Cycle
+{
+public :
+   uint32_t lim[2];  // NB : implicit order, lim[1] > lim[0]
+   uint8_t  mode, state;
+   
+   DA_Cycle () { ; }
+   uint32_t operator () (uint32_t v)
+   {
+      state= 0; // compare ?
+      if ((mode & CYCM_CMP_HI) && (v > lim[1])) { state|= CYCM_CMP_HI; } // hi
+      if ((mode & CYCM_CMP_LO) && (v < lim[0])) { state|= CYCM_CMP_LO; } // lo
+
+      // ignore if limits not distinct
+      if (CYCM_CMP_HI == (state & CYCM_CMP_HI|CYCM_CMP_LO))
+      {
+         switch (mode & (CYCM_MIRR_HI|CYCM_WRAP_HI))
+         {
+            case CYCM_WRAP_HI : // wrap hi to lo
+               state|= CYCM_WRAP_HI;
+               if (mode & CYCM_CONS_HI) { return(lim[0] + ((int32_t)v - lim[1])); } // conserve time
+               else { return(lim[0]); } // simple wrap
+            case CYCM_MIRR_HI : // mirror
+               state|= CYCM_MIRR_HI;
+               if (mode & CYCM_CONS_HI) { return(lim[1] + ((int32_t)lim[1] - v)); } // conserve
+               //else default
+            default : return(lim[1]); // simple mirror / clamp hi
+         }
+      }
+      else if (CYCM_CMP_LO == state)
+      {  
+         switch (mode & (CYCM_MIRR_LO|CYCM_WRAP_LO))
+         {
+            case CYCM_WRAP_LO : // wrap lo to hi
+               state|= CYCM_WRAP_LO;
+               if (mode & CYCM_CONS_LO) { return(lim[1] + ((int32_t)v - lim[0])); } // conserve
+               else { return(lim[0]); } // simple wrap
+            case CYCM_MIRR_LO : // mirror
+               state|= CYCM_MIRR_LO;
+               if (mode & CYCM_CONS_LO) { return(lim[0] + ((int32_t)lim[0] - v)); } // conserve
+               //else default
+            default : return(lim[0]); //  simple mirror / clamp lo
+         }
+      }
+      return(v);
+   } // operator ()
+}; // DA_Cycle
+
 class DA_AD9833Sweep
 {
 protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fraction of 25MHz)
-   uint32_t fsrLim[2], dt; // sweep start&end (lo&hi?) limits, interval (millisecond ticks)
+   DA_Cycle cycle; // uint32_t lim[2];
+   uint32_t dt; // sweep start&end (lo&hi?) limits, interval (millisecond ticks)
    int32_t range; // signed difference between end and start
    UU32 fsr;
    int32_t  sLin; // linear step
@@ -215,15 +273,16 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    // Primitive operations
    uint8_t setF (USciExp fv[2])
    {
-      uint32_t t= fsrLim[0];
+      uint32_t t= cycle.lim[0];
       uint8_t m=0;
-      fsrLim[0]= fv[0].toFSR();
-      m= (fsrLim[0] != t);
-      fsrLim[1]= fv[1].toFSR();
-      t= fsrLim[1];
-      m|= (fsrLim[0] != t)<<1;
-      range= (fsrLim[1] - fsrLim[0]);
-      if (0 == fsr.u32) { fsr.u32= fsrLim[0]; }
+      cycle.lim[0]= fv[0].toFSR();
+      cycle.lim[1]= fv[1].toFSR();
+      //if (cycle.lim[0] > cycle.lim[1]) { SWAP(); }
+      m= (cycle.lim[0] != t);
+      t= cycle.lim[1];
+      m|= (cycle.lim[0] != t)<<1;
+      range= (cycle.lim[1] - cycle.lim[0]);
+      if (0 == fsr.u32) { fsr.u32= cycle.lim[0]; }
       return(m);
    } // setF
 
@@ -248,7 +307,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    } // set
 
 public:
-   DA_AD9833Sweep (void) { ; }
+   DA_AD9833Sweep (void) { cycle.mode= CYCM_CMP_HI|CYCM_WRAP_HI; }
 
    int8_t setParam (USciExp v[], int8_t n)
    {
@@ -256,7 +315,7 @@ public:
       if ((r > 0) && (0 != range) && (dt > 0))
       {
          sLin= range / dt;
-         //rPow= ((uint32_t)1<<24) * exp(log(fsrLim[1]) - log(fsrLim[0]) / dt);
+         //rPow= ((uint32_t)1<<24) * exp(log(lim[1]) - log(lim[0]) / dt);
          if (0 == rPow) { rPow= ((uint32_t)1<<24)+65536; } // test default
          logK();
          r|= 0x8;
@@ -264,53 +323,32 @@ public:
       return(r);
    } // setParam
 
-   uint8_t stepFSR (uint8_t nStep, uint8_t mode)
+   void stepFSR (uint8_t nStep, uint8_t mode)
    {
-      uint8_t actState= 0; // action/state info
-      switch(mode & 0xC0)
+      switch(mode)
       {
-         case 0x40 : if (1==nStep) { fsr.u32+= sLin; } else { fsr.u32+= nStep * sLin; } break;
-         case 0x80 :
+         case 0 : return;
+         case 1 :
+            if (1==nStep) { fsr.u32+= sLin; } else { fsr.u32+= nStep * sLin; }
+            fsr.u32= cycle(fsr.u32);
+            if (cycle.state & 0xA0) { sLin= -sLin; } // mirror
+            break;
+         case 2 :
          {  uint16_t s= 1 + (uint16_t)(fsr.u8[0]) + fsr.u8[1] + fsr.u8[2]; // super-hacky
-            fsr.u32+= s; break;
+            fsr.u32+= s;
+            fsr.u32= cycle(fsr.u32);
+            if (cycle.state & 0xA0) { rPow= ((uint32_t)1<<24) / rPow; } // mirror
+            break;
          }
          default :
          {
             q52.u64= (uint64_t)fsr.u32 * rPow; // scale current by Q24 fraction giving 28.24 (52b) result
             for (uint8_t i=0; i<4; i++) { fsr.u8[i]= q52.u8[i+3]; } // shift down by 3 bytes/24bits
+            fsr.u32= cycle(fsr.u32);
+            if (cycle.state & 0xA0) { rPow= ((uint32_t)1<<24) / rPow; } // mirror
             break;
          }
       }
-      if (0 != (mode & 0x3F))
-      {
-         if ((mode & 0x1) && (fsr.u32 < fsrLim[0])) { actState|= 0x1; }
-         if ((mode & 0x2) && (fsr.u32 > fsrLim[1])) { actState|= 0x2; }
-
-         if ((actState >= 0x1) && (actState <= 0x2)) // ignore if limits not distinct
-         {  // TODO : time-conserving wrap & mirror ?
-            if (mode & 0x03)
-            {  // wrap
-               uint8_t mas= mode & actState;
-               if (mas & 0x1) { fsr.u32= fsrLim[1]; actState|= 0x4; }
-               if (mas & 0x2) { fsr.u32= fsrLim[0]; actState|= 0x8; }
-            }
-            if (mode & 0x30)
-            {  // clamp
-               uint8_t mas= swapHiLo4U8(mode) & actState;
-               if (mas & 0x1) { fsr.u32= fsrLim[0]; actState|= 0x10; }
-               if (mas & 0x2) { fsr.u32= fsrLim[1]; actState|= 0x20; }
-            }
-            if (mode & 0x0C)
-            {  // mirror
-               switch (mode & 0xC0)
-               {
-                  case 0x40 : sLin= -sLin; actState|= 0x40; break;
-                  case 0x80 : rPow= ((uint32_t)1<<24) / rPow; actState|= 0x80; break;
-               }
-            } // mirror
-         }
-      }
-      return(actState);
    } // stepFSR
 
    uint32_t getFSR (void) const { if (fsr.u32 > 0) { return(fsr.u32); } else return(12345); }
@@ -435,7 +473,7 @@ static const U8 ctrlB0[]=
             fsr= cs.v[0].toFSR();
             // if (0 == iFN) ???
             reg.setFSR(fsr, 0); rwm|= FUGM; // avoid phase discontinuity
-            iFN= 0; // disable sweep functions
+            iFN= 0; // revert to simple function
          }
          else if (sweep.setParam(cs.v, nV) > 0)
          {
@@ -448,29 +486,14 @@ static const U8 ctrlB0[]=
       }
    } // apply
 
-   void sweepStep (uint8_t nStep)
+   void update (uint8_t nStep)
    {
-      uint8_t m=0;
-      switch(iFN)
+      if (iFN > 0)
       {
-         case 0 : return;
-         case 1 : m= 0x42; break; // linear, wrap hi
-         case 2 : m= 0x82; break; // power "
+         sweep.stepFSR(nStep, iFN);
+         reg.setFSR(sweep.getFSR()); rwm|= FUGM; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
       }
-      m= sweep.stepFSR(nStep, m);
-      reg.setFSR(sweep.getFSR()); rwm|= FUGM; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
-   } // sweepStep
-
-   uint8_t resetPending (void) { return(reg.ctrl.u8[1] & AD9833_FL1_RST); }
-   bool resetClear (void)
-   {
-      if (resetPending())
-      {
-         reg.ctrl.u8[1]^= AD9833_FL1_RST; rwm|= 0x1;
-         return(true);
-      }
-      return(false);
-   } // resetClear
+   } // update
 
    void commit (void) { if (rwm > 0) { reg.write(rwm); rwm= 0; } }
 
@@ -492,6 +515,7 @@ static const U8 ctrlB0[]=
             Serial.print(lastFN); Serial.print("->"); Serial.println(iFN);
             lastFN= iFN;
          }
+         sweep.logK();
       }
    }
 
