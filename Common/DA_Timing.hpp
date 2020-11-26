@@ -9,10 +9,12 @@
 #include <avr/sleep.h>
 #include "DA_Util.h"
 
-//#define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
+#define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
 
-//#define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
+// Timer0 dedicated to 'Duino infrastructure
+// Timer1 (16bit) used for pulse counting or fast poll (debug)
 #define AVR_CLOCK_TIMER 2
+
 // NB: Timer0 used for delay() etc.
 #if (0 == AVR_CLOCK_TIMER) || (2 == AVR_CLOCK_TIMER)
 #define AVR_CLOCK_IVL 250
@@ -24,25 +26,12 @@
 
 /***/
 
-
-
-
-/***/
-
 #if (1 == AVR_CLOCK_TIMER)
 typedef uint16_t TimerIvl;
 #else
 typedef uint8_t TimerIvl;
 #endif
 
-
-void updateOutCmp (TimerIvl ivl)
-{
-#if (2 == AVR_CLOCK_TIMER)
-   OCR2A=  ivl - 1;
-#endif
-}
-#define UPDATE(ivl) updateOutCmp(ivl) 
 
 // Highly AVR-specific base class using 8bit hardware timer
 // Objective is to generate interrupts at 1ms intervals.
@@ -54,13 +43,19 @@ protected:
    TimerIvl ivl;
    volatile uint8_t nIvl;  // ISR mini-counter
    uint8_t nRet; // Previous mini-counter (since last "upstream" application)
+
+   void hwUpdate (TimerIvl hwIvl)
+   {
+#if (2 == AVR_CLOCK_TIMER)
+      OCR2A=  hwIvl - 1;  // It shouldn't be necessary to reload OCR
+#endif
+   } // hwUpdate
    
 public:
    CBaseTimer () : ivl{AVR_CLOCK_IVL} { ; } // (all zero on reset) nIvl= 0; }
   
    void start (void) const
-   { // TODO - test compare (auto reload) accuracy
-#ifdef AVR_CLOCK_TIMER
+   {
 #if (2 == AVR_CLOCK_TIMER)
       TCNT2=  0;
       OCR2A=  ivl - 1; // set compare interval
@@ -68,12 +63,11 @@ public:
       TCCR2B= (1 << CS22);   // 1/64 prescaler @ 16MHz -> 250k ticks/sec, 4us per ms granularity (0.4%)
       TIMSK2= (1 << OCIE2A); // Compare A Interrupt Enable
 #endif // (2 == AVR_CLOCK_TIMER)
-#endif // AVR_CLOCK_TIMER
    } // init
   
    void nextIvl (void)
    { // called from SIGNAL (blocking ISR) => interrupts already masked
-      UPDATE(ivl);
+      hwUpdate(ivl); // It shouldn't be necessary to reload OCR in normal opration... ???
       ++nIvl;
    } // nextIvl
 
@@ -133,13 +127,13 @@ public:
    }
    void nextIvl (void) // overload
    {
-      if (0 == set) { UPDATE(ivl); }
+      if (0 == set) { CBaseTimer::nextIvl(); }
       else
       {
-         UPDATE(ivl+trimVal());
+         hwUpdate(ivl+trimVal());
          trimStep();
+         ++CBaseTimer::nIvl;
       }
-      ++nIvl;
    }
 }; // CTrimTimer
 #endif // AVR_CLOCK_TRIM

@@ -17,7 +17,7 @@
 #include "DA_ad9833HW.hpp"
 #include "Common/DA_StrmCmd.hpp"
 #include "Common/DA_Timing.hpp"
-#ifndef AVR_FAST_TIMER // resource contention
+#ifndef DA_FAST_POLL_TIMER_HPP // resource contention
 #include "Common/DA_Counting.hpp"
 #endif
 
@@ -44,7 +44,7 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 CCountExtBase gCount;
 
 //SIGNAL(TIMER1_OVF_vect) { gCount.o++; }
-ISR(TIMER1_COMPA_vect) { gCount.c++; }
+ISR(TIMER1_COMPA_vect) { gCount.update(); }
 
 #endif // DA_COUNTING_HPP
 
@@ -76,11 +76,8 @@ void sysLog (Stream& s, uint8_t events)
   gSigGen.reg.dbgTransClk= gSigGen.reg.dbgTransBytes= 0;
 #endif // DA_FAST_POLL_TIMER_HPP
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
-#ifdef DA_COUNTING_H
-  n+= snprintf(str+n, m-n, " C=%u ", gCount.c);
-#else
-  str[n++]= ' ';
-  str[n]= 0;
+#ifdef DA_COUNTING_HPP
+  n+= snprintf(str+n, m-n, " C: D=%0ld V=%0ld\n", gCount.diff(), gCount.c[1].u32);
 #endif
   s.println(str);
   gSigGen.changeMon();
@@ -91,7 +88,7 @@ void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
 void setup (void)
 {
    noInterrupts();
-   const uint8_t cs[]={19,57};
+   const uint8_t cs[]={22,18};
    gClock.setHM(cs);
    gClock.start();
   

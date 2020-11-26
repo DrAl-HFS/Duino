@@ -1,13 +1,10 @@
-// Duino/Common/DA_FastPollTimer.h - Debug & test timer
-// (factored from DA_Timing)
+// Duino/Common/DA_FastPollTimer.h - Debug & test timer, NB: max interval 4ms
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
 
 #ifndef DA_FAST_POLL_TIMER_HPP
 #define DA_FAST_POLL_TIMER_HPP
-
-//#include "DA_Util.h"
 
 class CFastPollTimer
 {
