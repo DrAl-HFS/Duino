@@ -25,7 +25,7 @@
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
-CClock gClock(15000,AVR_CLOCK_TRIM);
+CClock gClock(15000);
 
 #ifdef AVR_CLOCK_TIMER
 
@@ -71,10 +71,10 @@ void sysLog (Stream& s, uint8_t events)
   str[n++]= '.';
   n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
-#if 1
+#ifdef DA_FAST_POLL_TIMER_HPP
   n+= snprintf(str+n, m-n, " S%u,B%u", gSigGen.reg.dbgTransClk, gSigGen.reg.dbgTransBytes);
   gSigGen.reg.dbgTransClk= gSigGen.reg.dbgTransBytes= 0;
-#endif
+#endif // DA_FAST_POLL_TIMER_HPP
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
 #ifdef DA_COUNTING_H
   n+= snprintf(str+n, m-n, " C=%u ", gCount.c);
@@ -91,8 +91,8 @@ void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
 void setup (void)
 {
    noInterrupts();
-   //const uint8_t cs[]={22,35};
-   //gClock.setHM(cs);
+   const uint8_t cs[]={19,57};
+   gClock.setHM(cs);
    gClock.start();
   
    pinMode(PIN_PULSE, OUTPUT);

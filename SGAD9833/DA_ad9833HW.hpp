@@ -88,7 +88,7 @@ public:  // - not concerned with frequency/phase-shift keying...
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
 
-#include "Common/DA_Timing.hpp"
+//#include "Common/DA_FastPollTimer.hpp"
 
 //uint16_t rd16BE (const uint8_t b[2]) { return((256*(uint16_t)(b[0])) | b[1]); }
 
@@ -108,12 +108,12 @@ TODO - properly comprehend gcc assembler arg handling...
 #define SET_SEL_HI() digitalWrite(PIN_SEL, HIGH)
 #endif
 
-class DA_AD9833SPI : public CFastPollTimer
+class DA_AD9833SPI // : public CFastPollTimer
 {
 public:
-#ifdef DA_TIMING_HPP
+#ifdef DA_FAST_POLL_TIMER_HPP
    uint8_t dbgTransClk, dbgTransBytes;
-#endif // DA_TIMING_HPP
+#endif // DA_FAST_POLL_TIMER_HPP
    DA_AD9833SPI ()
    {
       SPI.begin();
@@ -124,11 +124,11 @@ public:
    }
    void writeSeq (const uint8_t b[], const uint8_t n)
    {
-#ifdef DA_TIMING_HPP
+#ifdef DA_FAST_POLL_TIMER_HPP
       // Direct twiddling of select-pin helps performance but variable latency
       // ('duino interrupts & setup?) results in throughput of 0.6~0.8 MByte/s
       stamp();
-#endif // DA_TIMING_HPP
+#endif // DA_FAST_POLL_TIMER_HPP
       SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2));
       for (uint8_t i=0; i<n; i+= 2)
       {
@@ -139,10 +139,10 @@ public:
          SET_SEL_HI(); // Rising edge latches to target register
       }
       SPI.endTransaction();
-#ifdef DA_TIMING_HPP
+#ifdef DA_FAST_POLL_TIMER_HPP
       dbgTransClk= diff();
       dbgTransBytes= n;
-#endif // DA_TIMING_HPP
+#endif // DA_FAST_POLL_TIMER_HPP
    } // writeSeq
 }; // class DA_AD9833SPI
 
