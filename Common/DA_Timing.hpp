@@ -9,11 +9,7 @@
 #include <avr/sleep.h>
 #include "DA_Util.h"
 
-#ifdef AVR
-// 0.08
-#define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
-
-#define AVR_FAST_TIMER  1
+//#define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
 
 //#define AVR_CLOCK_OFLO  // timer overflow interrupt (versus compare)
 #define AVR_CLOCK_TIMER 2
@@ -24,7 +20,6 @@
 #define AVR_CLOCK_IVL 2000
 //#define AVR_CLOCK_TRIM -3 // 0.15% faster
 #endif // AVR_CLOCK_TIMER
-#endif
 
 
 /***/
@@ -40,27 +35,7 @@ typedef uint16_t TimerIvl;
 typedef uint8_t TimerIvl;
 #endif
 
-#ifdef AVR_CLOCK_OFLO
-// DEPECATE: Inaccurate due to RMW sequence
-// temporary hack for timer overflow interrupt
-// (until compare & reload is working)
-void updateOverflow (TimerIvl ivl)
-{
-#if (2 == AVR_CLOCK_TIMER)
-   TCNT2-= ivl;
-#endif // (0 == AVR_CLOCK_TIMER)
-#if (0 == AVR_CLOCK_TIMER)
-   TCNT0-= ivl;
-#endif // (0 == AVR_CLOCK_TIMER)
-#if (1 == AVR_CLOCK_TIMER)
-   TCNT1-= ivl;
-#endif // (1 == AVR_CLOCK_TIMER)
-} // updateOverflow
-#define UPDATE(ivl) updateOverflow(ivl)
-#else
-#if (1000000000==AVR_CLOCK_TRIM)
-#define UPDATE(ivl) //updateOutCmp(ivl) 
-#else
+
 void updateOutCmp (TimerIvl ivl)
 {
 #if (2 == AVR_CLOCK_TIMER)
@@ -68,8 +43,6 @@ void updateOutCmp (TimerIvl ivl)
 #endif
 }
 #define UPDATE(ivl) updateOutCmp(ivl) 
-#endif // (0==AVR_CLOCK_TRIM)
-#endif // AVR_CLOCK_OFLO
 
 // Highly AVR-specific base class using 8bit hardware timer
 // Objective is to generate interrupts at 1ms intervals.
@@ -174,8 +147,7 @@ public:
 #if 0
 // Extend base timer with simple synchronisation delay
 // This was intended for external hardware reset
-// synchronisation but has effectively been supersceded
-// by state machines in main timing loop.
+// synchronisation but was supersceded.
 class CDelayTimer : public CTrimTimer
 {
 protected:
@@ -240,7 +212,7 @@ class CClock : public CIntervalTimer,
 {
 public:
    uint16_t tick, tock; // milliseconds (rollover 60 sec) and minutes (rollover ~45.5 days)
-   CClock (uint16_t ivl=3000,int8_t trim=0) : CIntervalTimer(ivl)
+   CClock (uint16_t ivl=3000, int8_t trim=0) : CIntervalTimer(ivl)
 #ifdef AVR_CLOCK_TRIM
       , CTrimTimer(trim)
 #endif
@@ -292,42 +264,5 @@ public:
    } // getStrHM
 
 }; // CClock
-
-#ifdef AVR_FAST_TIMER // help prevent resource contention disasters...
-class CFastPollTimer
-{
-public:
-  uint16_t last;
-  
-  CFastPollTimer (void)
-  {
-#if (1 == AVR_FAST_TIMER)
-      TCCR1A= 0;
-      TCCR1B= (1 << CS10);  // no prescale @ 16MHz -> 0.0625us per ms (granularity 0.00625%)
-      TCCR1C= 0;            //   rollover at 4ms
-      // OCR1A / B, ICR1 unused
-      TIMSK1= 0; // (1 << TOIE1);  // Overflow Interrupt Enable
-      TCNT1=  0;   // set
-#endif // AVR
-  } // CFastPollTimer
-  
-  uint16_t stamp (void)
-  {
-#if (1 == AVR_FAST_TIMER)
-      return TCNT1;
-#endif // AVR
-  } // stamp
-  
-  uint16_t diff (void)
-  {
-     uint16_t now= stamp();
-     int16_t dt= now - last;
-     last= now;
-     if (dt < 0) { dt += 0xFFFF; }
-     return(dt);
-  } // diff
-  
-}; // CFastPollTimer
-#endif // AVR_FAST_TIMER
 
 #endif // DA_TIMING_HPP
