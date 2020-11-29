@@ -42,6 +42,11 @@ public:
    {
       pinMode(PIN_T1, INPUT); // ???
       //c= 0; // unnecessary
+   } // CCountExtBase
+
+   // deferred start essential to prevent Arduino infrastructure breaking things
+   void start (void)
+   {
 #ifdef AVR
       //ASSR= (1 << EXCLK) | ;
       TCNT1=  0;   // preload timer
@@ -50,8 +55,8 @@ public:
       OCR1A=  0xFFFF; // 10000 - 1;
       TIMSK1= (1 << OCIE1A);  // Output Compare A Interrupt Enable (1 << TOIE1) Overflow Interrupt Enable
 #endif
-   } // CCountExtBase
-  
+   } // start
+
    // Appears to run at 32MHz!? even when T1 is held low... something very wrong
    void update (void) { OCR1A= 0xFFFF; ++u; } // ISR
   

@@ -25,7 +25,7 @@
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
-CClock gClock(15000);
+CClock gClock(1000);
 
 #ifdef AVR_CLOCK_TIMER
 
@@ -77,7 +77,10 @@ void sysLog (Stream& s, uint8_t events)
 #endif // DA_FAST_POLL_TIMER_HPP
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
 #ifdef DA_COUNTING_HPP
-  n+= snprintf(str+n, m-n, " C: D=%0ld V=%0ld\n", gCount.diff(), gCount.c[1].u32);
+  word l= OCR1A;
+  word c= TCNT1;
+  n+= snprintf(str+n, m-n, " C: %d( %d )\n", c, l);
+  //n+= snprintf(str+n, m-n, " C: D=%0ld V=%0ld\n", gCount.diff(), gCount.c[1].u32);
 #endif
   s.println(str);
   gSigGen.changeMon();
@@ -91,7 +94,10 @@ void setup (void)
    const uint8_t cs[]={22,18};
    gClock.setHM(cs);
    gClock.start();
-  
+#ifdef DA_COUNTING_HPP
+   gCount.start();
+#endif
+   
    pinMode(PIN_PULSE, OUTPUT);
 
    gSigGen.fsr= FSR_1KHZ;
