@@ -43,8 +43,8 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 CCountExtBase gCount;
 
-//SIGNAL(TIMER1_OVF_vect) { gCount.o++; }
-ISR(TIMER1_COMPA_vect) { gCount.update(); }
+//SIGNAL(TIMER1_OVF_vect) 
+ISR(TIMER1_COMPA_vect) { gCount.event(); }
 
 #endif // DA_COUNTING_HPP
 
@@ -77,9 +77,10 @@ void sysLog (Stream& s, uint8_t events)
 #endif // DA_FAST_POLL_TIMER_HPP
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
 #ifdef DA_COUNTING_HPP
-  word l= OCR1A;
-  word c= TCNT1;
-  n+= snprintf(str+n, m-n, " C: %d( %d )\n", c, l);
+  n+= snprintf(str+n, m-n, " IvRt %u,%u", gCount.nIvl, gCount.nRet);
+  n+= snprintf(str+n, m-n, " C: %u / %u", gCount.n, gCount.t);
+  n+= snprintf(str+n, m-n, " R=%u\n", gCount.measure());
+  gCount.reset();
   //n+= snprintf(str+n, m-n, " C: D=%0ld V=%0ld\n", gCount.diff(), gCount.c[1].u32);
 #endif
   s.println(str);
@@ -146,6 +147,7 @@ void loop (void)
     }
 
     gSigGen.update(ev&0xF);
+    gCount.accumRate(ev&0xF);
 
     if (ev & 0xF0)
     {
@@ -155,6 +157,7 @@ void loop (void)
         gStreamCmd.respond(cmd,Serial);
         cmd.clean();
       }
+      gClock.intervalStart();
     }
     pulseHack();
     gSigGen.commit(); // send whatever needs sent

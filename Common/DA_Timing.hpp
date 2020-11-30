@@ -67,7 +67,7 @@ public:
   
    void nextIvl (void)
    { // called from SIGNAL (blocking ISR) => interrupts already masked
-      hwUpdate(ivl); // It shouldn't be necessary to reload OCR in normal opration... ???
+      hwUpdate(ivl); // It shouldn't be necessary to reload OCR in normal operation... ???
       ++nIvl;
    } // nextIvl
 
@@ -170,10 +170,18 @@ public:
 
 class CIntervalTimer
 {
-   public:
-      uint16_t interval, next;
+protected:
+   uint16_t interval, next;
+   
+   void setNext (uint16_t when, uint16_t rollover)
+   {
+      if (when < rollover) { next= when; } else { next= when - rollover; }
+   }
+   
+public:
    CIntervalTimer (uint16_t ivl=1000, uint16_t start=0) { interval= ivl; intervalStart(start); }
-   void intervalStart (uint16_t when) { next= when+interval; }
+   void intervalStart (uint16_t when, uint16_t rollover=60000) { setNext(when+interval, rollover); }
+   
       //Serial.print("ivlSt()="); Serial.println(next); } // Serial.print(now); Serial.print(" "); 
    bool intervalComplete (uint16_t now)
    {
@@ -185,8 +193,7 @@ class CIntervalTimer
    {
       if (intervalComplete(now))
       {
-         next+= interval;
-         if (next >= rollover) { next-= rollover; }
+         setNext(next+interval, rollover);
          return(true);
       }
       return(false);
