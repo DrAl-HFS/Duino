@@ -30,6 +30,72 @@
 
 /***/
 
+#if 1
+
+uint16_t diffWrapU16 (uint16_t a, uint16_t b)
+{
+   if (a >= b) { return(a-b); } else { return(a+0xFFFF-b); }
+} // diffWrapU16
+
+class CCountExtBase
+{
+protected:
+   volatile uint8_t nOflo;  // ISR mini-counter
+
+public:
+   CCountExtBase (void) {;}
+
+   // deferred start essential to prevent overwrite by Arduino setup
+   // (assume memclear, static construction, then handoff to "app" level)
+   void start (void)
+   {
+      pinMode(PIN_T1, INPUT); // ???
+      //ASSR= (1 << EXCLK) | ;
+      TCNT1=  0;  // set counter ?
+      TCCR1A= 0;  //
+      TCCR1B= (1 << CS12) | (1 << CS11); // | (1 << CS10);  // ext clk T1, rising / falling 
+      TIMSK1= (1 << TOIE1); //  Overflow Interrupt Enable
+   } // start
+
+   void event (void) { ++nOflo; } // ISR
+   
+   uint16_t getCountU16 (void) { return(TCNT1); }
+}; // CCountExtBase
+
+struct SRate { uint16_t c, t; };
+#define RATE_RES_COUNT (1<<2)
+#define RATE_RES_MASK (RATE_RES_COUNT-1)
+
+class CRateEst : public CCountExtBase
+{
+public:
+   SRate ref, res[RATE_RES_COUNT];
+   uint8_t iRes;
+   
+   CRateEst (void) {;}
+   
+   using CCountExtBase::start;
+   
+   int8_t update (uint16_t tick)
+   {
+      uint16_t c= getCountU16();
+      int8_t r= -1;
+      res[iRes].c= diffWrapU16(c, ref.c);
+      if (res[iRes].c > 0)
+      {
+         res[iRes].t= tickDiffWrapU16(tick, ref.t);
+         r= (res[iRes].c >= 100) || (res[iRes].t >= 100);
+         if (r) { iRes= (iRes+1) & RATE_RES_MASK; }
+      }
+      if (0 != r) { ref.c= c; ref.t= tick; }
+      return(r);
+   } // update
+
+   const SRate& get (void) const { return(res[(iRes-1) & RATE_RES_MASK]); }
+}; // CRateEst
+
+
+#else
 
 class CCountExtBase
 {
@@ -49,14 +115,12 @@ public:
    void start (uint16_t ivl=1000)
    {
       pinMode(PIN_T1, INPUT); // ???
-#ifdef AVR
       //ASSR= (1 << EXCLK) | ;
       TCNT1=  0;   // preload timer
       TCCR1A= 0; //
       TCCR1B= (1 << WGM12) | (1 << CS12) | (1 << CS11) | (1 << CS10);  // CTC & external "clock" source, rising edge on T1
       OCR1A=  ivl-1;
       TIMSK1= (1 << OCIE1A);  // Output Compare A Interrupt Enable (1 << TOIE1) Overflow Interrupt Enable
-#endif
    } // start
 
    void event (void) { stamp= TCNT2; ++nIvl; } // ISR
@@ -88,6 +152,7 @@ public:
    void reset (void) { n= 0; t= 0; }
 }; // CCountExtBase
 
+#endif
 
 #endif //  DA_COUNTING_HPP
 

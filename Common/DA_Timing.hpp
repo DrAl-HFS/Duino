@@ -200,6 +200,11 @@ public:
    }
 }; // CIntervalTimer
 
+uint16_t tickDiffWrapU16 (uint16_t ta, uint16_t tb)
+{
+   if (ta > tb) { return(ta-tb); } else { return(ta+60000-tb); }
+} // tickDiffWrapU16
+
 // Simple clock running off timer class, handy for debug logging 
 // A high precision crystal resonator <=20ppm, temperature compensation,
 // battery backup and some calendar awareness could facilitate a tolerable

@@ -41,10 +41,10 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 #ifdef DA_COUNTING_HPP
 
-CCountExtBase gCount;
+CRateEst gRate;
 
-//SIGNAL(TIMER1_OVF_vect) 
-ISR(TIMER1_COMPA_vect) { gCount.event(); }
+ISR(TIMER1_OVF_vect)  { gRate.event(); }
+//ISR(TIMER1_COMPA_vect) { gCount.event(); }
 
 #endif // DA_COUNTING_HPP
 
@@ -56,11 +56,11 @@ char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?')
 void sysLog (Stream& s, uint8_t events)
 {
   uint8_t msBCD[3];
-  char str[32];
+  char str[64];
   int8_t m=sizeof(str)-1, n=0;
   
   convMilliBCD(msBCD, 1, gClock.tick);
-#if 0
+#if 1
   str[n++]= 'V';
   n+= hex2ChU8(str+n, events);
   str[n++]= ' ';
@@ -71,19 +71,24 @@ void sysLog (Stream& s, uint8_t events)
   str[n++]= '.';
   n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
+#ifdef DA_COUNTING_HPP
+  n+= snprintf(str+n, m-n, " Ref: %u, %u; [%d]", gRate.ref.c, gRate.ref.t, gRate.iRes);
+  n+= snprintf(str+n, m-n, " R0: %u, %u", gRate.res[0].c, gRate.res[0].t);
+  n+= snprintf(str+n, m-n, " R1: %u, %u\n", gRate.res[1].c, gRate.res[1].t);
+/*
+  if (events & 0x20)
+  {
+    const SRate& r= gRate.get();
+    n+= snprintf(str+n, m-n, " %uHz\n", ((uint32_t)r.c * 1000) / r.t);
+  }
+*/
+#endif
+  s.println(str);
 #ifdef DA_FAST_POLL_TIMER_HPP
   n+= snprintf(str+n, m-n, " S%u,B%u", gSigGen.reg.dbgTransClk, gSigGen.reg.dbgTransBytes);
   gSigGen.reg.dbgTransClk= gSigGen.reg.dbgTransBytes= 0;
 #endif // DA_FAST_POLL_TIMER_HPP
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
-#ifdef DA_COUNTING_HPP
-  n+= snprintf(str+n, m-n, " IvRt %u,%u", gCount.nIvl, gCount.nRet);
-  n+= snprintf(str+n, m-n, " C: %u / %u", gCount.n, gCount.t);
-  n+= snprintf(str+n, m-n, " R=%u\n", gCount.measure());
-  gCount.reset();
-  //n+= snprintf(str+n, m-n, " C: D=%0ld V=%0ld\n", gCount.diff(), gCount.c[1].u32);
-#endif
-  s.println(str);
   gSigGen.changeMon();
 } // sysLog
 
@@ -96,7 +101,7 @@ void setup (void)
    gClock.setHM(cs);
    gClock.start();
 #ifdef DA_COUNTING_HPP
-   gCount.start();
+   gRate.start();
 #endif
    
    pinMode(PIN_PULSE, OUTPUT);
@@ -147,7 +152,7 @@ void loop (void)
     }
 
     gSigGen.update(ev&0xF);
-    gCount.accumRate(ev&0xF);
+    if (gRate.update(gClock.tick) > 0) { ev|= 0x2; }
 
     if (ev & 0xF0)
     {
