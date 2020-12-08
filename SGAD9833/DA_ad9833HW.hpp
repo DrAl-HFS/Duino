@@ -291,9 +291,13 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    bool setDT (USciExp v[1])
    {
       uint32_t t= dt;
+#ifdef USCI_DEFER
+      dt= v[0].extract();
+#else
       if (-3 == v[0].e) { dt= v[0].u;} // likely
       else if (v[0].e < -3) { return(false); }
       else { dt= v[0].u * uexp10(3+v[0].e); }
+#endif
       return(dt != t);
    } // setDT
 
@@ -480,7 +484,7 @@ static const U8 ctrlB0[]=
             if (waveform(cs.cmdF[1] & 0x3) >= 0) { cs.cmdR[1]|= cs.cmdF[1] & 0x0F; rwm|= 0x1; }
             //reg.ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
          }
-         if ((1 == nV) && (cs.v[0].u > 0))
+         if ((1 == nV) && (cs.v[0].nU > 0))
          {  // Set backup & shadow HW registers (sweep state remains independant)
             fsr= cs.v[0].toFSR();
             // if (0 == iFN) ???
@@ -533,12 +537,13 @@ static const U8 ctrlB0[]=
          }
          sweep.logK();
       }
-   }
+   } // changeMon
 
    int8_t getModeCh (char mc[], int8_t max) const
    {
       if (reg.ctrl.u8[0] & AD9833_FL0_TRI) { mc[0]= 'T'; }
-   }
+   } // getModeCh
+
 }; // DA_AD9833Control
 
 #endif // DA_AD9833_HW_HPP
