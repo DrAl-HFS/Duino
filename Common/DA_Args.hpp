@@ -19,10 +19,11 @@ uint32_t uexp10 (const int8_t e)
       for (int8_t i=1; i<e; i++) { s*= 10; }
       return(s);
    }
-   return(e > 0);
+   return(e >= 0);
 } // uexp10
 
 // indexOf(String) ? clunky ?
+// return index of first match
 int8_t idxMatch (const char ch, const char s[])
 {
    int8_t i=0;
@@ -33,10 +34,8 @@ int8_t idxMatch (const char ch, const char s[])
 } // idxMatch
 
 bool isDecIntCh (const char ch) { return( isDigit(ch) || ('-' == ch) ); }
-// Avoid float
-//uint32_t f2FSR (float f) { return(f * (((uint32_t)1<<28) / 25E6)); }
-#define F_TO_FSR(f) (f * (((uint32_t)1<<28) / 25E6))
 
+// displace ???
 uint32_t u32FromBCD (uint8_t bcd[], const uint8_t n) // not really a class member...
 {
    uint32_t r= fromBCD4(bcd[0], n);
@@ -53,7 +52,6 @@ uint32_t u32FromBCD (uint8_t bcd[], const uint8_t n) // not really a class membe
    return(r);
 } // u32FromBCD
 
-#define USCI_DEFER
 
 #define BCD8_MAX 4
 #define BCD4_MAX (2*BCD8_MAX)
@@ -61,7 +59,6 @@ uint32_t u32FromBCD (uint8_t bcd[], const uint8_t n) // not really a class membe
 class USciExp
 {
 public:
-   //uint16_t u; // deprecate
    uint8_t bcd[BCD8_MAX];
    int8_t   e;
    uint8_t  nU;  // extended info, # additional digits 0..4, flags? valid? sign?
@@ -79,7 +76,7 @@ public:
         Serial.print(f);Serial.println("Hz");
         if (f < 12.5E6) { return f2FSR(f); }
 #endif
-#if 1
+#if 0
         uint32_t mx;
         int8_t ex;
         uint32_t n;
@@ -90,7 +87,7 @@ public:
         else if (ex > 3) { return n * uexp10(ex-3); }
         else if (ex < 3) { return n / uexp10(3-ex); }
 #else
-        return extract(10737);
+        return extract(10737,-3);
 #endif
       }
       return(0); // not representable in target (hardware) format
@@ -141,17 +138,7 @@ public:
             if (('E'==ch) && isDecIntCh(s.peek())) { e+= s.parseInt(SKIP_NONE); } // integer exponent (unknown digit count...)
             if (nD > point) { e-= nD - point; } // fraction digits
          }
-#ifdef USCI_DEFER
          nU= nD;
-         //int8_t ex;
-         //extract16(u,ex);
-#else
-         nU= min(4,nD);  // limit conversion (prevent subsequent overflow)..
-         e+= nD - nU; // adjust exponent as necessary
-         // TODO : revise format, defer conversion - maximise precision
-         u= u32FromBCD(bcd,nU); // convert, overwriting bcd[0..1]
-         nU= nD-nU; // number of bcd digits remaining from bcd[2] onward
-#endif
       }
       return(nD+nO);
    } // readStream
@@ -169,6 +156,7 @@ public:
       uint32_t mx;
       int8_t ex;
       extractUME(mx,ex); // > 0) ???
+      Serial.print("extract() - mx,ex,es"); Serial.print(mx); Serial.print(','); Serial.print(ex); Serial.print(','); Serial.println(eScale);
       ex+= eScale;
       if (1 != mScale) { mx*= mScale; }
       if (0 == ex) { return(mx); }

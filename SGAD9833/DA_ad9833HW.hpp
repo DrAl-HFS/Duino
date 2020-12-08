@@ -32,6 +32,8 @@
 //#define PIN_DAT MOSI  // (#11 on Uno)
 #endif
 
+#define F_TO_FSR(f) (f * (((uint32_t)1<<28) / 25E6))
+
 
 /***/
 
@@ -206,10 +208,10 @@ public:
 #define CYCM_CONS_HI 0x04
 #define CYCM_CMP_LO  0x02
 #define CYCM_CONS_LO 0x01
-#define CYCM_WRAP_HI 0x40
 #define CYCM_MIRR_HI 0x80
-#define CYCM_WRAP_LO 0x10
+#define CYCM_WRAP_HI 0x40
 #define CYCM_MIRR_LO 0x20
+#define CYCM_WRAP_LO 0x10
 
 class DA_Cycle
 {
@@ -291,13 +293,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    bool setDT (USciExp v[1])
    {
       uint32_t t= dt;
-#ifdef USCI_DEFER
-      dt= v[0].extract();
-#else
-      if (-3 == v[0].e) { dt= v[0].u;} // likely
-      else if (v[0].e < -3) { return(false); }
-      else { dt= v[0].u * uexp10(3+v[0].e); }
-#endif
+      dt= v[0].extract(); // NB: implicit scaling to ms
       return(dt != t);
    } // setDT
 

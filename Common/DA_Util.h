@@ -16,7 +16,8 @@ extern "C" {
 
 /***/
 
-// Processor specific variants
+// Processor specific variants - leave in as build sanity check...
+// TODO: verify use of {u}int_fast8_t is (probably) a waste of time for AVR target...
 
 #ifdef AVR
 // GCC extended assembler syntax - "template : output : input {: clobber : goto}"
@@ -79,6 +80,7 @@ void convTimeHM (uint_fast8_t hm[2], uint_fast16_t t)
    hm[1]= t - (hm[0] * 60);
 } // convTimeHM
 
+// Really 16bit -> BCD
 // generate specified number of BCD bytes (yielding 2, 4 or 5 digits)
 void convMilliBCD (uint_fast8_t bcd[], const int8_t n, uint_fast16_t m)
 {
