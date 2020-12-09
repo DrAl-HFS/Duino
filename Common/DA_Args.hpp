@@ -65,34 +65,6 @@ public:
 
    USciExp () {;}
 
-   // 2^28 / 25e6 = 10.737(418..) = 10737E-3
-   uint32_t toFSR () const  // FIX: using information belonging elsewhere
-   {
-      if (nU > 0)
-      {
-#if 0
-        float f= u;
-        if (e > 0) { f*= uexp10(e); }
-        Serial.print(f);Serial.println("Hz");
-        if (f < 12.5E6) { return f2FSR(f); }
-#endif
-#if 0
-        uint32_t mx;
-        int8_t ex;
-        uint32_t n;
-        extractUME(mx,ex);
-        n= (uint32_t)mx * 10737; // 3 fractional digits in scale
-        Serial.print(mx);Serial.print('e');Serial.print(ex);Serial.println("Hz");
-        if (3 == ex) { return n; }
-        else if (ex > 3) { return n * uexp10(ex-3); }
-        else if (ex < 3) { return n / uexp10(3-ex); }
-#else
-        return extract(10737,-3);
-#endif
-      }
-      return(0); // not representable in target (hardware) format
-   } // toFSR
-
    // Store digits packed in big endian order
    uint8_t readStreamBCD (Stream& s, uint8_t bcd[], uint8_t i, const uint8_t max)
    {

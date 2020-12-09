@@ -45,7 +45,7 @@ static
 const char* st[]=
 {
    "*\t",
-   "S T C D - waveform: Sin,Tri,Clock,Double",
+   "S T C D - waveform: Sin,Tri,haLf,Clock",
    "F - Function (cyclic)",
    "H O R - set: Hold,On/Off,Reset",
    "? - help (this text)"
@@ -56,7 +56,7 @@ static const int8_t nST= sizeof(st)/sizeof(st[0]);
    s.println(st[0]);
 #else
    s.println('*');
-   s.print(F("*\t")); s.println(F("S T C D - waveform: Sin,Tri,Clock,Double"));
+   s.print(F("*\t")); s.println(F("S T L C - waveform: Sin,Tri,haLf,Clock"));
    s.print(F("*\t")); s.println(F("F - Function (cyclic)"));
    s.print(F("*\t")); s.println(F("H O R - set: Hold,On/Off,Reset"));
    s.print(F("*\t")); s.println(F("? - help (this text)"));
@@ -104,7 +104,7 @@ protected:
             ch= s.read(); ++n;
             if (isUpperCase(ch))
             {
-               uint8_t t= idxMatch(ch, "STCDFHKOR");
+               uint8_t t= idxMatch(ch, "STLCFHKOR");
                if (t >= 0)
                { 
                   if (t < 4) { f[1]= t | 0x4; } // waveform
@@ -135,7 +135,7 @@ protected:
       int8_t i= 0;
       if (w & 0x04)
       {
-static const char cc[]="STCD";
+static const char cc[]="STLC";
          rs[i++]= cc[w & 0x3];
       }
       return(i);

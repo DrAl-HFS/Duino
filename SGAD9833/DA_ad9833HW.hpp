@@ -37,13 +37,8 @@
 
 /***/
 
-/*
-extern "C" bool isZero (const UU16 fr[2])
-{  // not working as expected... ???
-   if (0 == (fr[0].u8[0] | fr[1].u8[0])) { return(0 == (AD9833_FSR_MASK_8H & (fr[0].u8[1] | fr[1].u8[1]))); }
-   return(false);
-} // isZeroFSR
-*/
+static uint32_t toFSR (const USciExp& v) { return v.extract(10737,-3); }
+
 // Classes are used because Arduino has limited support for modularisation and sanitary source reuse.
 // Default build settings (minimise size) prevent default class-method-declaration inlining
 class DA_AD9833FreqPhaseReg
@@ -58,7 +53,7 @@ public:  // - not concerned with frequency/phase-shift keying...
       fr[0].u16=  AD9833_FSR_MASK & fsr;
       fr[1].u16=  AD9833_FSR_MASK & (fsr >> 14);
    } // setFSR
-//=0
+
    uint32_t getFSR (uint8_t lsh) const
    {
       switch(lsh)
@@ -85,7 +80,7 @@ public:  // - not concerned with frequency/phase-shift keying...
       fr[1].u8[0]= fr[0].u8[0]= 0;
       fr[1].u8[1]= fr[0].u8[1]= a;
    } // setZeroFSR
-   bool isZeroFSR (void) const { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); } // { return isZero(fr); }
+   bool isZeroFSR (void) const { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); }
 
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
 }; // class CDA_AD9833FreqPhaseReg
@@ -272,12 +267,13 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
    uint32_t rPow; // power-law (growth) rate
    UU64 q52; // temp val
 
+
    // Primitive operations
    uint8_t setF (USciExp fv[2])
    {
       uint8_t m=0;
-      cycle.lim[0]= fv[0].toFSR();
-      cycle.lim[1]= fv[1].toFSR();
+      cycle.lim[0]= toFSR(fv[0]);
+      cycle.lim[1]= toFSR(fv[1]);
       if (cycle.lim[0] > cycle.lim[1])
       {  // swap
          uint32_t t= cycle.lim[0];
@@ -404,8 +400,8 @@ static const U8 ctrlB0[]=
 {
    0x00,  // sine wave
    AD9833_FL0_TRI, // triangular (symmetric)
-   AD9833_FL0_OCLK|AD9833_FL0_SLP_DAC, // clock output (clock running, DAC off)
-   AD9833_FL0_OCLK|AD9833_FL0_DCLK|AD9833_FL0_SLP_DAC // doubled "
+   AD9833_FL0_OCLK|AD9833_FL0_SLP_DAC, // half-rate clock output (clock running, DAC off)
+   AD9833_FL0_OCLK|AD9833_FL0_FCLK|AD9833_FL0_SLP_DAC // full-rate clock output "
 };
       if ((w >= 0) && (w < 4))
       {  // lazy change if (ctrlB0[w] != reg.ctrl.u8[0]) { 
@@ -482,7 +478,7 @@ static const U8 ctrlB0[]=
          }
          if ((1 == nV) && (cs.v[0].nU > 0))
          {  // Set backup & shadow HW registers (sweep state remains independant)
-            fsr= cs.v[0].toFSR();
+            fsr= toFSR(cs.v[0]);
             // if (0 == iFN) ???
             reg.setFSR(fsr, 0); rwm|= FUGM; // avoid phase discontinuity
             iFN= 0; // revert to simple function
