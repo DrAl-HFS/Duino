@@ -53,20 +53,31 @@ uint32_t u32FromBCD (uint8_t bcd[], const uint8_t n) // not really a class membe
 } // u32FromBCD
 
 
-#define BCD8_MAX 4
+#define BCD8_MAX 3
 #define BCD4_MAX (2*BCD8_MAX)
 
 class USciExp
 {
-public:
+protected:
    uint8_t bcd[BCD8_MAX];
-   int8_t   e;
+   int8_t   e;    // TODO : pack as 2 * 4bit
    uint8_t  nU;  // extended info, # additional digits 0..4, flags? valid? sign?
 
+   
+public:
    USciExp () {;}
+   
+   void dumpHex (Stream & s)
+   {
+      s.print("m0x"); s.print(bcd[0],HEX); s.print(bcd[1],HEX); s.println(bcd[2],HEX);
+      s.print("e"); s.print(e); s.print("u"); s.println(nU);
+   }
+
+   bool isNum (void) const { return(nU>0); }
+   bool isClk (void) const { return(0x80 == e); }
 
    // Store digits packed in big endian order
-   uint8_t readStreamBCD (Stream& s, uint8_t bcd[], uint8_t i, const uint8_t max)
+   uint8_t readStreamBCD (Stream& s, uint8_t i, const uint8_t max)
    {
       while ( isDigit(s.peek()) && (i < max))
       {
@@ -74,12 +85,33 @@ public:
          if (i & 1) { bcd[i>>1]|= d; } else { bcd[i>>1]= swapHiLo4U8(d); }
          ++i;
       }
-     return(i);
+      return(i);
    } // readStreamBCD
 
+   int8_t readStreamClock (Stream& s, const uint8_t a)
+   {
+      uint8_t nD= 0, nO= 0;
+      char ch;
+      
+      do
+      {
+         uint8_t d= readStreamBCD(s, nD, BCD4_MAX);
+         ch= 0;
+         // s.print(d); dumpHex(s);
+         if ((d > nD) && (d < BCD4_MAX))
+         {
+            if (':' == s.peek()) { ch= s.read(); ++nO; }
+         }
+         nD= d;
+      } while ((ch>0) && (nD < BCD4_MAX));
+      nU= nD;
+      e= 0x80; // hacky...
+      return(nD+nO);
+   } // readStreamClock
+   
    int8_t readStream (Stream& s, const uint8_t a)
    {
-      uint8_t point= 0xFF, nO=0, nD= readStreamBCD(s, bcd, 0, min(a,BCD4_MAX));
+      uint8_t point= 0xFF, nO=0, nD= readStreamBCD(s, 0, min(a,BCD4_MAX));
 
       if (nD > 0)
       {
@@ -99,7 +131,7 @@ public:
                point= nD;
                if ((a > (nD+1)) && isDigit(s.peek()))
                { // fractional part
-                  nD= readStreamBCD(s, bcd, nD, min(a,BCD4_MAX-nD));
+                  nD= readStreamBCD(s, nD, min(a,BCD4_MAX-nD));
                }
                if ('.' == ch) // point char was found, check for exp e#/E# notation
                {
@@ -119,7 +151,7 @@ public:
    {
        uint8_t nD= min(maxD,nU);  // limit conversion (prevent overflow)..
        ex= e + nD - nU; // adjust exponent
-       mx= u32FromBCD(bcd,nD); // convert, overwriting bcd[0..1]
+       mx= u32FromBCD(bcd,nD); // convert
        return(nD);
    } // extractUME
    
@@ -128,7 +160,7 @@ public:
       uint32_t mx;
       int8_t ex;
       extractUME(mx,ex); // > 0) ???
-      Serial.print("extract() - mx,ex,es"); Serial.print(mx); Serial.print(','); Serial.print(ex); Serial.print(','); Serial.println(eScale);
+      //Serial.print("extract() - mx,ex,es"); Serial.print(mx); Serial.print(','); Serial.print(ex); Serial.print(','); Serial.println(eScale);
       ex+= eScale;
       if (1 != mScale) { mx*= mScale; }
       if (0 == ex) { return(mx); }
@@ -136,6 +168,18 @@ public:
       //else if (ex < 0) { 
       return(mx / uexp10(-ex));
    } // extract
+   
+   int8_t extractHMS (uint8_t hms[3], int8_t n)
+   {
+      int8_t i=0;
+      if (!isClk()) { Serial.println("!isClk()"); } // ????
+      
+      {  // dumpHex(Serial);
+         n= min(n, nU/2);
+         while (i < n) { hms[i]= fromBCD4(bcd[i], 2); ++i; }
+      }
+      return(i);
+   } // extractHMS
    
 }; // USciExp
 

@@ -76,7 +76,7 @@ protected:
       do // Read a sequence of separated numbers
       {
          n0= n;
-         n+= v[i].readStream(s,a);
+         n+= v[i].readStream(s,a-n);
          i+= (n > n0);
          do
          {
@@ -92,7 +92,7 @@ protected:
       return(i);
    } // scanV
 
-   uint8_t scanC (uint8_t f[2], Stream& s)
+   uint8_t scanC (uint8_t f[2], USciExp& k, Stream& s)
    {
       uint8_t n0, i=0;
       char ch;
@@ -104,12 +104,17 @@ protected:
             ch= s.read(); ++n;
             if (isUpperCase(ch))
             {
-               uint8_t t= idxMatch(ch, "STLCFHKOR");
+               uint8_t t= idxMatch(ch, "STLCFHORK");
                if (t >= 0)
                { 
                   if (t < 4) { f[1]= t | 0x4; } // waveform
-                  else { f[0]|= 1<<(t-4); } // Function,Hold,on/Off,Reset,mclK
+                  else
+                  { 
+                     f[0]|= 1<<(t-4); // Function,Hold,on/Off,Reset,clocK
+                     if ('K' == ch) { n+= k.readStreamClock(s,a-n); }
+                  }
                   ++i;
+                  
                }
             } else if ('?' == ch) { help(s); }
          }
@@ -124,9 +129,9 @@ protected:
       {
          if (f1 & 0x01) { rs[i++]= 'F'; }
          if (f1 & 0x02) { rs[i++]= 'H'; }
-         if (f1 & 0x04) { rs[i++]= 'K'; }
-         if (f1 & 0x08) { rs[i++]= 'O'; }
-         if (f1 & 0x10) { rs[i++]= 'R'; }
+         if (f1 & 0x04) { rs[i++]= 'O'; }
+         if (f1 & 0x08) { rs[i++]= 'R'; }
+         if (f1 & 0x10) { rs[i++]= 'K'; }
       }
       return(i);
    } // setRS1
@@ -151,9 +156,9 @@ public:
       if (a > 0)
       {
          n= 0; // Expect number sequence, command flags before and/or after
-         cs.nFV+= scanC(cs.cmdF, s);
+         cs.nFV+= scanC(cs.cmdF, cs.v[SCI_VAL_MAX-1], s);
          cs.nFV+= scanV(cs.v, cs.sep, SCI_VAL_MAX, s);
-         cs.nFV+= scanC(cs.cmdF, s);
+         cs.nFV+= scanC(cs.cmdF, cs.v[SCI_VAL_MAX-1], s);
          //s.print("cmdF:"); s.print(cs.cmdF[0],HEX); s.print(','); s.println(cs.cmdF[1],HEX);
          resid(a-n);
       }
@@ -170,20 +175,22 @@ public:
       i+= setRS2(rs+i, cs.cmdR[1]);
       if (i > 0)
       { 
-         s.println("OK:");
+         s.print("OK:");
          rs[i]= 0;
          s.print(rs);
          if (cs.iRes >= 0) { s.print(cs.iRes); }
+         s.println();
       }
 
       i= setRS1(rs, cs.cmdR[0] ^ cs.cmdF[0]);
       i+= setRS2(rs+i, cs.cmdR[1] ^ cs.cmdF[1]);
       if (i > 0)
       {
-         s.println("ERR:");
+         s.print("ERR:");
          rs[i]= 0;
          s.print(rs); 
          if (cs.iRes < 0) { s.print(cs.iRes); }
+         s.println();
       }
    } // respond
 }; // StreamCmd

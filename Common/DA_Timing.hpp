@@ -250,6 +250,7 @@ public:
 #endif
    
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
+   void setS (const uint8_t s) { tick= s*1000; }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
    // Serial interface support, debug mostly?
    int8_t getStrHM (char str[], int8_t max, char end=0)

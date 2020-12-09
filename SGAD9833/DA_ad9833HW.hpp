@@ -415,7 +415,6 @@ static const U8 ctrlB0[]=
    {  // master clock required in clock modes...
       if (0 == (reg.ctrl.u8[0] & AD9833_FL0_OCLK))
       {
-         Serial.println("*K");
          reg.ctrl.u8[0]= scfByte(reg.ctrl.u8[0], AD9833_FL0_SLP_MCLK, scf);
          return((reg.ctrl.u8[0] & AD9833_FL0_SLP_MCLK) > 0);
       }
@@ -427,11 +426,6 @@ static const U8 ctrlB0[]=
       if (hf < 0) { hf= reg.isZeroFSR(); }
       if (hf) { reg.setFSR(fsr); reg.setPSR(0); }
       else { reg.setZeroFSR(); reg.setPSR(0xFF); }
-#if 0
-      Serial.print("*H"); Serial.print(hf);
-      Serial.print("fr="); Serial.print(reg.fpr[0].fr[1].u16,HEX);
-      Serial.print(":"); Serial.println(reg.fpr[0].fr[0].u16,HEX);
-#endif
       return(hf);
    } // hold
 
@@ -466,17 +460,17 @@ static const U8 ctrlB0[]=
                cs.cmdR[0]|= 0x01;
             }
             if (cs.cmdF[0] & 0x02) { cs.iRes= hold(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x02; rwm|= 0xF; iFN= -1; } } 
-            if (cs.cmdF[0] & 0x04) { cs.iRes= mclock(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x04; } }
-            if (cs.cmdF[0] & 0x08) { cs.iRes= onOff(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x08; } }
-            if (cs.cmdF[0] & 0x10) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x10; rwm|= 0x81; }
-            else if (cs.cmdR[0]) { rwm|= 0x10; }
+            if (cs.cmdF[0] & 0x04) { cs.iRes= onOff(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x08; } }
+            if (cs.cmdF[0] & 0x08) { reg.ctrl.u8[1]|=  AD9833_FL1_RST; cs.cmdR[0]|= 0x04; rwm|= 0x81; }
+            //if (cs.cmdF[0] & 0x10) { cs.iRes= mclock(); if (cs.iRes >= 0) { cs.cmdR[0]|= 0x10; } }
+            //else if (cs.cmdR[0]) { rwm|= 0x10; }
          }
          if (cs.cmdF[1] & 0x0F)
          {
             if (waveform(cs.cmdF[1] & 0x3) >= 0) { cs.cmdR[1]|= cs.cmdF[1] & 0x0F; rwm|= 0x1; }
             //reg.ctrl.u8[1]|= AD9833_FL1_B28; // assume always set
          }
-         if ((1 == nV) && (cs.v[0].nU > 0))
+         if ((1 == nV) && cs.v[0].isNum())
          {  // Set backup & shadow HW registers (sweep state remains independant)
             fsr= toFSR(cs.v[0]);
             // if (0 == iFN) ???

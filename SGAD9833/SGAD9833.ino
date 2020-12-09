@@ -98,8 +98,8 @@ void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
 void setup (void)
 {
    noInterrupts();
-   const uint8_t cs[]={22,18};
-   gClock.setHM(cs);
+   //const uint8_t cs[]={22,18};
+   //gClock.setHM(cs);
    gClock.start();
 #ifdef DA_COUNTING_HPP
    gRate.start();
@@ -150,6 +150,17 @@ void loop (void)
     {
       ev|= 0x40;
       gSigGen.apply(cmd);
+      if (cmd.cmdF[0] & 0x10) // clock
+      {
+        uint8_t hms[3], d;
+        d= cmd.v[SCI_VAL_MAX-1].extractHMS(hms,3);
+        if (d >= 2)
+        { 
+          gClock.setHM(hms);
+          if (d >= 3) { gClock.setS(hms[2]); }
+          cmd.cmdR[0]|= 0x10;
+        }
+      }
     }
 
     gSigGen.update(ev&0xF);
