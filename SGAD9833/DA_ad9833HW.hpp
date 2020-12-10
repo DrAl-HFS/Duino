@@ -37,7 +37,7 @@
 
 /***/
 
-static uint32_t toFSR (const USciExp& v) { return v.extract(10737,-3); }
+static uint32_t toFSR (const CNumBCDX& v) { return v.extractScale(10737,-3); }
 
 // Classes are used because Arduino has limited support for modularisation and sanitary source reuse.
 // Default build settings (minimise size) prevent default class-method-declaration inlining
@@ -269,7 +269,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
 
 
    // Primitive operations
-   uint8_t setF (USciExp fv[2])
+   uint8_t setF (CNumBCDX fv[2])
    {
       uint8_t m=0;
       cycle.lim[0]= toFSR(fv[0]);
@@ -286,14 +286,14 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
       return(m);
    } // setF
 
-   bool setDT (USciExp v[1])
+   bool setDT (CNumBCDX v[1])
    {
       uint32_t t= dt;
-      dt= v[0].extract(); // NB: implicit scaling to ms
+      dt= v[0].extractScale(); // NB: implicit scaling to ms
       return(dt != t);
    } // setDT
 
-   int8_t setFT (USciExp v[], int8_t n)
+   int8_t setFT (CNumBCDX v[], int8_t n)
    {
       int8_t r=0;
       if (n >= 2)
@@ -307,7 +307,7 @@ protected:  // NB: fsr values in AD9833 native 28bit format (fixed point fractio
 public:
    DA_AD9833Sweep (void) { cycle.mode= CYCM_CMP_HI|CYCM_WRAP_HI; } // |CYCM_CONS_HI; }
 
-   int8_t setParam (USciExp v[], int8_t n)
+   int8_t setParam (CNumBCDX v[], int8_t n)
    {
       int8_t r= setFT(v,n);
       if ((r > 0) && (0 != range) && (dt > 0))

@@ -69,7 +69,7 @@ class StreamCmd : StreamFilter
 protected:
    uint8_t n, a; // crap hack
 
-   uint8_t scanV (USciExp v[], char sep[], const uint8_t max, Stream& s)
+   uint8_t scanV (CNumBCDX v[], char sep[], const uint8_t max, Stream& s)
    {
       uint8_t n0, i=0, j=0;
       char ch;
@@ -92,7 +92,7 @@ protected:
       return(i);
    } // scanV
 
-   uint8_t scanC (uint8_t f[2], USciExp& k, Stream& s)
+   uint8_t scanC (uint8_t f[2], CNumBCDX& k, Stream& s)
    {
       uint8_t n0, i=0;
       char ch;

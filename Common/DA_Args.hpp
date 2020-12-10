@@ -56,25 +56,57 @@ uint32_t u32FromBCD (uint8_t bcd[], const uint8_t n) // not really a class membe
 #define BCD8_MAX 3
 #define BCD4_MAX (2*BCD8_MAX)
 
-class USciExp
+class CNumBCDX
 {
 protected:
-   uint8_t bcd[BCD8_MAX];
-   int8_t   e;    // TODO : pack as 2 * 4bit
-   uint8_t  nU;  // extended info, # additional digits 0..4, flags? valid? sign?
+   uint8_t bcd[BCD8_MAX], x;
+   //int8_t   e;    // TODO : pack as 2 * 4bit
+   //uint8_t  nU;  // extended info, # additional digits 0..4, flags? valid? sign?
 
+   bool setE (int8_t e)
+   {
+      uint8_t m= e;
+      if (e < 0) { e= -e; m= 0x08 | e; }
+      if (e > 7) { return(false); }
+      x= (x & 0xF0) | m;
+      return(true);
+   } // setE
+
+   bool setD (uint8_t d)
+   {
+      if (d > BCD4_MAX) { return(false); }
+      uint8_t m= swapHiLo4U8(d & 0x7);
+      x= (x & 0x0F) | m;
+      return(true);
+   } // setD
    
+   bool setClkD (uint8_t d) { if (setD(d)) { x= (0x88 | x) & 0xF8; } } // set flags, clear exp
+
+   int8_t getE (void)
+   {
+      int8_t e= 0x07 & x;
+      if (0 == (x & 0x08)) { return(e); }
+      else { return(-e); }
+   } // getE
+
+   uint8_t getD (void)
+   {
+      int8_t d= 0x07 & swapHiLo4U8(x);
+      if (d <= 6) { return(d); }
+      else { return(0); }
+   } // getD
+
 public:
-   USciExp () {;}
+   CNumBCDX () {;}
    
    void dumpHex (Stream & s)
    {
       s.print("m0x"); s.print(bcd[0],HEX); s.print(bcd[1],HEX); s.println(bcd[2],HEX);
-      s.print("e"); s.print(e); s.print("u"); s.println(nU);
+      s.print("E"); s.print(getE()); s.print("D"); s.println(getD());
    }
 
-   bool isNum (void) const { return(nU>0); }
-   bool isClk (void) const { return(0x80 == e); }
+   bool isNum (void) const { return((0x70 & x) > 0); }
+   bool isClk (void) const { return(0x88 == (0x8F & x)); }
 
    // Store digits packed in big endian order
    uint8_t readStreamBCD (Stream& s, uint8_t i, const uint8_t max)
@@ -95,7 +127,7 @@ public:
       
       do
       {
-         uint8_t d= readStreamBCD(s, nD, BCD4_MAX);
+         uint8_t d= readStreamBCD(s, nD, min(a,BCD4_MAX));
          ch= 0;
          // s.print(d); dumpHex(s);
          if ((d > nD) && (d < BCD4_MAX))
@@ -104,19 +136,18 @@ public:
          }
          nD= d;
       } while ((ch>0) && (nD < BCD4_MAX));
-      nU= nD;
-      e= 0x80; // hacky...
+      setClkD(nD);
       return(nD+nO);
    } // readStreamClock
    
    int8_t readStream (Stream& s, const uint8_t a)
    {
       uint8_t point= 0xFF, nO=0, nD= readStreamBCD(s, 0, min(a,BCD4_MAX));
+      int8_t i, e= 0; // TODO : merge i->e
 
       if (nD > 0)
       {
-         e= 0;
-         int8_t i= idxMatch(s.peek(),"Mk.muhdEe");
+         i= idxMatch(s.peek(),"Mk.muhdEe");
          if (i >= 0)
          {
             char ch= toupper(s.read()); nO++; // discard
@@ -142,20 +173,21 @@ public:
             if (('E'==ch) && isDecIntCh(s.peek())) { e+= s.parseInt(SKIP_NONE); } // integer exponent (unknown digit count...)
             if (nD > point) { e-= nD - point; } // fraction digits
          }
-         nU= nD;
+         setE(e);
+         setD(nD);
       }
       return(nD+nO);
    } // readStream
   
    uint8_t extractUME (uint32_t& mx, int8_t& ex, const uint8_t maxD=4)
    {
-       uint8_t nD= min(maxD,nU);  // limit conversion (prevent overflow)..
-       ex= e + nD - nU; // adjust exponent
+       uint8_t nD= getD(), d= min( maxD, nD );  // limit conversion (prevent overflow)..
+       ex= getE() + d - nD; // adjust exponent
        mx= u32FromBCD(bcd,nD); // convert
        return(nD);
    } // extractUME
    
-   uint32_t extract (const uint16_t mScale=1, const int8_t eScale=3)
+   uint32_t extractScale (const uint16_t mScale=1, const int8_t eScale=3)
    {
       uint32_t mx;
       int8_t ex;
@@ -167,7 +199,7 @@ public:
       else if (ex > 0) { return(mx * uexp10(ex)); }
       //else if (ex < 0) { 
       return(mx / uexp10(-ex));
-   } // extract
+   } // extractScale
    
    int8_t extractHMS (uint8_t hms[3], int8_t n)
    {
@@ -175,13 +207,14 @@ public:
       if (!isClk()) { Serial.println("!isClk()"); } // ????
       
       {  // dumpHex(Serial);
-         n= min(n, nU/2);
+         uint8_t b= (1 + getD()) / 2; // round up, just in case
+         n= min(n, b);
          while (i < n) { hms[i]= fromBCD4(bcd[i], 2); ++i; }
       }
       return(i);
    } // extractHMS
    
-}; // USciExp
+}; // CNumBCDX
 
 // TODO : cleanup command flags
 #define SCI_VAL_MAX 4
@@ -189,7 +222,7 @@ public:
 class CmdSeg
 {
 public:
-  USciExp v[SCI_VAL_MAX];
+  CNumBCDX v[SCI_VAL_MAX];
   char sep[SEP_CH_MAX];
   uint8_t nFV, cmdF[2], cmdR[2];
   int8_t  iRes;
