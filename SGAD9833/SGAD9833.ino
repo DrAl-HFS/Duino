@@ -21,6 +21,7 @@
 #ifndef DA_FAST_POLL_TIMER_HPP // resource contention
 #include "Common/DA_Counting.hpp"
 #endif
+#include "Common/DA_Analogue.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
@@ -49,18 +50,27 @@ ISR(TIMER1_OVF_vect)  { gRate.event(); }
 
 #endif // DA_COUNTING_HPP
 
+#ifdef DA_ANALOGUE_HPP
+
+CAnalogue gADC;
+
+ISR(ADC_vect) { gADC.event(); }
+
+#endif // DA_ANALOGUE_HPP
+
 //#ifdef SAMD_CLOCK_TN
 //#endif
 
 char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
-void sysLog (Stream& s, uint8_t events)
+#define SEC_DIG 1
+int8_t sysLog (Stream& s, uint8_t events)
 {
-  uint8_t msBCD[3];
+  uint8_t msBCD[SEC_DIG];
   char str[64];
-  int8_t m=sizeof(str)-1, n=0;
+  int8_t m=sizeof(str)-1, r=0, l=-1, n=0;
   
-  convMilliBCD(msBCD, 1, gClock.tick);
+  convMilliBCD(msBCD, SEC_DIG, gClock.tick);
 #if 0
   str[n++]= 'V';
   n+= hex2ChU8(str+n, events);
@@ -68,14 +78,15 @@ void sysLog (Stream& s, uint8_t events)
 #endif
   n+= gClock.getStrHM(str+n, m-n, ':');
   n+= hex2ChU8(str+n, msBCD[0]); // seconds
-#if 0
+#if SEC_DIG > 1
   str[n++]= '.';
   n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
-#ifdef DA_COUNTING_HPP
+  str[n]= 0;
+#if 0 //def DA_COUNTING_HPP
   n+= snprintf(str+n, m-n, " Ref: %u, %u; [%d]", gRate.ref.c, gRate.ref.t, gRate.iRes);
   n+= snprintf(str+n, m-n, " R0: %u, %u", gRate.res[0].c, gRate.res[0].t);
-  n+= snprintf(str+n, m-n, " R1: %u, %u\n", gRate.res[1].c, gRate.res[1].t);
+  n+= snprintf(str+n, m-n, " R1: %u, %u", gRate.res[1].c, gRate.res[1].t);
 /*
   if (events & 0x20)
   {
@@ -84,16 +95,48 @@ void sysLog (Stream& s, uint8_t events)
   }
 */
 #endif
-  s.println(str);
+#ifdef DA_ANALOGUE_HPP
+  do
+  {
+    uint16_t t;
+    r= gADC.get(t);
+    if (r >= 0)
+    {
+      l= r+1;
+      if (r < 3) { n+= snprintf(str+n, m-n, " A0[%d]= %u", r, t); }
+      else
+      {
+        int tC= 25 + (((int)t-((int)273+80))*13)/16;
+        n+= snprintf(str+n, m-n, " T[%d]= %dC (0x%X)", r, tC, t);
+      }
+    }
+    else if (l < 0) { n+= gADC.dump(str+n, m-n); }
+  } while ((r >= 0) && (n < 32));
+  if (l >= 0) { gADC.set(l); }
+#endif
 #ifdef DA_FAST_POLL_TIMER_HPP
   n+= snprintf(str+n, m-n, " S%u,B%u", gSigGen.reg.dbgTransClk, gSigGen.reg.dbgTransBytes);
   gSigGen.reg.dbgTransClk= gSigGen.reg.dbgTransBytes= 0;
 #endif // DA_FAST_POLL_TIMER_HPP
+  s.println(str);
   //n+= snprintf(str+n, m-n, " %uHz", gSigGen.getF());
   gSigGen.changeMon();
+  return(r);
 } // sysLog
 
-void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
+//void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
+
+#include <avr/boot.h>
+void sig (uint8_t m)
+{ // avrdude: Device signature = 0x1e950f (probably m328p)
+  Serial.print("sig:"); // 1E 9A 95 ?? FFFC4FF26 sig:1E 9A 95 FF FC 4F F2 6F F9 FF 17
+  for (uint8_t i=0; i<m; i++)
+  {
+    uint8_t b= boot_signature_byte_get(i);
+    Serial.print(b,HEX);
+  }
+  Serial.println();
+} // sig
 
 void setup (void)
 {
@@ -103,6 +146,9 @@ void setup (void)
    gClock.start();
 #ifdef DA_COUNTING_HPP
    gRate.start();
+#endif
+#ifdef DA_ANALOGUE_HPP
+   gADC.init(); gADC.start();
 #endif
    
    pinMode(PIN_PULSE, OUTPUT);
@@ -114,7 +160,8 @@ void setup (void)
 
    Serial.begin(BAUDRATE);
    Serial.println("SigGen " __DATE__ " " __TIME__);
-   dumpT0(Serial);
+   //sig(12);
+   //dumpT0(Serial);
    
    interrupts();
    gClock.intervalStart();
@@ -145,7 +192,8 @@ void loop (void)
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
-    if (gClock.intervalUpdate()) { ev|= 0x80; }
+    if (gClock.intervalDiff() >= -3) { gADC.start(); } // 4?samples @ 1ms interval, prior to routine sysLog()
+    if (gClock.intervalUpdate()) { ev|= 0x80; } // 
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;
