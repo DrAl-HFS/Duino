@@ -1,7 +1,7 @@
-// Duino/Common/numCh.hpp - Arduino-AVR hardware counter hacks (broken)
+// Duino/Common/DA_Conting.hpp - Arduino-AVR hardware counter hacks
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Oct-Nov 2020
+// (c) Project Contributors Oct-Dec 2020
 
 #ifndef DA_COUNTING_HPP
 #define DA_COUNTING_HPP

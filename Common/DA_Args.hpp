@@ -1,7 +1,7 @@
-// Duino/Common/DA_SerCmd.h - Arduino (AVR) specific serial command processing
+// Duino/Common/DA_SerCmd.h - Arduino (AVR) specific (AD9833 control related) text IO processing
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2020
+// (c) Project Contributors Nov-Dec 2020
 
 #ifndef DA_ARGS_HPP
 #define DA_ARGS_HPP

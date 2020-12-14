@@ -97,7 +97,7 @@ public:  // - not concerned with frequency/phase-shift keying...
 #define SET_SEL_HI() { asm("SBI 0x25, 2"); }
 TODO - properly comprehend gcc assembler arg handling...
 #define ASM_CBI(port,bit) { asm("CBI %0, %1" : "=r" (port) : "0" (u)); }
-#define SET_SEL_LO() { asm("CBI %0, 2" : "=" PORTB ); } 
+#define SET_SEL_LO() { asm("CBI %0, 2" : "=" PORTB ); }
 #define SET_SEL_HI() { asm("SBI %0, 2" : "=" PORTB ); }
 */
 #else   // portable & robust (but slow) versions
@@ -213,7 +213,7 @@ class DA_Cycle
 public :
    uint32_t lim[2];  // NB : implicit order, lim[1] > lim[0]
    uint8_t  mode, state;
-   
+
    DA_Cycle () { ; }
    uint32_t operator () (uint32_t v)
    {
@@ -238,7 +238,7 @@ public :
          }
       }
       if (CYCM_CMP_LO == state)
-      {  
+      {
          switch (mode & (CYCM_MIRR_LO|CYCM_WRAP_LO))
          {
             case CYCM_WRAP_LO : // wrap lo to hi
@@ -348,7 +348,7 @@ public:
       }
 #if 0
       if (cycle.state)
-      { 
+      {
          Serial.print("*SC: M=");
          Serial.print(cycle.mode,HEX);
          Serial.print(" S=");
@@ -390,10 +390,10 @@ public:
    uint32_t fsr;  // backup for hold feature
    uint8_t rwm; // sweep function state, write mask for hw reg (16bits per flag)
    int8_t iFN;
-   uint16_t hph;
-   
+   uint16_t hph; // hacky hold phase
+
    DA_AD9833Control (void) { iFN= 0; rwm= 0; } // Not reliably cleared by reset (?)
-   
+
    int8_t waveform (int8_t w=0) // overwrite any sleep/hold setting
    {
 static const U8 ctrlB0[]=
@@ -404,7 +404,7 @@ static const U8 ctrlB0[]=
    AD9833_FL0_OCLK|AD9833_FL0_FCLK|AD9833_FL0_SLP_DAC // full-rate clock output "
 };
       if ((w >= 0) && (w < 4))
-      {  // lazy change if (ctrlB0[w] != reg.ctrl.u8[0]) { 
+      {  // lazy change if (ctrlB0[w] != reg.ctrl.u8[0]) {
          reg.ctrl.u8[0]= ctrlB0[w];
          return(w);
       }
@@ -425,7 +425,7 @@ static const U8 ctrlB0[]=
    {  // hold voltage output - mclock(); broken so zero fsr registers
       if (hf < 0) { hf= reg.isZeroFSR(); }
       if (hf) { reg.setFSR(fsr); reg.setPSR(0); }
-      else { reg.setZeroFSR(); reg.setPSR(0xFF); }
+      else { reg.setZeroFSR(); } // iFN=-1; reg.setPSR(0xFF); }
       return(hf);
    } // hold
 
@@ -496,8 +496,8 @@ static const U8 ctrlB0[]=
          reg.setFSR(sweep.getFSR()); rwm|= FUGM; // Failing to write ctrl before freq causes phase discontinuity (internal reset?)
       }
       else if (iFN < 0)
-      {
-         reg.setPSR(++hph); rwm|= 0x8;
+      {  // hacky test...
+         reg.setPSR(hph+= nStep); rwm|= 0x8;
       }
    } // update
 
@@ -514,7 +514,7 @@ static const U8 ctrlB0[]=
       if (force || (iFN != lastFN))
       {
          if (ids) { Serial.print(ids); }
-         Serial.print("*iFN="); 
+         Serial.print("*iFN=");
          if (iFN == lastFN) { Serial.println(lastFN); }
          else
          {

@@ -1,4 +1,4 @@
-// Duino/Common/DA_timing.h - Arduino-AVR specific class definitions for timer / clock
+// Duino/Common/DA_Timing.hpp - Arduino-AVR specific class definitions for timer / clock
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
@@ -182,10 +182,10 @@ public:
    CIntervalTimer (uint16_t ivl=1000, uint16_t start=0) { interval= ivl; intervalStart(start); }
    void intervalStart (uint16_t when, uint16_t rollover=60000) { setNext(when+interval, rollover); }
    
-      //Serial.print("ivlSt()="); Serial.println(next); } // Serial.print(now); Serial.print(" "); 
+   int16_t intervalDiff (uint16_t now) const { return(now - next); }
    bool intervalComplete (uint16_t now)
    {
-      int16_t d= now - next;
+      int16_t d= intervalDiff(now);
       //Serial.print("IVLC"); Serial.print(now); Serial.print("-"); Serial.print(next);  Serial.print("="); Serial.println(d);
       return((d >= 0) && (d < interval));
    }
@@ -242,6 +242,7 @@ public:
 
    // Simple case for single interval
    // For multi-interval should set flags
+   int16_t intervalDiff (void) { return CIntervalTimer::intervalDiff(tick); }
    void intervalStart (void) { return CIntervalTimer::intervalStart(tick); }
    bool intervalUpdate (void) { return CIntervalTimer::intervalUpdate(tick); }
    

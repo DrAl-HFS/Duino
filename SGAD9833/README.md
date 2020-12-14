@@ -20,11 +20,18 @@ it falls down with regard to interrupt handling. Key features are:-
 *   Hardware SPI communication with AD9833 using 8MHz bus clock - minimum
 latency is ~40 CPU cycles (~2.5us @ 16MHz) per 16bit message.
 
+*   Pulse counting on T1 pin can used to estimate frequency of AD9833
+clock output. (DAC output requires conditioning from waveform to logic pulse.)
+
+*   ADC input on A0 can monitor AD9833 output, A8 for AVR temperature.
+
+*   Settable "real-time" clock with hh:mm:ss.mmm resolution.
+
 *   UART communication with host, providing a simple but adequately flexible
 command interface e.g. 
 
 	- "S" or "T" - sine or triangle waveform output from DAC (0.6Vpp) 
-	- "C" or "D" - clock or double-rate-clock direct output (Vcc 3~5V)
+	- "C" or "L" - clock or half-rate-clock direct output (Vcc 3~5V)
 	- "4.5E3" or "4.5k" or "4k5" - 4.5kHz signal
 	- "1k,10k,100m" - sweep from 1kHz to 10kHz every 100msec
-
+	- "K13:25:30" or "K132530" - set clock
