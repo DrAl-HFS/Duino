@@ -8,13 +8,6 @@
 
 //#include <?>
 
-//#if 0 //def __cplusplus
-//extern "C" {
-//#endif
-
-//#if 0 //def __cplusplus
-//} // extern "C"
-//#endif
 
 /***/
 
@@ -51,17 +44,28 @@ public:
    // (assume memclear, static construction, then handoff to "app" level)
    void init (void)
    {
-      nE= nR= id= 0;
+      nE= nR= 0; id= 2;
       ADMUX=  vmux[id];
       ADCSRA= (1<<ADEN) | (1<<ADIE) | 0x07; // ADC enable, Interrupt enable, clock prescaler 128 -> 125kHz sampling clock
       // 1<<ADATE; auto trigger enable
       ADCSRB= 0x00; // Free run (when auto-trigger)
       //DIDR0=
    } // start
+   
    void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }
    void start (void) { ADCSRA|= 1<<ADSC; }
    void stop (void) { ADCSRA&= ~(1<<ADSC); }
-
+   void startAuto (void) { ADCSRA|= (1<<ADSC) | (1<<ADATE); }
+   void stopAuto (void) { ADCSRA&= ~((1<<ADSC) | (1<<ADATE)); }
+   // Clean event resolution count
+   void flush (void) { nR= nE; }
+   uint8_t flush (int8_t retain) // debug adjustment hack
+   { 
+      uint8_t q= nE-retain;
+      if (q > nR) { nR= q; }
+      return avail();
+   } // flush
+   
    void event (void) // ISR
    {
       uint8_t i= nE & ANLG_VQ_MSK;
@@ -95,8 +99,6 @@ public:
    } // dump
 
 }; // CAnalogue
-
-
 
 #endif //  DA_ANALOGUE_HPP
 

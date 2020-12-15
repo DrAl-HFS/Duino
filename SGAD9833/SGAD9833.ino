@@ -2,7 +2,7 @@
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2020
+// (c) Project Contributors Nov-Dec 2020
 
 #include <math.h>
 
@@ -68,7 +68,7 @@ int8_t sysLog (Stream& s, uint8_t events)
 {
   uint8_t msBCD[SEC_DIG];
   char str[64];
-  int8_t m=sizeof(str)-1, r=0, l=-1, n=0;
+  int8_t m=sizeof(str)-1, r=0, l=-1, n=0, x=0;
   
   convMilliBCD(msBCD, SEC_DIG, gClock.tick);
 #if 0
@@ -96,23 +96,40 @@ int8_t sysLog (Stream& s, uint8_t events)
 */
 #endif
 #ifdef DA_ANALOGUE_HPP
-  do
+  l= gADC.avail();
+  if (l >= 0)
   {
-    uint16_t t;
-    r= gADC.get(t);
-    if (r >= 0)
+    n+= snprintf(str+n, m-n, "[%d]", l);
+    if (l > ANLG_VQ_MAX) { x|= 0x01; }
+    l= -1;
+    do
     {
-      l= r+1;
-      if (r < 3) { n+= snprintf(str+n, m-n, " A0[%d]= %u", r, t); }
-      else
+      uint16_t t;
+      r= gADC.get(t);
+      if (r >= 0)
       {
-        int tC= 25 + (((int)t-((int)273+80))*13)/16;
-        n+= snprintf(str+n, m-n, " T[%d]= %dC (0x%X)", r, tC, t);
+        l= r+1;
+        if (r < 3) { n+= snprintf(str+n, m-n, " A%d=%u", r, t); }
+        else
+        { 
+          int tC;
+#if 1     // Device signature calibration: TSOFFSET=FF, TSGAIN=4F ???
+          // Looks like available docs are totally wrong on this.
+          tC= (int)t - ((int)273+80);
+          //tC= (tC * 128) / 0x4F;
+          tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
+          tC+= 25;
+#else
+          tC= 25+(((int)t-((int)273+80))*13)/16;
+#endif
+          n+= snprintf(str+n, m-n, " T%d=%dC", r, tC);
+        }
       }
-    }
-    else if (l < 0) { n+= gADC.dump(str+n, m-n); }
-  } while ((r >= 0) && (n < 32));
-  if (l >= 0) { gADC.set(l); }
+      else if (l < 0) { n+= gADC.dump(str+n, m-n); }
+    } while ((r >= 0) && (n < 32));
+    if (x & 0x01) { gADC.flush(); }
+    if (l >= 0) { gADC.set(l); }
+  }
 #endif
 #ifdef DA_FAST_POLL_TIMER_HPP
   n+= snprintf(str+n, m-n, " S%u,B%u", gSigGen.reg.dbgTransClk, gSigGen.reg.dbgTransBytes);
@@ -127,15 +144,37 @@ int8_t sysLog (Stream& s, uint8_t events)
 //void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
 
 #include <avr/boot.h>
-void sig (uint8_t m)
+void sig (Stream& s)  // looks like garbage...
 { // avrdude: Device signature = 0x1e950f (probably m328p)
-  Serial.print("sig:"); // 1E 9A 95 ?? FFFC4FF26 sig:1E 9A 95 FF FC 4F F2 6F F9 FF 17
-  for (uint8_t i=0; i<m; i++)
-  {
-    uint8_t b= boot_signature_byte_get(i);
-    Serial.print(b,HEX);
+  char lot[7];
+  s.print("sig:");
+  for (uint8_t i= 0x0E; i < (6+0x0E); i++)
+  { // NB - bizarre endian reversal
+    lot[(i-0x0E)^0x01]= boot_signature_byte_get(i);
   }
-  Serial.println();
+  lot[6]= 0;
+  s.print("lot:");
+  s.print(lot);
+  s.print(" #");
+  s.print(boot_signature_byte_get(0x15)); // W
+  s.print("(");
+  s.print(boot_signature_byte_get(0x17)); // X
+  s.print(",");
+  s.print(boot_signature_byte_get(0x16)); // Y
+  s.println(")");
+  s.flush();
+  for (uint8_t i=0; i<0xE; i++)
+  { // still doesn't appear to capture everything...
+    uint8_t b= boot_signature_byte_get(i);
+    if (0xFF == b) { s.println(b,HEX); }
+    else { s.print(b,HEX); }
+    s.flush();
+  }
+  // Cal. @ 0x01,03,05 -> 9A FF 4F, (RCOSC, TSOFFSET, TSGAIN)
+  // 1E 9A 95 FF FC 4F F2 6F 
+  // F9 FF 17 FF FF 59 36 31
+  // 34 38 37 FF 13 1A 13 17 
+  // 11 28 13 8F FF F
 } // sig
 
 void setup (void)
@@ -160,7 +199,7 @@ void setup (void)
 
    Serial.begin(BAUDRATE);
    Serial.println("SigGen " __DATE__ " " __TIME__);
-   //sig(12);
+   sig(Serial);
    //dumpT0(Serial);
    
    interrupts();
@@ -192,7 +231,7 @@ void loop (void)
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
-    if (gClock.intervalDiff() >= -3) { gADC.start(); } // 4?samples @ 1ms interval, prior to routine sysLog()
+    if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); } // mutiple samples, prior to routine sysLog()
     if (gClock.intervalUpdate()) { ev|= 0x80; } // 
     if (gStreamCmd.read(cmd,Serial))
     {
