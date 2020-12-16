@@ -15,7 +15,7 @@
 
 /***/
 
-#include "DA_ad9833HW.hpp"
+#include "DA_ad9833Mgt.hpp"
 #include "Common/DA_StrmCmd.hpp"
 #include "Common/DA_Timing.hpp"
 #ifndef DA_FAST_POLL_TIMER_HPP // resource contention
@@ -199,7 +199,7 @@ void setup (void)
 
    Serial.begin(BAUDRATE);
    Serial.println("SigGen " __DATE__ " " __TIME__);
-   sig(Serial);
+   //sig(Serial);
    //dumpT0(Serial);
    
    interrupts();
@@ -267,5 +267,3 @@ void loop (void)
     gSigGen.commit(); // send whatever needs sent
   }
 } // loop
-
-
