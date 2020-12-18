@@ -1,4 +1,4 @@
-// Duino/Common/DA_ad9833HW.hpp - Arduino-AVR specific class definitions for 
+// Duino/Common/DA_ad9833HW.hpp - Arduino-AVR specific class definitions for
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
@@ -36,6 +36,7 @@
 
 /***/
 
+// displace ??
 static uint32_t toFSR (const CNumBCDX& v) { return v.extractScale(10737,-3); }
 
 // Classes are used because Arduino has limited support for modularisation and sanitary source reuse.
@@ -64,7 +65,7 @@ public:  // - not concerned with frequency/phase-shift keying...
 
    void setPSR (const uint16_t psr) { pr.u16= AD9833_PSR_MASK & psr; }
 
-   // Masking of address bits. NB: assumes all zero! 
+   // Masking of address bits. NB: assumes all zero!
 
    void setFAddr (const uint8_t ia) // assert((ia & 0x1) == ia));
    {  // High (MS) bytes - odd numbered in little endian order
@@ -82,7 +83,12 @@ public:  // - not concerned with frequency/phase-shift keying...
    bool isZeroFSR (void) const { return(0 == (AD9833_FSR_MASK & (fr[0].u16 | fr[1].u16))); }
 
    void setPAddr (const uint8_t ia) { assert(ia==ia&1); pr.u8[1]|= ((0x6+ia) << 5); }
-}; // class CDA_AD9833FreqPhaseReg
+   void setZeroPSR (const uint8_t ia)
+   {  // zero data, set address
+      pr.u8[0]= 0;
+      pr.u8[1]= ((0x6+ia) << 5);
+   } // setZeroPSR
+}; // class DA_AD9833FreqPhaseReg
 
 //#include "Common/DA_FastPollTimer.hpp"
 
@@ -106,10 +112,23 @@ TODO - properly comprehend gcc assembler arg handling...
 
 class DA_AD9833SPI // : public CFastPollTimer
 {
+protected:
+   void beginTrans (void) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2)); }
+   void write16 (const uint8_t b[2])
+   {
+      SET_SEL_LO(); // Falling edge (low level enables input)
+      //SPI.transfer16( rd16BE(b+i) ); // Total waste of time - splits into bytes internally
+      SPI.transfer(b[1]);  // MSB (send in big endian byte order)
+      SPI.transfer(b[0]);  // LSB
+      SET_SEL_HI(); // Rising edge latches to target register
+   } // write16
+   void endTrans (void) { SPI.endTransaction(); }
+
 public:
 #ifdef DA_FAST_POLL_TIMER_HPP
    uint8_t dbgTransClk, dbgTransBytes;
 #endif // DA_FAST_POLL_TIMER_HPP
+
    DA_AD9833SPI ()
    {
       SPI.begin();
@@ -118,6 +137,8 @@ public:
 #endif // PIN_SEL
       digitalWrite(PIN_SEL, HIGH);
    }
+
+public:
    void writeSeq (const uint8_t b[], const uint8_t n)
    {
 #ifdef DA_FAST_POLL_TIMER_HPP
@@ -125,16 +146,9 @@ public:
       // ('duino interrupts & setup?) results in throughput of 0.6~0.8 MByte/s
       stamp();
 #endif // DA_FAST_POLL_TIMER_HPP
-      SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2));
-      for (uint8_t i=0; i<n; i+= 2)
-      {
-         SET_SEL_LO(); // Falling edge (low level enables input)
-         //SPI.transfer16( rd16BE(b+i) ); // Total waste of time - splits into bytes internally
-         SPI.transfer(b[i+1]);  // MSB (send in big endian byte order)
-         SPI.transfer(b[i+0]);  // LSB
-         SET_SEL_HI(); // Rising edge latches to target register
-      }
-      SPI.endTransaction();
+      beginTrans();
+      for (uint8_t i=0; i<n; i+= 2) { write16(b+i); }
+      endTrans();
 #ifdef DA_FAST_POLL_TIMER_HPP
       dbgTransClk= diff();
       dbgTransBytes= n;
@@ -142,7 +156,7 @@ public:
    } // writeSeq
 }; // class DA_AD9833SPI
 
-class DA_AD9833Reg : public DA_AD9833SPI
+class DA_AD9833Reg : protected DA_AD9833SPI
 {
 public:
    union
@@ -194,5 +208,66 @@ public:
       }
    } // write
 }; // class DA_AD9833Reg
+
+// A separate class (instance) for chirp allows easy state preservation
+// Although an application-level feature, tight hardware coupling is necessary
+// to achieve the required performance , so it will remain here.
+class DA_AD9833Chirp : protected DA_AD9833SPI
+{
+   uint8_t  duty;
+   uint16_t zeroFSR;
+   union
+   {  // C++ eccentricity : class instance within anon struct/union requires array declaration...
+      byte b[8];
+      struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[1]; };
+   };
+
+public:
+   DA_AD9833Chirp (void) {;}
+
+   void begin (uint32_t fsr)
+   {
+      ctrl.u8[0]= 0;
+      ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_FSEL|AD9833_FL1_PSEL;
+      fpr[0].setFSR(fsr);
+      fpr[0].setFAddr(1);
+      fpr[0].setZeroPSR(1);
+      writeSeq(b,8); // write everything
+      // Prepare for compact writes (ctrl + upper word of fsr)
+   } // begin
+
+   void chirp (uint8_t step=1)
+   {
+      if (0 != --duty) { return; }
+      duty= 9; // 9:1 (10%)
+      fpr[0].fr[0].u16= fpr[0].fr[1].u16; // reuse lo word as incrementable hi
+      ctrl.u8[0]= 0; // sine
+      ctrl.u8[1]= AD9833_FL1_HLB|AD9833_FL1_FSEL|AD9833_FL1_PSEL; // compact writes: hi word only
+      beginTrans(); // noInterrupts();
+      write16(b+0);
+      write16(b+2);
+      for (int8_t i=0; i<10; i++)
+      {
+         // spin delay 5~10us ???
+         delayMicroseconds(30);
+         fpr[0].fr[0].u16+= step;
+         write16(b+0);
+         write16(b+2);
+      }
+      // go quiet, ready for next chirp
+      ctrl.u8[0]= AD9833_FL0_SLP_MCLK; // AD9833_FL0_SLP_DAC unnecessary? 
+      write16(b+0);
+      //write16(b+2);
+      endTrans(); // interrupts();
+   } // chirp
+
+   void end ()
+   {
+      ctrl.u8[0]= 0;
+      ctrl.u8[1]= AD9833_FL1_B28;
+      writeSeq(b,2);
+   }// end
+
+}; // DA_AD9833Chirp
 
 #endif // DA_AD9833_HW_HPP

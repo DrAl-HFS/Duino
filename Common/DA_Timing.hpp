@@ -9,7 +9,9 @@
 #include <avr/sleep.h>
 #include "DA_Util.h"
 
-#define AVR_CLOCK_TRIM 0 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
+//#define AVR_CLOCK_TRIM 64 // 64/128 +50% micro-tick (4us) per ms
+
+// 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
 
 // Timer0 dedicated to 'Duino infrastructure
 // Timer1 (16bit) used for pulse counting or fast poll (debug)
@@ -20,7 +22,6 @@
 #define AVR_CLOCK_IVL 250
 #else 
 #define AVR_CLOCK_IVL 2000
-//#define AVR_CLOCK_TRIM -3 // 0.15% faster
 #endif // AVR_CLOCK_TIMER
 
 

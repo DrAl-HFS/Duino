@@ -1,4 +1,4 @@
-// Duino/Common/AD9833.ino - Arduino IDE & AVR specific main code for
+// Duino/SGAD9833/SGAD9833.ino - Arduino IDE & AVR specific main code for
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
@@ -8,9 +8,11 @@
 
 /***/
 
-#define BAUDRATE  115200
-#define FSR_1KHZ  0x29F1 // Default signal frequency 1kHz, F_TO_FSR(1E3) = 10737
-// 10kHz->0x1A36A, 100kHz->0x106224, 1MHz->0xA3D568, 10MHz->0x6665610
+#define BAUDRATE   115200
+#define FSR_1KHZ   0x29F1 // Default signal frequency 1kHz, F_TO_FSR(1E3) = 10737
+#define FSR_10KHZ  0x1A36A // F_TO_FSR(1E4)
+#define FSR_100KHZ 0x106224 // F_TO_FSR(1E5)
+// 1MHz->0xA3D568, 10MHz->0x6665610
 // max val in 14LSB: 0x3FFF -> 1.526kHz
 
 /***/
@@ -27,6 +29,7 @@
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
+DA_AD9833Chirp gChirp;
 CClock gClock(3000);
 
 #ifdef AVR_CLOCK_TIMER
@@ -189,6 +192,7 @@ void setup (void)
 #ifdef DA_ANALOGUE_HPP
    gADC.init(); gADC.start();
 #endif
+   gChirp.begin(FSR_100KHZ);  gChirp.end();
    
    pinMode(PIN_PULSE, OUTPUT);
 
@@ -249,8 +253,14 @@ void loop (void)
         }
       }
     }
-
-    gSigGen.update(ev&0xF);
+    if (gSigGen.iFN >= 3)
+    {
+      gChirp.chirp();
+    }
+    else
+    {
+      gSigGen.update(ev&0xF);
+    }
     if (gRate.update(gClock.tick) > 0) { ev|= 0x2; }
 
     if (ev & 0xF0)
