@@ -12,7 +12,7 @@
 #include <SPI.h>
 
 // See following include for basic definitions & information
-#include "Common/MBD/ad9833Util.h" // Transitional
+#include "Common/MBD/ad9833Util.h" // Transitional ? - links to UU16 etc
 #include "Common/DA_Args.hpp"
 
 
@@ -38,6 +38,23 @@
 
 // displace ??
 static uint32_t toFSR (const CNumBCDX& v) { return v.extractScale(10737,-3); }
+
+
+struct DA_AD9833Reg16
+{
+   UU16 r;
+   void setZeroFSR (const uint8_t ia)
+   {  // zero data, set address
+      r.u8[0]= 0;
+      r.u8[1]= (ia+0x1) << 6;
+   } // setZeroFSR
+
+   void setZeroPSR (const uint8_t ia)
+   {
+      r.u8[0]= 0;
+      r.u8[1]= ((0x6+ia) << 5);
+   }
+}; // DA_AD9833Reg16
 
 // Classes are used because Arduino has limited support for modularisation and sanitary source reuse.
 // Default build settings (minimise size) prevent default class-method-declaration inlining
@@ -156,6 +173,7 @@ public:
    } // writeSeq
 }; // class DA_AD9833SPI
 
+// Consider : rename to reflect full register map/set rather than single?
 class DA_AD9833Reg : protected DA_AD9833SPI
 {
 public:
@@ -215,7 +233,8 @@ public:
 class DA_AD9833Chirp : protected DA_AD9833SPI
 {
    uint8_t  duty;
-   uint16_t zeroFSR;
+   DA_AD9833Reg16 zfsr;
+   //uint16_t zeroFSR;
    union
    {  // C++ eccentricity : class instance within anon struct/union requires array declaration...
       byte b[8];
@@ -227,6 +246,7 @@ public:
 
    void begin (uint32_t fsr)
    {
+      zfsr.setZeroFSR(1);
       ctrl.u8[0]= 0;
       ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_FSEL|AD9833_FL1_PSEL;
       fpr[0].setFSR(fsr);
@@ -236,9 +256,9 @@ public:
       // Prepare for compact writes (ctrl + upper word of fsr)
    } // begin
 
-   void chirp (uint8_t step=1)
+   void chirp (uint8_t step=16)
    {
-      if (0 != --duty) { return; }
+      //if (0 != --duty) { return; }
       duty= 9; // 9:1 (10%)
       fpr[0].fr[0].u16= fpr[0].fr[1].u16; // reuse lo word as incrementable hi
       ctrl.u8[0]= 0; // sine
@@ -249,7 +269,7 @@ public:
       for (int8_t i=0; i<10; i++)
       {
          // spin delay 5~10us ???
-         delayMicroseconds(30);
+         delayMicroseconds(10);
          fpr[0].fr[0].u16+= step;
          write16(b+0);
          write16(b+2);
@@ -257,7 +277,7 @@ public:
       // go quiet, ready for next chirp
       ctrl.u8[0]= AD9833_FL0_SLP_MCLK; // AD9833_FL0_SLP_DAC unnecessary? 
       write16(b+0);
-      //write16(b+2);
+      write16(zfsr.r.u8);
       endTrans(); // interrupts();
    } // chirp
 
