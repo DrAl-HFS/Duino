@@ -233,7 +233,7 @@ public:
 class DA_AD9833Chirp : protected DA_AD9833SPI
 {
    uint8_t  duty;
-   DA_AD9833Reg16 zfsr;
+   //DA_AD9833Reg16 zfsr;
    //uint16_t zeroFSR;
    union
    {  // C++ eccentricity : class instance within anon struct/union requires array declaration...
@@ -246,20 +246,22 @@ public:
 
    void begin (uint32_t fsr)
    {
-      zfsr.setZeroFSR(1);
+      //zfsr.setZeroFSR(1);
       ctrl.u8[0]= 0;
       ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_FSEL|AD9833_FL1_PSEL;
       fpr[0].setFSR(fsr);
+      //fpr[0].fr[0].u16= zfsr.r.u16; // hack
+      
       fpr[0].setFAddr(1);
       fpr[0].setZeroPSR(1);
       writeSeq(b,8); // write everything
       // Prepare for compact writes (ctrl + upper word of fsr)
    } // begin
 
-   void chirp (uint8_t step=16)
+   void chirp (uint8_t step=8, uint8_t dus=5)
    {
-      //if (0 != --duty) { return; }
-      duty= 9; // 9:1 (10%)
+      if (0 != --duty) { return; }
+      duty= 4; // 4:1 (20%)
       fpr[0].fr[0].u16= fpr[0].fr[1].u16; // reuse lo word as incrementable hi
       ctrl.u8[0]= 0; // sine
       ctrl.u8[1]= AD9833_FL1_HLB|AD9833_FL1_FSEL|AD9833_FL1_PSEL; // compact writes: hi word only
@@ -269,15 +271,16 @@ public:
       for (int8_t i=0; i<10; i++)
       {
          // spin delay 5~10us ???
-         delayMicroseconds(10);
+         delayMicroseconds(dus);
          fpr[0].fr[0].u16+= step;
          write16(b+0);
          write16(b+2);
       }
+      delayMicroseconds(dus);
       // go quiet, ready for next chirp
-      ctrl.u8[0]= AD9833_FL0_SLP_MCLK; // AD9833_FL0_SLP_DAC unnecessary? 
+      //ctrl.u8[0]= AD9833_FL0_SLP_DAC|AD9833_FL0_SLP_MCLK; // useless
+      ctrl.u8[1]= AD9833_FL1_RST;
       write16(b+0);
-      write16(zfsr.r.u8);
       endTrans(); // interrupts();
    } // chirp
 

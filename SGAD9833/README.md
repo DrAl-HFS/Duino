@@ -3,7 +3,7 @@
 Yet another AD9833 signal generator with host control over serial link.
 Noobs should probably start out with the version by Peter Balch -
 
- https://www.instructables.com/Signal-Generator-AD9833/
+https://www.instructables.com/Signal-Generator-AD9833/
 
 which is easy to follow and has been (badly) copied many times, often
 without observing licences or giving credit.
@@ -18,7 +18,12 @@ it falls down with regard to interrupt handling. Key features are:-
 *   Timer interrupt control - events processed at 1ms intervals.
 
 *   Hardware SPI communication with AD9833 using 8MHz bus clock - minimum
-latency is ~40 CPU cycles (~2.5us @ 16MHz) per 16bit message.
+latency is around 40 CPU cycles (2.5us @ 16MHz) per 16bit message.
+
+*   Frequency sweep up/down in uniform steps per millisecond. Work on fast
+nonlinear stepping (requires fixed point calculation) is ongoing.
+
+*   Chirp (sub-millisecond sweep) generation under development.
 
 *   Pulse counting on T1 pin can used to estimate frequency of AD9833
 clock output. (DAC output requires conditioning from waveform to logic pulse.)
