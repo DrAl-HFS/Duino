@@ -9,32 +9,41 @@
 #ifndef DA_AD9833_HW_HPP
 #define DA_AD9833_HW_HPP
 
-#include <SPI.h>
-
 // See following include for basic definitions & information
 #include "Common/MBD/ad9833Util.h" // Transitional ? - links to UU16 etc
 #include "Common/DA_Args.hpp"
+#include "Common/DA_SPIMHW.hpp"
 
 
 /***/
-
-#ifdef AVR // 328P specific ?
-// Pin number used for SPI select (active low)
-// any logic 1|0 output will do...
-// Just use SS pin - must be an output to prevent
-// SPI HW switching to slave mode (master + slave
-// operation requires some extra signalling/arbitration)
-#define PIN_SEL SS // (#10 on Uno)
-// 9
-// Hardware SPI pins used implicitly
-//#define PIN_SCK SCK   // (#13 on Uno)
-//#define PIN_DAT MOSI  // (#11 on Uno)
-#endif
 
 #define F_TO_FSR(f) (f * (((uint32_t)1<<28) / 25E6))
 
 
 /***/
+
+// wrapper class: tweak settings for AD9833
+class DA_AD9833SPI : public DA_SPIMHW
+{
+public:
+   DA_AD9833SPI () : DA_SPIMHW() {;}
+
+   void writeSeq (const uint8_t b[], const uint8_t n)
+   {
+#ifdef DA_FAST_POLL_TIMER_HPP
+      // Direct twiddling of select-pin helps performance but variable latency
+      // ('duino interrupts & setup?) results in throughput of 0.6~0.8 MByte/s
+      stamp();
+#endif // DA_FAST_POLL_TIMER_HPP
+      beginTrans();
+      for (uint8_t i=0; i<n; i+= 2) { writeA16BE(b+i); }
+      endTrans();
+#ifdef DA_FAST_POLL_TIMER_HPP
+      dbgTransClk= diff();
+      dbgTransBytes= n;
+#endif // DA_FAST_POLL_TIMER_HPP
+   } // writeSeq
+}; // class DA_AD9833SPI
 
 // displace ??
 static uint32_t toFSR (const CNumBCDX& v) { return v.extractScale(10737,-3); }
@@ -106,72 +115,6 @@ public:  // - not concerned with frequency/phase-shift keying...
       pr.u8[1]= ((0x6+ia) << 5);
    } // setZeroPSR
 }; // class DA_AD9833FreqPhaseReg
-
-//#include "Common/DA_FastPollTimer.hpp"
-
-//uint16_t rd16BE (const uint8_t b[2]) { return((256*(uint16_t)(b[0])) | b[1]); }
-
-#if (SS == PIN_SEL) // Directly toggle SS (PB2) for performance
-#define SET_SEL_LO() PORTB &= ~(1<<2) // should generate CBI / SBI 
-#define SET_SEL_HI() PORTB |= (1<<2)  // instructions as below
-/* ...arduino.../hardware/tools/avr/avr/include/avr/iom328p.h
-#define SET_SEL_LO() { asm("CBI 0x25, 2"); } // IO address 0x20 + 0x5 ?
-#define SET_SEL_HI() { asm("SBI 0x25, 2"); }
-TODO - properly comprehend gcc assembler arg handling...
-#define ASM_CBI(port,bit) { asm("CBI %0, %1" : "=r" (port) : "0" (u)); }
-#define SET_SEL_LO() { asm("CBI %0, 2" : "=" PORTB ); }
-#define SET_SEL_HI() { asm("SBI %0, 2" : "=" PORTB ); }
-*/
-#else   // portable & robust (but slow) versions
-#define SET_SEL_LO() digitalWrite(PIN_SEL, LOW)
-#define SET_SEL_HI() digitalWrite(PIN_SEL, HIGH)
-#endif
-
-class DA_AD9833SPI // : public CFastPollTimer
-{
-protected:
-   void beginTrans (void) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2)); }
-   void write16 (const uint8_t b[2])
-   {
-      SET_SEL_LO(); // Falling edge (low level enables input)
-      //SPI.transfer16( rd16BE(b+i) ); // Total waste of time - splits into bytes internally
-      SPI.transfer(b[1]);  // MSB (send in big endian byte order)
-      SPI.transfer(b[0]);  // LSB
-      SET_SEL_HI(); // Rising edge latches to target register
-   } // write16
-   void endTrans (void) { SPI.endTransaction(); }
-
-public:
-#ifdef DA_FAST_POLL_TIMER_HPP
-   uint8_t dbgTransClk, dbgTransBytes;
-#endif // DA_FAST_POLL_TIMER_HPP
-
-   DA_AD9833SPI ()
-   {
-      SPI.begin();
-#if (PIN_SEL != SS) // SS is already an output
-      pinMode(PIN_SEL, OUTPUT);
-#endif // PIN_SEL
-      digitalWrite(PIN_SEL, HIGH);
-   }
-
-public:
-   void writeSeq (const uint8_t b[], const uint8_t n)
-   {
-#ifdef DA_FAST_POLL_TIMER_HPP
-      // Direct twiddling of select-pin helps performance but variable latency
-      // ('duino interrupts & setup?) results in throughput of 0.6~0.8 MByte/s
-      stamp();
-#endif // DA_FAST_POLL_TIMER_HPP
-      beginTrans();
-      for (uint8_t i=0; i<n; i+= 2) { write16(b+i); }
-      endTrans();
-#ifdef DA_FAST_POLL_TIMER_HPP
-      dbgTransClk= diff();
-      dbgTransBytes= n;
-#endif // DA_FAST_POLL_TIMER_HPP
-   } // writeSeq
-}; // class DA_AD9833SPI
 
 // Consider : rename to reflect full register map/set rather than single?
 class DA_AD9833Reg : protected DA_AD9833SPI
