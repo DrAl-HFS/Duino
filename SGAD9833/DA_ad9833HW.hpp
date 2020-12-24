@@ -1,4 +1,4 @@
-// Duino/Common/DA_ad9833HW.hpp - Arduino-AVR specific class definitions for
+// Duino/SGAD9833/DA_ad9833HW.hpp - Arduino-AVR specific class definitions for
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A

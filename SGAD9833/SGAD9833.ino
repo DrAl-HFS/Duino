@@ -202,7 +202,7 @@ void setup (void)
    gSigGen.reg.write(-1);
 
    Serial.begin(BAUDRATE);
-   Serial.println("SigGen " __DATE__ " " __TIME__);
+   Serial.println("SGAD9833 " __DATE__ " " __TIME__);
    //sig(Serial);
    //dumpT0(Serial);
    
