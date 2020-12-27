@@ -144,23 +144,34 @@ void sig (Stream& s)  // looks like garbage...
   // 11 28 13 8F FF F
 } // sig
 
+DA_SPIMHW rf;
+uint8_t rb[4], wb[4];
+
 void setup (void)
 {
-   noInterrupts();
-   gClock.start();
+  noInterrupts();
+  gClock.start();
 #ifdef DA_ANALOGUE_HPP
-   gADC.init(); gADC.start();
+  gADC.init(); gADC.start();
 #endif
-   pinMode(PIN_PULSE, OUTPUT);
+  pinMode(PIN_PULSE, OUTPUT);
 
-   Serial.begin(BAUDRATE);
-   Serial.println("Test " __DATE__ " " __TIME__);
-   //sig(Serial);
-   //dumpT0(Serial);
+  Serial.begin(BAUDRATE);
+  Serial.println("Test " __DATE__ " " __TIME__);
+  //sig(Serial);
+  //dumpT0(Serial);
    
-   interrupts();
-   gClock.intervalStart();
-   sysLog(Serial,0);
+  interrupts();
+  gClock.intervalStart();
+  sysLog(Serial,0);
+
+  // NRF24 test hack
+  rb[0]= rb[1]= 0xFF; 
+  wb[0]= 0x07; wb[1]= 0x00;
+  int8_t i, nr= rf.readWriteN(rb,wb,2);
+  //rf.endTrans();
+  for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
+  Serial.println(rb[i],HEX);
 } // setup
 
 void pulseHack (void)

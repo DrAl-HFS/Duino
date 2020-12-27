@@ -60,6 +60,16 @@ protected:
       SPI.transfer(b[0]);  // LSB
       SET_SEL_HI(); // Rising edge latches to target register
    } // write16
+   
+   int8_t rwn (uint8_t r[], const uint8_t w[], const int8_t n)
+   {
+      int8_t i;
+      SET_SEL_LO(); // Falling edge enables input (no individual latching)
+      for (i=0; i<n; i++) { r[i]= SPI.transfer(w[i]); }
+      SET_SEL_HI(); // complete
+      return(i);
+   } // rwn
+   
    void endTrans (void) { SPI.endTransaction(); }
 
 public:
@@ -74,6 +84,15 @@ public:
       pinMode(PIN_SEL, OUTPUT);
 #endif // PIN_SEL
       digitalWrite(PIN_SEL, HIGH);
+   }
+   
+   int8_t readWriteN (uint8_t r[], const uint8_t w[], const int8_t n)
+   {
+      int8_t nr;
+      beginTrans(SPISettings(8E6, MSBFIRST, SPI_MODE1));
+      nr= rwn(r,w,n);
+      endTrans();
+      return(nr);
    }
 }; // class DA_SPIMHW
 
