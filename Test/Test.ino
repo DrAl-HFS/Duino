@@ -4,6 +4,7 @@
 // (c) Project Contributors Dec 2020
 
 #include <math.h>
+#include <RH_NRF24.h>
 
 /***/
 
@@ -42,9 +43,42 @@ ISR(ADC_vect) { gADC.event(); }
 
 #endif // DA_ANALOGUE_HPP
 
+RH_NRF24 gRF(8); // RF activate pin
+
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
 
+
+uint8_t initRF (Stream& log)
+{
+  uint8_t rm= 0;
+  rm|= (gRF.init() > 0);// << 0;
+  // Defaults after init are 2.402 GHz (channel 2), 2Mbps, 0dBm
+  rm|= (gRF.setChannel(1) > 0) << 1;
+  rm|= (gRF.setRF(RH_NRF24::DataRate2Mbps, RH_NRF24::TransmitPower0dBm) > 0) << 2;
+  if (log.available() >= 0) // junk
+  {
+    log.print("initRF() - ");
+    log.println(rm,HEX);
+  }
+  return(rm);
+} // initRF
+
+uint8_t procRF (Stream& log, uint8_t event)
+{
+  uint8_t r= 0;
+  if (event & 0x80)
+  {
+    r= gRF.send("Hello", 6);
+    log.println(r,HEX);
+  }
+  else
+  {
+    char rb[8], n=7;
+    r= gRF.recv(rb, &n);
+  }
+  return(r);
+} // procRF
 
 char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
@@ -144,9 +178,6 @@ void sig (Stream& s)  // looks like garbage...
   // 11 28 13 8F FF F
 } // sig
 
-DA_SPIMHW rf;
-uint8_t rb[4], wb[4];
-
 void setup (void)
 {
   noInterrupts();
@@ -165,13 +196,18 @@ void setup (void)
   gClock.intervalStart();
   sysLog(Serial,0);
 
-  // NRF24 test hack
-  rb[0]= rb[1]= 0xFF; 
-  wb[0]= 0x07; wb[1]= 0x00;
-  int8_t i, nr= rf.readWriteN(rb,wb,2);
-  //rf.endTrans();
-  for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
-  Serial.println(rb[i],HEX);
+  if (initRF(Serial) < 0x7)
+  { // NRF24 test hack
+    DA_SPIMHW rf;
+    uint8_t rb[4], wb[4];
+    
+    rb[0]= rb[1]= 0xFF; 
+    wb[0]= 0x07; wb[1]= 0x00;
+    int8_t i, nr= rf.readWriteN(rb,wb,2);
+    //rf.endTrans();
+    for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
+    Serial.println(rb[i],HEX);
+  }
 } // setup
 
 void pulseHack (void)
@@ -197,7 +233,8 @@ void loop (void)
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
-    if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); } // mutiple samples, prior to routine sysLog()
+    // Pre-collect multiple ADC samples, for pending sysLog()
+    if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
     if (gClock.intervalUpdate()) { ev|= 0x80; } // 
     if (gStreamCmd.read(cmd,Serial))
     {
@@ -214,7 +251,8 @@ void loop (void)
         }
       }
     }
-
+    procRF(Serial,ev);
+    
     if (ev & 0xF0)
     {
       sysLog(Serial,ev);
