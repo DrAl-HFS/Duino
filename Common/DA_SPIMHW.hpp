@@ -3,8 +3,6 @@
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020
 
-// HW Ref:  http://www.analog.com/media/en/technical-documentation/data-sheets/AD9833.pdf
-
 #ifndef DA_SPI_M_HW_HPP
 #define DA_SPI_M_HW_HPP
 
@@ -49,8 +47,9 @@ TODO - properly comprehend gcc assembler arg handling...
 class DA_SPIMHW // : public CFastPollTimer
 {
 protected:
-   void beginTrans (SPISettings s=SPISettings(8E6, MSBFIRST, SPI_MODE2)) { SPI.beginTransaction(s); }
+   void beginTrans (uint8_t mode=SPI_MODE2) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, mode)); }
    
+   // Displace to AD9833 ?
    // Atomic (select hi->lo) 16bit write Big Endian
    void writeA16BE (const uint8_t b[2])
    {
@@ -59,13 +58,13 @@ protected:
       SPI.transfer(b[1]);  // MSB (send in big endian byte order)
       SPI.transfer(b[0]);  // LSB
       SET_SEL_HI(); // Rising edge latches to target register
-   } // write16
+   } // writeA16BE
    
    int8_t rwn (uint8_t r[], const uint8_t w[], const int8_t n)
    {
       int8_t i;
-      SET_SEL_LO(); // Falling edge enables input (no individual latching)
-      for (i=0; i<n; i++) { r[i]= SPI.transfer(w[i]); }
+      SET_SEL_LO(); // Falling edge enables input
+      for (i=0; i<n; i++) { r[i]= SPI.transfer(w[i]); } // no individual latching
       SET_SEL_HI(); // complete
       return(i);
    } // rwn
@@ -89,7 +88,7 @@ public:
    int8_t readWriteN (uint8_t r[], const uint8_t w[], const int8_t n)
    {
       int8_t nr;
-      beginTrans(SPISettings(8E6, MSBFIRST, SPI_MODE1));
+      beginTrans(SPI_MODE1);
       nr= rwn(r,w,n);
       endTrans();
       return(nr);

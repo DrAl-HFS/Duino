@@ -4,7 +4,7 @@
 // (c) Project Contributors Dec 2020
 
 #include <math.h>
-#include <RH_NRF24.h>
+
 
 /***/
 
@@ -13,11 +13,12 @@
 
 /***/
 
-#define DA_FAST_POLL_TIMER_HPP // resource contention
+//#define DA_FAST_POLL_TIMER_HPP // resource contention
+//#define AVR_CLOCK_TRIM 64
 #include "Common/DA_Timing.hpp"
 #include "Common/DA_Analogue.hpp"
 #include "Common/DA_StrmCmd.hpp"
-#include "Common/DA_SPIMHW.hpp"
+#include "DA_RF24.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
@@ -43,42 +44,10 @@ ISR(ADC_vect) { gADC.event(); }
 
 #endif // DA_ANALOGUE_HPP
 
-RH_NRF24 gRF(8); // RF activate pin
+TestRF24 gRF;
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
-
-
-uint8_t initRF (Stream& log)
-{
-  uint8_t rm= 0;
-  rm|= (gRF.init() > 0);// << 0;
-  // Defaults after init are 2.402 GHz (channel 2), 2Mbps, 0dBm
-  rm|= (gRF.setChannel(1) > 0) << 1;
-  rm|= (gRF.setRF(RH_NRF24::DataRate2Mbps, RH_NRF24::TransmitPower0dBm) > 0) << 2;
-  if (log.available() >= 0) // junk
-  {
-    log.print("initRF() - ");
-    log.println(rm,HEX);
-  }
-  return(rm);
-} // initRF
-
-uint8_t procRF (Stream& log, uint8_t event)
-{
-  uint8_t r= 0;
-  if (event & 0x80)
-  {
-    r= gRF.send("Hello", 6);
-    log.println(r,HEX);
-  }
-  else
-  {
-    char rb[8], n=7;
-    r= gRF.recv(rb, &n);
-  }
-  return(r);
-} // procRF
 
 char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
@@ -196,18 +165,11 @@ void setup (void)
   gClock.intervalStart();
   sysLog(Serial,0);
 
-  if (initRF(Serial) < 0x7)
-  { // NRF24 test hack
-    DA_SPIMHW rf;
-    uint8_t rb[4], wb[4];
-    
-    rb[0]= rb[1]= 0xFF; 
-    wb[0]= 0x07; wb[1]= 0x00;
-    int8_t i, nr= rf.readWriteN(rb,wb,2);
-    //rf.endTrans();
-    for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
-    Serial.println(rb[i],HEX);
-  }
+#ifdef DA_SPI_M_HW_HPP
+  HackRF24 hack; hack.test(Serial);
+#endif
+
+  gRF.init(Serial);
 } // setup
 
 void pulseHack (void)
@@ -251,7 +213,7 @@ void loop (void)
         }
       }
     }
-    procRF(Serial,ev);
+    gRF.proc(Serial,ev);
     
     if (ev & 0xF0)
     {
