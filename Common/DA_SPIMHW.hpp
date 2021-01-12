@@ -3,8 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020
 
-#ifndef DA_SPI_M_HW_HPP
-#define DA_SPI_M_HW_HPP
+#ifndef DA_SPIMHW_HPP
+#define DA_SPIMHW_HPP
 
 #include <SPI.h>
 //#include "Common/DA_FastPollTimer.hpp" // Debug/test
@@ -85,14 +85,14 @@ public:
       digitalWrite(PIN_SEL, HIGH);
    }
    
-   int8_t readWriteN (uint8_t r[], const uint8_t w[], const int8_t n)
+   int8_t modeReadWriteN (uint8_t r[], const uint8_t w[], const int8_t n, const uint8_t mode)
    {
       int8_t nr;
-      beginTrans(SPI_MODE1);
+      beginTrans(mode);
       nr= rwn(r,w,n);
       endTrans();
       return(nr);
    }
 }; // class DA_SPIMHW
 
-#endif // DA_SPI_M_HW_HPP
+#endif // DA_SPIMHW_HPP

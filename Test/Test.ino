@@ -18,7 +18,8 @@
 #include "Common/DA_Timing.hpp"
 #include "Common/DA_Analogue.hpp"
 #include "Common/DA_StrmCmd.hpp"
-#include "DA_RF24.hpp"
+#include "Common/DA_SPIMHW.hpp"
+//#include "DA_RF24.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
@@ -44,7 +45,14 @@ ISR(ADC_vect) { gADC.event(); }
 
 #endif // DA_ANALOGUE_HPP
 
+#ifdef DA_SPIMHW_HPP
+DA_SPIMHW gSPIMHW;
+uint8_t gM= SPI_MODE3;
+#endif
+
+#ifdef DA_RF24_HPP
 TestRF24 gRF;
+#endif
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
@@ -165,11 +173,13 @@ void setup (void)
   gClock.intervalStart();
   sysLog(Serial,0);
 
-#ifdef DA_SPI_M_HW_HPP
+#ifdef DA_HACKRF24
   HackRF24 hack; hack.test(Serial);
 #endif
 
+#ifdef DA_RF24_HPP
   gRF.init(Serial);
+#endif
 } // setup
 
 void pulseHack (void)
@@ -213,8 +223,24 @@ void loop (void)
         }
       }
     }
+#ifdef DA_SPIMHW_HPP
+    if (ev& 0x80)
+    {
+      uint8_t w[]={0x1F,0}, r[]={0xAA,0x55};
+      gM &= SPI_MODE3;
+      gSPIMHW.modeReadWriteN(r,w,2,gM);
+      Serial.print("SPI - M");
+      Serial.print(gM);
+      Serial.print(':');
+      Serial.print(r[0],HEX);
+      Serial.print(',');
+      Serial.println(r[1],HEX);
+      gM+= SPI_MODE1;
+    }
+#endif
+#ifdef DA_RF24_HPP
     gRF.proc(Serial,ev);
-    
+#endif
     if (ev & 0xF0)
     {
       sysLog(Serial,ev);
