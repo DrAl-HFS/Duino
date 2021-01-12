@@ -209,21 +209,21 @@ public:
       ctrl.u8[0]= 0; // sine
       ctrl.u8[1]= AD9833_FL1_HLB|AD9833_FL1_FSEL|AD9833_FL1_PSEL; // compact writes: hi word only
       beginTrans(); // noInterrupts();
-      write16(b+0);
-      write16(b+2);
+      writeA16BE(b+0);
+      writeA16BE(b+2);
       for (int8_t i=0; i<10; i++)
       {
          // spin delay 5~10us ???
          delayMicroseconds(dus);
          fpr[0].fr[0].u16+= step;
-         write16(b+0);
-         write16(b+2);
+         writeA16BE(b+0);
+         writeA16BE(b+2);
       }
       delayMicroseconds(dus);
       // go quiet, ready for next chirp
       //ctrl.u8[0]= AD9833_FL0_SLP_DAC|AD9833_FL0_SLP_MCLK; // useless
       ctrl.u8[1]= AD9833_FL1_RST;
-      write16(b+0);
+      writeA16BE(b+0);
       endTrans(); // interrupts();
    } // chirp
 
