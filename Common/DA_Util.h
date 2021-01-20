@@ -1,7 +1,7 @@
 // Duino/Common/DA_Util.h - Arduino-AVR miscellaneous utility code
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Oct-Nov 2020
+// (c) Project Contributors Oct 2020 - Jan 2021
 
 #ifndef DA_UTIL_H
 #define DA_UTIL_H
@@ -48,6 +48,20 @@ int8_t hex2ChU8 (char c[2], uint_fast8_t u)
    c[0]= hexCharL4(swapHiLo4U8(u));
    return(2);
 } // hex2ChU8
+
+uint8_t char2BCD4 (char ch[], int8_t n)
+{
+   uint8_t r= 0;
+   if (n > 0)
+   {
+      r= 0xF & (ch[0] - '0');
+      if (n > 1)
+      {
+         r= swapHiLo4U8(r) | (0xF & (ch[1] - '0'));
+      }
+   }
+   return(r);
+} // char2BCD4
 
 // 8 bit value conversion to packed 2 digit BCD without range check
 uint_fast8_t conv2BCD4 (uint_fast8_t u) // RENAME toBCD4 ????

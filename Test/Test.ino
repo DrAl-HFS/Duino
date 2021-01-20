@@ -1,7 +1,7 @@
 // Duino/Test.ino - Arduino IDE & AVR test harness
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020
+// (c) Project Contributors Dec 2020 -Jan 2021
 
 #include <math.h>
 
@@ -18,8 +18,8 @@
 #include "Common/DA_Timing.hpp"
 #include "Common/DA_Analogue.hpp"
 #include "Common/DA_StrmCmd.hpp"
-#include "Common/DA_SPIMHW.hpp"
-//#include "DA_RF24.hpp"
+//#include "Common/DA_SPIMHW.hpp"
+#include "DA_RF24.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
@@ -158,6 +158,13 @@ void sig (Stream& s)  // looks like garbage...
 void setup (void)
 {
   noInterrupts();
+  uint8_t tt[2];
+  
+  tt[0]= fromBCD4(char2BCD4(__TIME__+0,2),2);
+  tt[1]= fromBCD4(char2BCD4(__TIME__+3,2),2);
+  gClock.setHM(tt);
+  tt[0]= fromBCD4(char2BCD4(__TIME__+5,2),2);
+  gClock.setS(tt[0]);
   gClock.start();
 #ifdef DA_ANALOGUE_HPP
   gADC.init(); gADC.start();
@@ -165,7 +172,9 @@ void setup (void)
   pinMode(PIN_PULSE, OUTPUT);
 
   Serial.begin(BAUDRATE);
-  Serial.println("Test " __DATE__ " " __TIME__);
+  Serial.print("Test " __DATE__ " ");
+  Serial.println(__TIME__);
+  
   //sig(Serial);
   //dumpT0(Serial);
    
