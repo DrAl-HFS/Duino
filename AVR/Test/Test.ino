@@ -4,6 +4,7 @@
 // (c) Project Contributors Dec 2020 -Jan 2021
 
 #include <math.h>
+#include <avr.h>
 
 
 /***/
