@@ -6,7 +6,7 @@
 #include <nrf51.h>
 #include <nrf51_bitfields.h>
 //#include <nrf51_ESB.h>
-#include <RH_NRF51.h>
+//include <RH_NRF51.h>
 
 #define PIN_BTN_A 5
 #define PIN_BTN_B 11
@@ -104,8 +104,9 @@ void setCol (int v)
 
 void loop (void)
 { //Serial.println("blink!");
+static uint8_t c0= 1, c1=0;
   uint8_t sm= input();
-  
+
   if (sm & 0x80) { setRow(1); setCol(0); }
   switch(sm & 0x3)
   {
@@ -115,6 +116,6 @@ void loop (void)
       break;
     case 0x03 : if (stepRow() < 0) { stepCol(); } break;
   } 
-  
+  if (sm && (0 == --c0)) { Serial.print('.'); c0= 10; if (++c1 >= 20) { Serial.print('\n'); c1= 0; } }  
   delay(100);
 } // loop
