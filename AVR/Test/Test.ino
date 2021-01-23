@@ -4,7 +4,7 @@
 // (c) Project Contributors Dec 2020 -Jan 2021
 
 #include <math.h>
-#include <avr.h>
+//include <avr.h>
 
 
 /***/
@@ -156,9 +156,40 @@ void sig (Stream& s)  // looks like garbage...
   // 11 28 13 8F FF F
 } // sig
 
+#include <EEPROM.h>
+
+int8_t setID (char idzs[])
+{
+  int8_t i=0;
+  if (EEPROM.read(i) != idzs[i])
+  {
+    EEPROM.write(i,idzs[i]);
+    if (0 != idzs[i++])
+    {
+      do
+      {
+        if (EEPROM.read(i) != idzs[i]) { EEPROM.write(i,idzs[i]); }
+      } while (0 != idzs[i++]);
+    }
+  }
+  return(i);
+} // setID
+
+int8_t getID (char idzs[])
+{
+  int8_t i=0;
+  do
+  {
+    idzs[i]= EEPROM.read(i);
+  } while (0 != idzs[i++]);
+  return(i);
+} // getID
+
 void setup (void)
 {
   noInterrupts();
+  
+  //setID("Nano1");
   uint8_t tt[2];
   
   tt[0]= fromBCD4(char2BCD4(__TIME__+0,2),2);
@@ -175,7 +206,6 @@ void setup (void)
   Serial.begin(BAUDRATE);
   Serial.print("Test " __DATE__ " ");
   Serial.println(__TIME__);
-  
   //sig(Serial);
   //dumpT0(Serial);
    
@@ -188,7 +218,9 @@ void setup (void)
 #endif
 
 #ifdef DA_RF24_HPP
-  gRF.init(Serial);
+  char id[8];
+  getID(id);
+  gRF.init(Serial,id);
 #endif
 } // setup
 
