@@ -3,9 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
 
-//#include <nrf51.h>
-//#include <nrf51_bitfields.h>
 #include "MapLED.hpp"
+#include "Common/N5/N5_HWID.hpp"
 
 #define PIN_BTN_A 5
 #define PIN_BTN_B 11
@@ -17,6 +16,7 @@ uint8_t iR=0, iC=0, iM=0;
 void setup (void)
 { 
   Serial.begin(115200);
+  n5DumpHWID(Serial);
   
   pinMode(PIN_BTN_A, INPUT);
   pinMode(PIN_BTN_B, INPUT);
