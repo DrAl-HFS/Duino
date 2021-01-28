@@ -11,8 +11,8 @@
 
 // See following include for basic definitions & information
 #include "Common/MBD/ad9833Util.h" // Transitional ? - links to UU16 etc
-#include "Common/DA_Args.hpp"
-#include "Common/DA_SPIMHW.hpp"
+#include "Common/AVR/DA_Args.hpp"
+#include "Common/AVR/DA_SPIMHW.hpp"
 
 
 /***/

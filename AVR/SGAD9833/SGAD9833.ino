@@ -18,12 +18,12 @@
 /***/
 
 #include "DA_ad9833Mgt.hpp"
-#include "Common/DA_StrmCmd.hpp"
-#include "Common/DA_Timing.hpp"
+#include "Common/AVR/DA_StrmCmd.hpp"
+#include "Common/AVR/DA_Timing.hpp"
 #ifndef DA_FAST_POLL_TIMER_HPP // resource contention
-#include "Common/DA_Counting.hpp"
+#include "Common/AVR/DA_Counting.hpp"
 #endif
-#include "Common/DA_Analogue.hpp"
+#include "Common/AVR/DA_Analogue.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 

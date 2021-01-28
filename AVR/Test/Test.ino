@@ -16,10 +16,10 @@
 
 //#define DA_FAST_POLL_TIMER_HPP // resource contention
 //#define AVR_CLOCK_TRIM 64
-#include "Common/DA_Timing.hpp"
-#include "Common/DA_Analogue.hpp"
-#include "Common/DA_StrmCmd.hpp"
-//#include "Common/DA_SPIMHW.hpp"
+#include "Common/AVR/DA_Timing.hpp"
+#include "Common/AVR/DA_Analogue.hpp"
+#include "Common/AVR/DA_StrmCmd.hpp"
+//#include "Common/AVR/DA_SPIMHW.hpp"
 #include "DA_RF24.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
