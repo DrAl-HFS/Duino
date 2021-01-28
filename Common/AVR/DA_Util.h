@@ -42,14 +42,14 @@ char hexCharL4 (uint_fast8_t u)
    if (u <= 9) { return(u+'0'); } else { return(u-9+'a'); }
 } // hexCharL4
 
-int8_t hex2ChU8 (char c[2], uint_fast8_t u)
+int8_t hex2ChU8 (char c[2], uint8_t u) // hexCharFromU8
 {
    c[1]= hexCharL4(u);
    c[0]= hexCharL4(swapHiLo4U8(u));
    return(2);
 } // hex2ChU8
 
-uint8_t char2BCD4 (char ch[], int8_t n)
+uint8_t char2BCD4 (char ch[], int8_t n) // bcd4FromChar
 {
    uint8_t r= 0;
    if (n > 0)
@@ -64,16 +64,16 @@ uint8_t char2BCD4 (char ch[], int8_t n)
 } // char2BCD4
 
 // 8 bit value conversion to packed 2 digit BCD without range check
-uint_fast8_t conv2BCD4 (uint_fast8_t u) // RENAME toBCD4 ????
+uint8_t conv2BCD4 (uint8_t u) // TODO : RENAME bcd4FromU8()
 {  // if (v > 99) { return(v); }
-   uint_fast8_t q= u / 10; // assume u < 100
+   uint8_t q= u / 10; // assume u < 100
    u-= 10 * q; // remainder <10
    return(swapHiLo4U8(q)|u);
 } // conv2BCD4
 
-uint_fast8_t fromBCD4 (uint_fast8_t bcd, uint_fast8_t n)
+uint8_t fromBCD4 (uint8_t bcd, uint8_t n) // TODO : RENAME bcd4ToU8()
 {
-   uint_fast8_t r= swapHiLo4U8(bcd) & 0xF;
+   uint8_t r= swapHiLo4U8(bcd) & 0xF;
    if (n > 1) { r= 10 * r + (bcd & 0xF); }
    return(r);
 } // fromBCD4
@@ -81,14 +81,14 @@ uint_fast8_t fromBCD4 (uint_fast8_t bcd, uint_fast8_t n)
 // TODO : assess compiler generated (fast?) division by constant
 
 // Time in minutes to days as byte, returns residue
-uint_fast16_t convTimeD (uint_fast8_t d[1], uint_fast16_t t)
+uint_fast16_t convTimeD (uint8_t d[1], uint_fast16_t t)
 {
   d[0]= t / (24 * 60);
   return(t - (d[0] * 24 * 60));
 } // convTimeD
 
 // Time in minutes to hours & minutes as bytes
-void convTimeHM (uint_fast8_t hm[2], uint_fast16_t t)
+void convTimeHM (uint8_t hm[2], uint_fast16_t t)
 {
    hm[0]= t / 60;
    hm[1]= t - (hm[0] * 60);
@@ -96,7 +96,7 @@ void convTimeHM (uint_fast8_t hm[2], uint_fast16_t t)
 
 // Really 16bit -> BCD
 // generate specified number of BCD bytes (yielding 2, 4 or 5 digits)
-void convMilliBCD (uint_fast8_t bcd[], const int8_t n, uint_fast16_t m)
+void convMilliBCD (uint8_t bcd[], const int8_t n, uint_fast16_t m)
 {
    if (n > 0)
    {  // TODO : investigate feasibility of divmod()
