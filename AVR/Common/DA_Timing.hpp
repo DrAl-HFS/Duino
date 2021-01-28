@@ -169,6 +169,7 @@ public:
 }; // CDelayTimer
 #endif
 
+/*** COMMON ***/
 class CIntervalTimer
 {
 protected:
