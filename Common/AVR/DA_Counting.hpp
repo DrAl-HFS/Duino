@@ -1,4 +1,4 @@
-// Duino/Common/DA_Conting.hpp - Arduino-AVR hardware counter hacks
+// Duino/Common/AVR/DA_Conting.hpp - Arduino-AVR hardware counter hacks
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Oct-Dec 2020
@@ -52,7 +52,7 @@ public:
    } // start
 
    void event (void) { ++nOflo; } // ISR
-   
+
    uint16_t getCountU16 (void) { return(TCNT1); } // safe ??
 }; // CCountExtBase
 
@@ -65,11 +65,11 @@ class CRateEst : public CCountExtBase
 public:
    SRate ref, res[RATE_RES_COUNT];
    uint8_t iRes;
-   
+
    CRateEst (void) {;}
-   
+
    using CCountExtBase::start;
-   
+
    int8_t update (uint16_t tick)
    {
       uint16_t c= getCountU16();

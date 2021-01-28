@@ -1,4 +1,4 @@
-// Duino/UBit/Common/M0_Util.hpp - ARM Cortex M0+ general utilities
+// Duino/Common/M0_Util.hpp - ARM Cortex M0+ general utilities (uBitV1)
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021

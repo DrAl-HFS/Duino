@@ -1,4 +1,4 @@
-// Duino/Common/DA_SPIMHW.hpp - Arduino-AVR SPI Master Hardware wrapper
+// Duino/Common/AVR/DA_SPIMHW.hpp - Arduino-AVR SPI Master Hardware wrapper
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020
@@ -48,7 +48,7 @@ class DA_SPIMHW // : public CFastPollTimer
 {
 protected:
    void beginTrans (uint8_t mode=SPI_MODE2) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, mode)); }
-   
+
    // Displace to AD9833 ?
    // Atomic (select hi->lo) 16bit write Big Endian
    void writeA16BE (const uint8_t b[2])
@@ -59,7 +59,7 @@ protected:
       SPI.transfer(b[0]);  // LSB
       SET_SEL_HI(); // Rising edge latches to target register
    } // writeA16BE
-   
+
    int8_t rwn (uint8_t r[], const uint8_t w[], const int8_t n)
    {
       int8_t i;
@@ -68,7 +68,7 @@ protected:
       SET_SEL_HI(); // complete
       return(i);
    } // rwn
-   
+
    void endTrans (void) { SPI.endTransaction(); }
 
 public:
@@ -84,7 +84,7 @@ public:
 #endif // PIN_SEL
       digitalWrite(PIN_SEL, HIGH);
    }
-   
+
    int8_t modeReadWriteN (uint8_t r[], const uint8_t w[], const int8_t n, const uint8_t mode)
    {
       int8_t nr;

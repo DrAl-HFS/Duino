@@ -1,4 +1,4 @@
-// Duino/Common/DA_FastPollTimer.h - Debug & test timer, NB: max interval 4ms
+// Duino/Common/AVR/DA_FastPollTimer.h - Debug & test timer, NB: max interval 4ms
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
@@ -10,7 +10,7 @@ class CFastPollTimer
 {
 public:
   uint16_t last;
-  
+
   CFastPollTimer (void)
   {
 #if (1 == AVR_FAST_TIMER)
@@ -22,14 +22,14 @@ public:
       TCNT1=  0;   // set
 #endif // AVR
   } // CFastPollTimer
-  
+
   uint16_t stamp (void)
   {
 #if (1 == AVR_FAST_TIMER)
       return TCNT1;
 #endif // AVR
   } // stamp
-  
+
   uint16_t diff (void)
   {
      uint16_t now= stamp();
@@ -38,7 +38,7 @@ public:
      if (dt < 0) { dt += 0xFFFF; }
      return(dt);
   } // diff
-  
+
 }; // CFastPollTimer
 
 #endif // DA_FAST_POLL_TIMER_HPP

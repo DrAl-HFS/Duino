@@ -1,4 +1,4 @@
-// Duino/Common/DA_Timing.hpp - Arduino-AVR specific class definitions for timer / clock
+// Duino/Common/AVR/DA_Timing.hpp - Arduino-AVR specific class definitions for timer / clock
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
@@ -20,7 +20,7 @@
 // NB: Timer0 used for delay() etc.
 #if (0 == AVR_CLOCK_TIMER) || (2 == AVR_CLOCK_TIMER)
 #define AVR_CLOCK_IVL 250
-#else 
+#else
 #define AVR_CLOCK_IVL 2000
 #endif // AVR_CLOCK_TIMER
 
@@ -51,10 +51,10 @@ protected:
       OCR2A=  hwIvl - 1;  // It shouldn't be necessary to reload OCR
 #endif
    } // hwUpdate
-   
+
 public:
    CBaseTimer () : ivl{AVR_CLOCK_IVL} { ; } // (all zero on reset) nIvl= 0; }
-  
+
    void start (void) const
    {
 #if (2 == AVR_CLOCK_TIMER)
@@ -65,7 +65,7 @@ public:
       TIMSK2= (1 << OCIE2A); // Compare A Interrupt Enable
 #endif // (2 == AVR_CLOCK_TIMER)
    } // init
-  
+
    void nextIvl (void)
    { // called from SIGNAL (blocking ISR) => interrupts already masked
       hwUpdate(ivl); // It shouldn't be necessary to reload OCR in normal operation... ???
@@ -79,7 +79,7 @@ public:
       //if (d >= 0) { return(d); } //else
       //return(-d);
    } // diff
-  
+
    void retire (uint8_t d) { nRet+= d; }
 }; // CBaseTimer
 
@@ -94,7 +94,7 @@ class CTrimTimer : public CBaseTimer
 protected:
    uint8_t cycle, set; // upper 7bits provide counter & threshold respectively
    // lsb provides trim flag and sign flag respectively
-   
+
    int8_t trimVal (void) const
    {
       int8_t t= cycle & TT_CYCF_TRM; // trim=0,1
@@ -106,7 +106,7 @@ protected:
       cycle+= 0x02;
       if ((cycle & TT_CYC_MASK) == (set & TT_CYC_MASK)) { cycle^= TT_CYCF_TRM; }
    }
-   // initialise trim flag for current cycle 
+   // initialise trim flag for current cycle
    void trimSet (void)
    {
       if ((cycle & TT_CYC_MASK) < (set & TT_CYC_MASK)) { cycle|= TT_CYCF_TRM; }
@@ -147,13 +147,13 @@ class CDelayTimer : public CTrimTimer
 {
 protected:
    uint8_t nDel;
-  
+
 public:
    CDelTimer (int8_t trim=0) : CTrimTimer(trim) { ; } // (all zero on reset) nDel= 0; }
     //sleep_mode();
-  
+
    void setDelay (uint8_t n) { nDel= nIvl + n; }
-  
+
    int8_t wait (uint8_t n=0)
    {
       int8_t r=-1;
@@ -174,16 +174,16 @@ class CIntervalTimer
 {
 protected:
    uint16_t interval, next;
-   
+
    void setNext (uint16_t when, uint16_t rollover)
    {
       if (when < rollover) { next= when; } else { next= when - rollover; }
    }
-   
+
 public:
    CIntervalTimer (uint16_t ivl=1000, uint16_t start=0) { interval= ivl; intervalStart(start); }
    void intervalStart (uint16_t when, uint16_t rollover=60000) { setNext(when+interval, rollover); }
-   
+
    int16_t intervalDiff (uint16_t now) const { return(now - next); }
    bool intervalComplete (uint16_t now)
    {
@@ -247,11 +247,11 @@ public:
    int16_t intervalDiff (void) { return CIntervalTimer::intervalDiff(tick); }
    void intervalStart (void) { return CIntervalTimer::intervalStart(tick); }
    bool intervalUpdate (void) { return CIntervalTimer::intervalUpdate(tick); }
-   
+
 #ifdef AVR_CLOCK_TRIM
    using CTrimTimer::nextIvl; // void nextIvl (void) { CTrimTimer::nextIvl(); }
 #endif
-   
+
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
    void setS (const uint8_t s) { tick= s*1000; }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }

@@ -1,4 +1,4 @@
-// Duino/Common/DA_Analogue_HPP.hpp - Arduino-AVR interfacing to ADC
+// Duino/Common/AVR/DA_Analogue_HPP.hpp - Arduino-AVR interfacing to ADC
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020
@@ -51,7 +51,7 @@ public:
       ADCSRB= 0x00; // Free run (when auto-trigger)
       //DIDR0=
    } // start
-   
+
    void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }
    void start (void) { ADCSRA|= 1<<ADSC; }
    void stop (void) { ADCSRA&= ~(1<<ADSC); }
@@ -60,12 +60,12 @@ public:
    // Clean event resolution count
    void flush (void) { nR= nE; }
    uint8_t flush (int8_t retain) // debug adjustment hack
-   { 
+   {
       uint8_t q= nE-retain;
       if (q > nR) { nR= q; }
       return avail();
    } // flush
-   
+
    void event (void) // ISR
    {
       uint8_t i= nE & ANLG_VQ_MSK;

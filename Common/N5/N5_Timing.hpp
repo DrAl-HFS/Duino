@@ -1,4 +1,4 @@
-// Duino/UBit/N5Common/N5_Timing.hpp - nRF5* (Micro:Bit V1 nRF51822) timing utilities
+// Duino/Common/N5/N5_Timing.hpp - nRF5* (Micro:Bit V1 nRF51822) timing utilities
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
@@ -81,7 +81,7 @@ public:
          s.print(ch);
       }
    } // printSec
-   
+
    void printMilliSec (Stream& s, uint16_t ms) const
    {
       uint8_t bcd[2];
@@ -92,14 +92,14 @@ public:
       ch[0]= '.';
       s.print(ch);
    } // printMilliSec
-   
+
    void print (Stream& s) const
    {
       uint32_t sec;
       uint16_t ms= divmod(sec, milliTick, 1000);
       printSec(s,sec);
       printMilliSec(s,ms);
-      
+
       s.print(" (");
       sec= NRF_RTC0->COUNTER; // 16Hz
       ms= ((sec & 0xF) * 625) / 10;

@@ -1,4 +1,4 @@
-// Duino/Common/DA_Util.h - Arduino-AVR miscellaneous utility code
+// Duino/Common/AVR/DA_Util.h - Arduino-AVR miscellaneous utility code
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Oct 2020 - Jan 2021

@@ -1,4 +1,4 @@
-// Duino/Common/DA_SerCmd.h - Arduino (AVR) specific (AD9833 control related) text IO processing
+// Duino/Common/AVR/DA_SerCmd.h - Arduino (AVR) specific (AD9833 control related) text IO processing
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Nov-Dec 2020
@@ -98,7 +98,7 @@ protected:
 
 public:
    CNumBCDX () {;}
-   
+
    void dumpHex (Stream & s)
    {
       s.print("m0x"); s.print(bcd[0],HEX); s.print(bcd[1],HEX); s.println(bcd[2],HEX);
@@ -124,7 +124,7 @@ public:
    {
       uint8_t nD= 0, nO= 0;
       char ch;
-      
+
       do
       {
          uint8_t d= readStreamBCD(s, nD, min(a,BCD4_MAX));
@@ -139,7 +139,7 @@ public:
       setClkD(nD);
       return(nD+nO);
    } // readStreamClock
-   
+
    int8_t readStream (Stream& s, const uint8_t a)
    {
       uint8_t point= 0xFF, nO=0, nD= readStreamBCD(s, 0, min(a,BCD4_MAX));
@@ -178,7 +178,7 @@ public:
       }
       return(nD+nO);
    } // readStream
-  
+
    uint8_t extractUME (uint32_t& mx, int8_t& ex, const uint8_t maxD=4)
    {
        uint8_t nD= getD(), d= min( maxD, nD );  // limit conversion (prevent overflow)..
@@ -186,7 +186,7 @@ public:
        mx= u32FromBCD(bcd,nD); // convert
        return(nD);
    } // extractUME
-   
+
    uint32_t extractScale (const uint16_t mScale=1, const int8_t eScale=3)
    {
       uint32_t mx;
@@ -200,12 +200,12 @@ public:
       //else if (ex < 0) { 
       return(mx / uexp10(-ex));
    } // extractScale
-   
+
    int8_t extractHMS (uint8_t hms[3], int8_t n)
    {
       int8_t i=0;
       if (!isClk()) { Serial.println("!isClk()"); } // ????
-      
+
       {  // dumpHex(Serial);
          uint8_t b= (1 + getD()) / 2; // round up, just in case
          n= min(n, b);
@@ -213,7 +213,7 @@ public:
       }
       return(i);
    } // extractHMS
-   
+
 }; // CNumBCDX
 
 // TODO : cleanup command flags

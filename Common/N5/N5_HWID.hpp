@@ -1,4 +1,4 @@
-// Duino/UBit/N5Common/N5_HWID.hpp - Micro:Bit V1 (nrf51822) hardware ID
+// Duino/Common/N5/N5_HWID.hpp - Micro:Bit V1 (nrf51822) hardware ID
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021

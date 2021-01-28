@@ -1,4 +1,4 @@
-// Duino/Common/DA_SerCmd.h - Arduino (AVR) specific (AD9833 control related) serial command processing
+// Duino/Common/AVR/DA_SerCmd.h - Arduino (AVR) specific (AD9833 control related) serial command processing
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Nov 2020
@@ -106,15 +106,14 @@ protected:
             {
                uint8_t t= idxMatch(ch, "STLCFHORK");
                if (t >= 0)
-               { 
+               {
                   if (t < 4) { f[1]= t | 0x4; } // waveform
                   else
-                  { 
+                  {
                      f[0]|= 1<<(t-4); // Function,Hold,on/Off,Reset,clocK
                      if ('K' == ch) { n+= k.readStreamClock(s,a-n); }
                   }
                   ++i;
-                  
                }
             } else if ('?' == ch) { help(s); }
          }
@@ -174,7 +173,7 @@ public:
       i= setRS1(rs, cs.cmdR[0]);
       i+= setRS2(rs+i, cs.cmdR[1]);
       if (i > 0)
-      { 
+      {
          s.print("OK:");
          rs[i]= 0;
          s.print(rs);
@@ -188,7 +187,7 @@ public:
       {
          s.print("ERR:");
          rs[i]= 0;
-         s.print(rs); 
+         s.print(rs);
          if (cs.iRes < 0) { s.print(cs.iRes); }
          s.println();
       }
