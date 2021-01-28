@@ -26,9 +26,8 @@ uint32_t gNextTick;
 
 /*** ISR ***/
 
-extern "C" {
 // NB - 'duino "magic" name linking requires undecorated symbol
-void TIMER2_IRQHandler (void)
+extern "C" void TIMER2_IRQHandler (void)
 {
 	if (0 != NRF_TIMER2->EVENTS_COMPARE[0])
   {
@@ -38,14 +37,15 @@ void TIMER2_IRQHandler (void)
     while (0 != NRF_TIMER2->EVENTS_COMPARE[0]); // spin sync
     gClock.nextIvl();
   }
-} // IRQ
-} // extern "C"
+} // TIMER2_IRQHandler
+// extern "C"
 
 /***/
 
 void setup (void)
 { 
   gClock.init();
+
   Serial.begin(115200); // ? 230400); //
   
   n5DumpHWID(Serial);
@@ -53,7 +53,14 @@ void setup (void)
   pinMode(PIN_BTN_B, INPUT);
   
   gRF.init();
-  
+#if 1
+  uint8_t hms[3];
+  hms[0]= bcd4ToU8(bcd4FromChar(__TIME__+0,2),2);
+  hms[1]= bcd4ToU8(bcd4FromChar(__TIME__+3,2),2);
+  hms[2]= bcd4ToU8(bcd4FromChar(__TIME__+5,2),2);
+  gClock.setHMS(hms);
+  gNextTick= gClock.milliTick+10;
+#endif
   gClock.start();
 } // setup
 
@@ -64,8 +71,9 @@ void loop (void)
   b[n]= 0;
   
   if (gClock.milliTick >= gNextTick)
-  { // much more accurate than delay() but extra +10ms per second ??
+  { // much more accurate than delay()
     gNextTick+= 10;
+    // Report time immediately to prevent mismatch
     if (--gLogIvl <= 0) { gClock.print(Serial); }
     //if (gNextTick >= 60000) { gNextTick-= 60000; }
     if (gRF.recv((uint8_t*)b,&n))

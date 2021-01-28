@@ -36,9 +36,8 @@ public:
 
    void setup (NRF_RTC_Type *pT=NRF_RTC0)
    {
-      pT->TASKS_CLEAR= 1; // clean reset
-      //pT->COUNTER=   0; // CLEAR ???
-      pT->PRESCALER= 2048;   // 32768Hz / 2^11 -> 16Hz
+      pT->TASKS_CLEAR= 1;  // clean reset
+      pT->PRESCALER= 2048; // 32768Hz / 2^11 -> 16Hz tick
    } // setup
 }; // CRTClockN5
 
@@ -51,23 +50,24 @@ public:
 
    void init (void) { CTimerN5::setup(); CRTClockN5::setup(); }
 
+   void setHMS (uint8_t hms[3]) { milliTick= hmsU8ToSecU32(hms) * 1000; }
+
    void start (void)
    {
       NVIC_EnableIRQ(TIMER2_IRQn);
       NRF_TIMER2->TASKS_START= 1;
 
-      //NVIC_EnableIRQ(RTC0_IRQn);
       NRF_RTC0->TASKS_START= 1;
    }
 
    void nextIvl (void) { milliTick++; }
 
-   void printSec (Stream& s, uint32_t sec) const
+   void printSecHMS (Stream& s, uint32_t sec) const
    {
       uint8_t hms[3];
       char ch[5];
 
-      sec2HMS(hms, sec); // -> 24:60:60
+      hmsU8FromSecU32(hms, sec); // -> 24:60:60
       // snprintf adds 16KB code! Use BCD->char instead...
       // snprintf(ch,sizeof(ch)-1,"%02u:%02u:%02u.%03u", hms[0], hms[1], hms[2], ms);
 
@@ -75,18 +75,18 @@ public:
       ch[3]= 0;
       for (int i=0; i<sizeof(hms); i++)
       {
-         u8ToBCD4(hms+i, hms[i]); // in-place conversion
-         hex2ChU8(ch, hms[i]);
+         bcd4FromU8(hms+i, hms[i]); // in-place conversion
+         hexCharU8(ch, hms[i]);
          if (i == (sizeof(hms)-1)) { ch[2]= 0; }
          s.print(ch);
       }
-   } // printSec
+   } // printSecHMS
 
    void printMilliSec (Stream& s, uint16_t ms) const
    {
       uint8_t bcd[2];
       char ch[5];
-      u16ToBCD4(bcd,ms); // hacky reuse...
+      bcd4FromU16(bcd,ms); // hacky reuse...
       ch[4]= 0;
       bcd4ToChar(ch, sizeof(ch)-1,bcd,2);
       ch[0]= '.';
@@ -97,14 +97,14 @@ public:
    {
       uint32_t sec;
       uint16_t ms= divmod(sec, milliTick, 1000);
-      printSec(s,sec);
+      printSecHMS(s,sec);
       printMilliSec(s,ms);
 
       s.print(" (");
-      sec= NRF_RTC0->COUNTER; // 16Hz
+      sec= NRF_RTC0->COUNTER; // 16Hz tick
       ms= ((sec & 0xF) * 625) / 10;
       sec>>= 4;
-      printSec(s,sec);
+      printSecHMS(s,sec);
       printMilliSec(s,ms);
       s.print(")");
    } // print
