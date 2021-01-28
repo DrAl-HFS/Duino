@@ -27,7 +27,9 @@ uint32_t gNextTick;
 /*** ISR ***/
 
 // NB - 'duino "magic" name linking requires undecorated symbol
-extern "C" void TIMER2_IRQHandler (void)
+extern "C" {
+
+void TIMER2_IRQHandler (void)
 {
 	if (0 != NRF_TIMER2->EVENTS_COMPARE[0])
   {
@@ -35,10 +37,21 @@ extern "C" void TIMER2_IRQHandler (void)
     //{ NRF_TIMER2->INTENCLR= TIMER_INTENSET_COMPARE0_Msk; } // Clear interrupt = single shot
 		NRF_TIMER2->EVENTS_COMPARE[0]= 0; // Clear event (SHORTS resets count)
     while (0 != NRF_TIMER2->EVENTS_COMPARE[0]); // spin sync
-    gClock.nextIvl();
+    gClock.tickEvent();
   }
 } // TIMER2_IRQHandler
-// extern "C"
+
+void RTC0_IRQHandler (void)
+{
+	if (0 != NRF_RTC0->EVENTS_OVRFLW)
+  {
+    NRF_RTC0->EVENTS_OVRFLW= 0; // clear & spin sync
+    while (0 != NRF_RTC0->EVENTS_OVRFLW);
+    gClock.ofloEvent(); // update offset
+  }
+} // RTC0_IRQHandler
+
+} // extern "C"
 
 /***/
 
@@ -59,7 +72,7 @@ void setup (void)
   hms[1]= bcd4ToU8(bcd4FromChar(__TIME__+3,2),2);
   hms[2]= bcd4ToU8(bcd4FromChar(__TIME__+5,2),2);
   gClock.setHMS(hms);
-  gNextTick= gClock.milliTick+10;
+  gNextTick= gClock.offset(10);
 #endif
   gClock.start();
 } // setup
@@ -70,12 +83,12 @@ void loop (void)
   uint8_t n=7;
   b[n]= 0;
   
-  if (gClock.milliTick >= gNextTick)
+  if (gClock.interval(gNextTick))
   { // much more accurate than delay()
     gNextTick+= 10;
     // Report time immediately to prevent mismatch
     if (--gLogIvl <= 0) { gClock.print(Serial); }
-    //if (gNextTick >= 60000) { gNextTick-= 60000; }
+
     if (gRF.recv((uint8_t*)b,&n))
     {
       gRF.setModeRx();
@@ -101,5 +114,4 @@ void loop (void)
       rmm[0]= 127; rmm[1]= -128;
     }
   }
-  //delay(10);
 } // loop
