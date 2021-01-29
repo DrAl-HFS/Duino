@@ -19,18 +19,38 @@ protected:
       pT->MODE = TIMER_MODE_MODE_Timer;
       pT->PRESCALER= 4;   // 16MHz / 2^4 -> micro-second tick
       pT->TASKS_CLEAR= 1; // clean reset
-      pT->BITMODE= TIMER_BITMODE_BITMODE_16Bit; // 24, 32 bit comparison unnecessary
+      pT->BITMODE= TIMER_BITMODE_BITMODE_32Bit; // 16, 24, 32 bit
       pT->CC[0]= 1000;   // 1ms
 
-      // Enable auto clear of count & interrupt for CC[0]
-      pT->SHORTS=   TIMER_SHORTS_COMPARE0_CLEAR_Enabled << TIMER_SHORTS_COMPARE0_CLEAR_Pos;
+      // CC[0] auto clear = priodic 0..9999 
+      //pT->SHORTS=   TIMER_SHORTS_COMPARE0_CLEAR_Enabled << TIMER_SHORTS_COMPARE0_CLEAR_Pos;
+      // interrupt on CC[0] match
       pT->INTENSET= (TIMER_INTENSET_COMPARE0_Enabled << TIMER_INTENSET_COMPARE0_Pos);
       // | (TIMER_INTENSET_COMPARE1_Enabled << TIMER_INTENSET_COMPARE1_Pos);
    } // setup
 public:
    CTimerN5 (void) {;}
 
-   void tickEvent (void) { tickCount++; }
+   void tickEvent (NRF_TIMER_Type *pT=NRF_TIMER2)
+   {
+      pT->CC[0]+= 1000; // rolling mode allows longer term timing measurements using capture registers
+      tickCount++; 
+   }
+   int8_t capTick (int8_t i, NRF_TIMER_Type *pT=NRF_TIMER2) // { return(pT->COUNTER); } ???
+   {  // NB CC[0] used to trigger interrupt - capturing to this is a VERY bad idea
+      if ((i < 1) || (i > 3)) { return(-1); }
+      pT->TASKS_CAPTURE[i]= 1; // sync ??
+      return(i);
+   }
+   int32_t capTickInterval (int8_t i0, int8_t i1, NRF_TIMER_Type *pT=NRF_TIMER2)
+   {
+      int32_t r= 0;
+      if ((i0 <= 3) && (i1 <= 3))
+      { 
+         r= pT->CC[i0] - pT->CC[i1];
+      }
+      return(r);
+   } // capTickInterval
 }; // CTimerN5
 
 class CRTClockN5 // RTC works in low power 'sleep' modes
@@ -113,9 +133,11 @@ public:
 
    void start (void)
    {
+      //NVIC_SetPriority(TIMER2_IRQn, 3);
       NVIC_EnableIRQ(TIMER2_IRQn);
       NRF_TIMER2->TASKS_START= 1;
 
+      NVIC_SetPriority(RTC0_IRQn,5);
       NVIC_EnableIRQ(RTC0_IRQn);
       NRF_RTC0->TASKS_START= 1;
    }

@@ -10,6 +10,7 @@
 
 #define RADIO_MODE_ESB
 #include <RH_NRF51.h>
+#include "N5_RF.hpp"
 #include "Common/M0_Util.hpp"
 #include "Common/N5/N5_HWID.hpp"
 #include "Common/N5/N5_Timing.hpp"
@@ -24,7 +25,9 @@ CClock gClock;
 RH_NRF51 gRF;
 
 int gLogIvl= 100;
-int8_t rmm[2]={127,-128}, gChan=2;
+int8_t rmm[2]={127,-128};
+int32_t imm[2]={0x7FFFFFFF,0x80000000};
+uint8_t gBaseChan=45, gChanOffset=0, gChan=0;
 
 uint32_t gNextTick;
 
@@ -95,6 +98,12 @@ void loop (void)
     // Report time immediately to prevent mismatch
     if (--gLogIvl <= 0) { gClock.print(Serial); }
 
+    if (gBaseChan + gChanOffset != gChan)
+    {
+      gChan= gBaseChan + gChanOffset;
+      gRF.setChannel(gChan);
+    }
+
     if (gRF.recv((uint8_t*)b,&n))
     {
       gRF.setModeRx();
@@ -103,21 +112,31 @@ void loop (void)
     }
     else
     {
-      NRF_RADIO->TASKS_RSSISTART= 1;
-      while (0 == NRF_RADIO->EVENTS_RSSIEND); // spin
-      uint8_t r= NRF_RADIO->RSSISAMPLE;
-      r&= 0x7F;
+      gClock.capTick(1);
+      int8_t r= getRSSI();
+      gClock.capTick(2);
+      
       rmm[0]= min(rmm[0],r);
       rmm[1]= max(rmm[1],r);
+      
+      int32_t i= gClock.capTickInterval(2,1);
+      imm[0]= min(imm[0],i);
+      imm[1]= max(imm[1],i);
     }
     if (gLogIvl <= 0)
     { // too much for single 10ms slot ???
       gLogIvl= 100;
-      Serial.print(" CH"); Serial.print(gChan); Serial.print(" : ");
-      Serial.print(rmm[0]); Serial.print(','); Serial.println(rmm[1]);// Serial.print(" | ");
-      gChan= (gChan+1) & 0xF;
-      gRF.setChannel(gChan);
+      Serial.print(" CH"); Serial.print(gChan);
+      if (rmm[1] > rmm[0])
+      {
+        Serial.print(" : "); Serial.print(rmm[0]);
+        Serial.print(','); Serial.println(rmm[1]);
+        Serial.print(" ; "); Serial.print(imm[0]);
+        Serial.print(','); Serial.println(imm[1]);
+      }
+      gChanOffset= 0xF & (gChanOffset+1);
       rmm[0]= 127; rmm[1]= -128;
+      imm[0]= 0x7FFFFFFF; imm[1]= 0x80000000;
     }
   }
 } // loop
