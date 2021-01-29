@@ -21,15 +21,12 @@
 /*** GLOBALS ***/
 
 CClock gClock;
+CRFScan gScan;
 
 RH_NRF51 gRF;
 
 int gLogIvl= 100;
-int8_t rmm[2]={127,-128};
-int32_t imm[2]={0x7FFFFFFF,0x80000000};
-uint8_t gBaseChan=45, gChanOffset=0, gChan=0;
-
-uint32_t gNextTick;
+uint8_t gBaseChan=44, gChanOffset=0, gChan=0;
 
 
 /*** ISR ***/
@@ -39,12 +36,11 @@ extern "C" {
 
 void TIMER2_IRQHandler (void)
 {
-	if (0 != NRF_TIMER2->EVENTS_COMPARE[0])
+  NRF_TIMER_Type *pT=NRF_TIMER2;
+	if (0 != pT->EVENTS_COMPARE[3])
   {
-    //if (NRF_TIMER2->INTENSET & TIMER_INTENSET_COMPARE0_Msk)
-    //{ NRF_TIMER2->INTENCLR= TIMER_INTENSET_COMPARE0_Msk; } // Clear interrupt = single shot
-		NRF_TIMER2->EVENTS_COMPARE[0]= 0; // Clear event (SHORTS resets count)
-    while (0 != NRF_TIMER2->EVENTS_COMPARE[0]); // spin sync
+		pT->EVENTS_COMPARE[3]= 0; // Clear event (SHORTS resets count)
+    while (0 != pT->EVENTS_COMPARE[3]); // spin sync
     gClock.tickEvent();
   }
 } // TIMER2_IRQHandler
@@ -55,7 +51,7 @@ void RTC0_IRQHandler (void)
   {
     NRF_RTC0->EVENTS_OVRFLW= 0; // clear & spin sync
     while (0 != NRF_RTC0->EVENTS_OVRFLW);
-    gClock.ofloEvent(); // update offset
+    gClock.rtcOvfloEvent(); // update offset
   }
 } // RTC0_IRQHandler
 
@@ -81,7 +77,6 @@ void setup (void)
   hms[1]= bcd4ToU8(bcd4FromChar(__TIME__+3,2),2);
   hms[2]= bcd4ToU8(bcd4FromChar(__TIME__+5,2),2);
   gClock.setHMS(hms);
-  gNextTick= gClock.offset(10);
 
   gClock.start();
 } // setup
@@ -89,54 +84,48 @@ void setup (void)
 void loop (void)
 {
   char b[32];
+  int8_t st[4], iS=0;
   uint8_t n=7;
   b[n]= 0;
   
-  if (gClock.interval(gNextTick))
-  { // much more accurate than delay()
-    gNextTick+= 10;
+  if (gClock.elapsed())
+  {
     // Report time immediately to prevent mismatch
     if (--gLogIvl <= 0) { gClock.print(Serial); }
 
-    if (gBaseChan + gChanOffset != gChan)
-    {
-      gChan= gBaseChan + gChanOffset;
-      gRF.setChannel(gChan);
-    }
-
+    gChan= gBaseChan + gChanOffset;
+    gRF.setChannel(45);
+    st[iS++]= getState();
     if (gRF.recv((uint8_t*)b,&n))
     {
-      gRF.setModeRx();
+      st[iS++]= getState();
       Serial.print(b);
       Serial.println("<-RF");
     }
     else
     {
-      gClock.capTick(1);
-      int8_t r= getRSSI();
-      gClock.capTick(2);
-      
-      rmm[0]= min(rmm[0],r);
-      rmm[1]= max(rmm[1],r);
-      
-      int32_t i= gClock.capTickInterval(2,1);
-      imm[0]= min(imm[0],i);
-      imm[1]= max(imm[1],i);
+      st[iS++]= getState();
+      gClock.tickCapture(1);
+      gRF.setChannel(gChan);
+      st[iS++]= getState();
+      gScan.scan(gChanOffset);
+      gClock.tickCapture(2);
+      st[iS++]= getState();
     }
     if (gLogIvl <= 0)
-    { // too much for single 10ms slot ???
+    {
       gLogIvl= 100;
+      Serial.print(" A"); Serial.print(NRF_RADIO->RXADDRESSES,HEX);
+      Serial.print(" "); Serial.print(NRF_RADIO->BASE0,HEX);
+      Serial.print(" "); Serial.print(NRF_RADIO->PREFIX0,HEX);
+      Serial.print(" S["); Serial.print(iS); Serial.print(']');
+      for (int8_t i=0; i<iS; i++) {  Serial.print(st[i]); Serial.print(','); } 
+      //Serial.print(NRF_CLOCK->HFCLKSTAT,HEX);
+      //Serial.print(NRF_CLOCK->LFCLKSTAT,HEX);
       Serial.print(" CH"); Serial.print(gChan);
-      if (rmm[1] > rmm[0])
-      {
-        Serial.print(" : "); Serial.print(rmm[0]);
-        Serial.print(','); Serial.println(rmm[1]);
-        Serial.print(" ; "); Serial.print(imm[0]);
-        Serial.print(','); Serial.println(imm[1]);
-      }
-      gChanOffset= 0xF & (gChanOffset+1);
-      rmm[0]= 127; rmm[1]= -128;
-      imm[0]= 0x7FFFFFFF; imm[1]= 0x80000000;
+      gScan.print(gChanOffset,Serial);
+      Serial.print(" dt="); Serial.println(gClock.tickCaptureInterval(1,2));
+      gChanOffset= 0x3 & (gChanOffset+1);
     }
   }
 } // loop
