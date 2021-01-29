@@ -3,6 +3,11 @@
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
 
+// Ref (no relevant low-level src):
+// infocenter.nordicsemi.com/topic/com.nordic.infocenter.sdk5.v15.2.0/esb_users_guide.html
+// github.com/NordicPlayground/nrf51-micro-esb
+//SDK v15 #define NRF_ESB_LEGACY
+
 #define RADIO_MODE_ESB
 #include <RH_NRF51.h>
 #include "Common/M0_Util.hpp"
@@ -59,21 +64,22 @@ void setup (void)
 { 
   gClock.init();
 
-  Serial.begin(115200); // ? 230400); //
+  Serial.begin(115200); // UART->USB link - the usual limitations apply...
   
-  n5DumpHWID(Serial);
+  n51DumpHWID(Serial);
   pinMode(PIN_BTN_A, INPUT);
   pinMode(PIN_BTN_B, INPUT);
   
   gRF.init();
-#if 1
+
+  // Set clock from build time
   uint8_t hms[3];
   hms[0]= bcd4ToU8(bcd4FromChar(__TIME__+0,2),2);
   hms[1]= bcd4ToU8(bcd4FromChar(__TIME__+3,2),2);
   hms[2]= bcd4ToU8(bcd4FromChar(__TIME__+5,2),2);
   gClock.setHMS(hms);
   gNextTick= gClock.offset(10);
-#endif
+
   gClock.start();
 } // setup
 

@@ -12,7 +12,7 @@
 
 /***/
 
-void n5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
+void n51DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
 {
   s.print("\nUBit: "); s.println(0xFFFF & pF->CONFIGID,HEX); // HWID
   s.print("UID= 0x"); s.print(pF->DEVICEID[1],HEX); s.println(pF->DEVICEID[0],HEX); // Unique
@@ -24,6 +24,6 @@ void n5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
   s.print("Flash= "); s.print(pF->CODEPAGESIZE); s.print("byte*"); s.println(pF->CODESIZE);
   s.print("Ram= "); s.print(pF->SIZERAMBLOCKS); s.print("byte*"); s.println(pF->NUMRAMBLOCK);
   s.print("Ovrd= 0x"); s.println(~(pF->OVERRIDEEN),HEX);
-} // n5DumpHWID
+} // n51DumpHWID
 
 #endif // N5_HWID
