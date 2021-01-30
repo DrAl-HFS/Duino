@@ -3,9 +3,9 @@
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
 
-// Ref (no relevant low-level src):
+// Ref:
 // infocenter.nordicsemi.com/topic/com.nordic.infocenter.sdk5.v15.2.0/esb_users_guide.html
-// github.com/NordicPlayground/nrf51-micro-esb
+// github.com/NordicPlayground/nrf51-micro-esb/Common/micro_esb.c
 //SDK v15 #define NRF_ESB_LEGACY
 
 #define RADIO_MODE_ESB
