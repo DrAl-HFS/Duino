@@ -1,4 +1,4 @@
-// Duino/Test/DA_RF24.hpp - Arduino-AVR NRF24L01+ library wrapper
+// Duino/Test/DA_RF24.hpp - Arduino-AVR NRF24L01+ wrapper (using RadioHead library)
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020 - Jan 2021
@@ -6,6 +6,8 @@
 #ifndef DA_RF24_HPP
 #define DA_RF24_HPP
 
+// Include RadioHead NRF24L01+ "driver" - functional 
+// albeit not terribly efficient.
 #include <RH_NRF24.h>
 
 
@@ -14,7 +16,7 @@
 // Other pins SCK,MOSI,MISO,SS all default
 
 // NRF24L01+ ESB packet format (endianess unspecified!) : 
-// [preamble: 1byte][addr: 3~5 bytes][hdr: 9bits [len:6][seq:2][nack:1]][payload: 0~32bits][crc: 1~2bytes]
+// [preamble: 1byte][addr: 3~5 bytes][hdr: 9bits [len:6][seq:2][nack:1]][payload: 0~32bytes][crc: 1~2bytes]
 class TestRF24 : protected RH_NRF24
 {
 protected:
