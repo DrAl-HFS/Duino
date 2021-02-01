@@ -21,6 +21,31 @@
 #include "Common/AVR/DA_StrmCmd.hpp"
 #include "Common/AVR/DA_SPIMHW.hpp"
 
+
+#ifdef DA_SPI_M_HW_HPP
+// Very basic SPI comm test
+#define DA_HACKRF24
+
+class HackRF24 : protected DA_SPIMHW
+{
+   uint8_t rb[4], wb[4];
+
+public:
+   HackRF24 (void) { ; }
+   
+   void test (Stream &s)
+   {
+      rb[0]= rb[1]= 0xFF; 
+      wb[0]= 0x07; wb[1]= 0x00;
+      int8_t i, nr= readWriteN(rb,wb,2);
+      //rf.endTrans();
+      for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
+      Serial.println(rb[i],HEX);
+   }
+}; // class HackRF24
+
+#endif // DA_SPI_M_HW_HPP
+
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
 CClock gClock(3000);
@@ -52,6 +77,35 @@ uint8_t gM= SPI_MODE3;
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
+
+#include <EEPROM.h>
+
+int8_t setID (char idzs[])
+{
+  int8_t i=0;
+  if (EEPROM.read(i) != idzs[i])
+  {
+    EEPROM.write(i,idzs[i]);
+    if (0 != idzs[i++])
+    {
+      do
+      {
+        if (EEPROM.read(i) != idzs[i]) { EEPROM.write(i,idzs[i]); }
+      } while (0 != idzs[i++]);
+    }
+  }
+  return(i);
+} // setID
+
+int8_t getID (char idzs[])
+{
+  int8_t i=0;
+  do
+  {
+    idzs[i]= EEPROM.read(i);
+  } while (0 != idzs[i++]);
+  return(i);
+} // getID
 
 char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
@@ -151,34 +205,6 @@ void sig (Stream& s)  // looks like garbage...
   // 11 28 13 8F FF F
 } // sig
 
-#include <EEPROM.h>
-
-int8_t setID (char idzs[])
-{
-  int8_t i=0;
-  if (EEPROM.read(i) != idzs[i])
-  {
-    EEPROM.write(i,idzs[i]);
-    if (0 != idzs[i++])
-    {
-      do
-      {
-        if (EEPROM.read(i) != idzs[i]) { EEPROM.write(i,idzs[i]); }
-      } while (0 != idzs[i++]);
-    }
-  }
-  return(i);
-} // setID
-
-int8_t getID (char idzs[])
-{
-  int8_t i=0;
-  do
-  {
-    idzs[i]= EEPROM.read(i);
-  } while (0 != idzs[i++]);
-  return(i);
-} // getID
 
 void setup (void)
 {
