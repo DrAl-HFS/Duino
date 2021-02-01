@@ -50,10 +50,6 @@ DA_SPIMHW gSPIMHW;
 uint8_t gM= SPI_MODE3;
 #endif
 
-#ifdef DA_RF24_HPP
-TestRF24 gRF;
-#endif
-
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
 
