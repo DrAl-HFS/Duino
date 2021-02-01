@@ -19,8 +19,7 @@
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
-//#include "Common/AVR/DA_SPIMHW.hpp"
-#include "DA_RF24.hpp"
+#include "Common/AVR/DA_SPIMHW.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
@@ -216,12 +215,6 @@ void setup (void)
 #ifdef DA_HACKRF24
   HackRF24 hack; hack.test(Serial);
 #endif
-
-#ifdef DA_RF24_HPP
-  char id[8];
-  getID(id);
-  gRF.init(Serial,id);
-#endif
 } // setup
 
 void pulseHack (void)
@@ -279,9 +272,6 @@ void loop (void)
       Serial.println(r[1],HEX);
       gM+= SPI_MODE1;
     }
-#endif
-#ifdef DA_RF24_HPP
-    gRF.proc(Serial,ev);
 #endif
     if (ev & 0xF0)
     {
