@@ -21,9 +21,9 @@ class TestRF24 : protected RH_NRF24
 {
 protected:
    uint32_t nPZ;
-   uint16_t inSeqM, nRxB, nTxB;
-   int8_t outSeq;
-   uint8_t nRx, nTx;
+   uint16_t nRxB, nTxB, qLen;
+   uint16_t nRx, nTx, nonSeq;
+   uint8_t inSeq, outSeq;
    char out[16], in[16];
    
 public:
@@ -71,8 +71,8 @@ public:
    uint8_t proc (uint8_t event)
    {
       uint8_t n, r=0;
-      if ((event & 0x80) && (outSeq <= 0)) { outSeq+= event & 0xF; }
-      if (outSeq > 0)
+      if ((event & 0x80) && (qLen <= 128)) { qLen+= 150*(event & 0xF); }
+      if (qLen > 0)
       {
          n= sizeof(out);
          out[n-1]= outSeq;
@@ -81,7 +81,8 @@ public:
             nTxB+= n;
             r|= 0x1;
             nTx++;
-            --outSeq;
+            outSeq++;
+            --qLen;
          }
          setModeRx(); // ???
       }
@@ -90,8 +91,9 @@ public:
       {
          if (n > 0)
          {
-            uint8_t nS= in[n-1];
-            if (nS <= 0xF) { inSeqM|= 1 << (nS-1); }
+            uint8_t s= in[n-1];
+            nonSeq+= (s != (inSeq+1));
+            inSeq= s;
          }
          nRxB+= n;
          r|= 0x10;
@@ -108,8 +110,8 @@ public:
       log.print(nRx); 
       log.print("] "); 
       log.print(nRxB); 
-      log.print(" M=x"); 
-      log.print(inSeqM,HEX);
+      log.print(" nS="); 
+      log.print(nonSeq);
       log.print(" ->RF["); 
       log.print(nTx); 
       log.print("] "); 
@@ -119,7 +121,7 @@ public:
       clear();
    }
    
-   void clear (void) { nPZ= 0; in[0]= 0; outSeq= 0; inSeqM= 0; nRx= 0; nTx= 0; nRxB= 0; nTxB= 0;  }
+   void clear (void) { nPZ= 0; in[0]= 0; inSeq=-1, outSeq= 0; nonSeq= 0; nRx= 0; nTx= 0; nRxB= 0; nTxB= 0;  }
    
 }; // class TestRF24
 
