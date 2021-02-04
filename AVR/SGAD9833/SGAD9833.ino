@@ -147,8 +147,7 @@ int8_t sysLog (Stream& s, uint8_t events)
 void setup (void)
 {
    noInterrupts();
-   //const uint8_t cs[]={22,18};
-   //gClock.setHM(cs);
+   gClock.setA(__TIME__); // Use build time as default
    gClock.start();
 #ifdef DA_COUNTING_HPP
    gRate.start();
@@ -216,6 +215,8 @@ void loop (void)
           cmd.cmdR[0]|= 0x10;
         }
       }
+      if (cmd.cmdF[0] & 0x20) // debug
+      { cmd.cmdR[0]|= 0x20; }
     }
     if (gSigGen.iFN >= 3)
     {

@@ -298,8 +298,8 @@ static const U8 ctrlB0[]=
          else if (sweep.setParam(cs.v, nV) > 0)
          {
             reg.setFSR(sweep.getFSR(), 0); rwm|= FUGM; // no phase glitch when ctrl written
-            if ((0 == iFN) && (0 == (cs.cmdR[0] & 0x01))) { iFN= 1; } // auto-on if off : defaultFN
-         }
+            if ((0 == iFN) && (0 == (cs.cmdR[0] & 0x01))) { iFN= 2; } // auto-on if off : defaultFN
+         }  // Why mode 2 ? mode 1 seems broken...
 
          if (iFN > 0) { iFN&= FMMM; }
          //changeMon(true);
