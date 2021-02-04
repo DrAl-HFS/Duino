@@ -254,6 +254,16 @@ public:
 
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
    void setS (const uint8_t s) { tick= s*1000; }
+   void setA (const char a[])
+   {  // No parsing! assumes exact "hh:mm:ss"
+      uint8_t tt[2];
+  
+      tt[0]= fromBCD4(char2BCD4(a+0,2),2);
+      tt[1]= fromBCD4(char2BCD4(a+3,2),2);
+      setHM(tt);
+      tt[0]= fromBCD4(char2BCD4(a+5,2),2);
+      setS(tt[0]);
+   }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
    // Serial interface support, debug mostly?
    int8_t getStrHM (char str[], int8_t max, char end=0)
