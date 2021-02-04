@@ -64,6 +64,16 @@ public:
       return(r);
    } // tickCaptureInterval
    
+   uint32_t printTCI (Stream& s, int8_t i1=1, int8_t i2=2)
+   {
+      const uint32_t t= tickCaptureInterval(i1,i2);
+      uint32_t us= t>>4; // ticks to microseconds
+      uint32_t f= (t & 0xF) * 625; // 16MHz -> 0.0625us
+      s.print(us); s.print('.');
+      if ((f > 0) && (f < 1000)) { s.print('0'); }
+      s.print(f);
+      return(t);
+   }
 }; // CTimerN5
 
 class CRTClockN5 // RTC works in low power 'sleep' modes
