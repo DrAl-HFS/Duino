@@ -1,4 +1,4 @@
-// Duino/UBit/radio/radio.ino - Micro:Bit V1 (nrf51822) radio test
+// Duino/UBit/RadioN5/RadioN5.ino - Micro:Bit V1 (nrf51822) radio test
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
@@ -8,7 +8,6 @@
 // github.com/NordicPlayground/nrf51-micro-esb
 //SDK v15 #define NRF_ESB_LEGACY
 
-#define RADIO_MODE_ESB
 #include <RH_NRF51.h>
 #include "N5_RF.hpp"
 #include "Common/M0_Util.hpp"
@@ -18,15 +17,19 @@
 #define PIN_BTN_A 5
 #define PIN_BTN_B 11
 
+#define N5_CHAN_BASE 35
+#define N5_CHAN_COUNT 10
+#define N5_CHAN_STEP 2
+
+
 /*** GLOBALS ***/
 
 CClock gClock;
-CRFScan gScan;
+CRFScan gScan(N5_CHAN_BASE,N5_CHAN_COUNT,N5_CHAN_STEP);
 
 RH_NRF51 gRF;
 
 int gLogIvl= 100;
-uint8_t gBaseChan=44, gChanOffset=0, gChan=0;
 
 
 /*** ISR ***/
@@ -70,7 +73,8 @@ void setup (void)
   pinMode(PIN_BTN_B, INPUT);
   
   gRF.init();
-
+  // gRF.printRegisters(); ???
+  
   // Set clock from build time
   uint8_t hms[3];
   hms[0]= bcd4ToU8(bcd4FromChar(__TIME__+0,2),2);
@@ -93,7 +97,6 @@ void loop (void)
     // Report time immediately to prevent mismatch
     if (--gLogIvl <= 0) { gClock.print(Serial); }
 
-    gChan= gBaseChan + gChanOffset;
     gRF.setChannel(45);
     st[iS++]= getState();
     if (gRF.recv((uint8_t*)b,&n))
@@ -104,17 +107,16 @@ void loop (void)
     }
     else
     {
-      st[iS++]= getState();
+      //st[iS++]= getState();
       gClock.tickCapture(1);
-      gRF.setChannel(gChan);
-      st[iS++]= getState();
-      gScan.scan(gChanOffset);
+      gScan.scan(N5_CHAN_COUNT);
       gClock.tickCapture(2);
-      st[iS++]= getState();
+      //st[iS++]= getState();
     }
     if (gLogIvl <= 0)
     {
       gLogIvl= 100;
+#if 0
       Serial.print(" A"); Serial.print(NRF_RADIO->RXADDRESSES,HEX);
       Serial.print(" "); Serial.print(NRF_RADIO->BASE0,HEX);
       Serial.print(" "); Serial.print(NRF_RADIO->PREFIX0,HEX);
@@ -122,10 +124,9 @@ void loop (void)
       for (int8_t i=0; i<iS; i++) {  Serial.print(st[i]); Serial.print(','); } 
       //Serial.print(NRF_CLOCK->HFCLKSTAT,HEX);
       //Serial.print(NRF_CLOCK->LFCLKSTAT,HEX);
-      Serial.print(" CH"); Serial.print(gChan);
-      gScan.print(gChanOffset,Serial);
-      Serial.print(" dt="); Serial.println(gClock.tickCaptureInterval(1,2));
-      gChanOffset= 0x3 & (gChanOffset+1);
+#endif
+      gScan.print(Serial,N5_CHAN_COUNT);
+      Serial.print(" dt="); gClock.printTCI(Serial); Serial.println("us");
     }
   }
 } // loop
