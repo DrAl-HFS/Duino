@@ -33,7 +33,7 @@ public:
    {
       //RHMode x= RHModeInitialising;
       // uBit addr 0x75626974 {0x5A,00,00};
-      uint8_t addr[]={0x7E,0x18,0x18,0x7E}; // fully (bit&byte) palindromic test address 
+      uint8_t addr[]={0x7E,0x18,0xE7,0x18,0x7E}; // fully (bit&byte) palindromic test address 
       uint8_t rm= 0x0;
       int8_t v=0x38, i= 0;
       if (RH_NRF24::init())
@@ -58,16 +58,30 @@ public:
          if (idsz) { log.print(idsz); }
          log.print(":initRF() - ");
          log.println(rm,HEX);
+#if 0
          if (rm > 0)
          {
             log.print("Addr");
-            for (int i=0; i<4; i++) { log.print(':'); log.print(addr[i],HEX);  }
+            for (int i=0; i<sizeof(addr); i++) { log.print(':'); log.print(addr[i],HEX);  }
             log.println();
          }
+#endif
       }
       return(rm);
    } // init
-   
+
+   void dumpState () { RH_NRF24::printRegisters(); }
+#if 0
+   void paranoid (Stream& s)
+   {
+      uint8_t r[2];  // EN_AA 5:0 (AutoAckEnable), SETUP_RETR  7:4 ARD(AutoRetransDel), 3:0 ARC(AutoRetransCount)
+      r[0]= spiReadRegister(RH_NRF24_REG_01_EN_AA);
+      r[1]= spiReadRegister(RH_NRF24_REG_04_SETUP_RETR);
+      
+      s.print("paranoid() -\n EN_AA="); s.println(r[0],HEX);
+      s.print(" _ARD/C="); s.println(r[1],HEX);
+   } // paranoid
+#endif
    uint8_t proc (uint8_t event)
    {
       uint8_t n, r=0;
@@ -119,6 +133,7 @@ public:
       log.print(" nPZ="); 
       log.println(nPZ); 
       clear();
+      //paranoid(log);
    }
    
    void clear (void) { nPZ= 0; in[0]= 0; inSeq=-1, outSeq= 0; nonSeq= 0; nRx= 0; nTx= 0; nRxB= 0; nTxB= 0;  }
