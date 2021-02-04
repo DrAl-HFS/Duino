@@ -1,7 +1,7 @@
-// Duino/Test.ino - Arduino IDE & AVR test harness
+// Duino/Test.ino - AVR NRF24L01+ testing (RadioHead)
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020 -Jan 2021
+// (c) Project Contributors Dec 2020 - Feb 2021
 
 #include <math.h>
 //include <avr.h>
@@ -9,42 +9,16 @@
 
 /***/
 
-#define BAUDRATE   115200
+#define UART_BAUD   115200
 
 
 /***/
 
-//#define DA_FAST_POLL_TIMER_HPP // resource contention
-//#define AVR_CLOCK_TRIM 64
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
-#include "Common/AVR/DA_SPIMHW.hpp"
-
-
-#ifdef DA_SPI_M_HW_HPP
-// Very basic SPI comm test
-#define DA_HACKRF24
-
-class HackRF24 : protected DA_SPIMHW
-{
-   uint8_t rb[4], wb[4];
-
-public:
-   HackRF24 (void) { ; }
-   
-   void test (Stream &s)
-   {
-      rb[0]= rb[1]= 0xFF; 
-      wb[0]= 0x07; wb[1]= 0x00;
-      int8_t i, nr= readWriteN(rb,wb,2);
-      //rf.endTrans();
-      for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
-      Serial.println(rb[i],HEX);
-   }
-}; // class HackRF24
-
-#endif // DA_SPI_M_HW_HPP
+#include "Common/AVR/DA_Ident.hpp"
+#include "DA_RF24.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
@@ -56,8 +30,6 @@ CClock gClock(3000);
 // Connect clock to timer interrupt
 // SIGNAL blocks other ISRs - check use of sleep()
 SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
-//SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
-//SIGNAL(TIMER2_OCB_vect) { gClock.nextIvl(); }
 #endif // AVR_CLOCK_TIMER
 
 #endif // AVR_CLOCK_TN
@@ -70,42 +42,9 @@ ISR(ADC_vect) { gADC.event(); }
 
 #endif // DA_ANALOGUE_HPP
 
-#ifdef DA_SPIMHW_HPP
-DA_SPIMHW gSPIMHW;
-uint8_t gM= SPI_MODE3;
-#endif
-
+TestRF24 gRF;
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
-
-#include <EEPROM.h>
-
-int8_t setID (char idzs[])
-{
-  int8_t i=0;
-  if (EEPROM.read(i) != idzs[i])
-  {
-    EEPROM.write(i,idzs[i]);
-    if (0 != idzs[i++])
-    {
-      do
-      {
-        if (EEPROM.read(i) != idzs[i]) { EEPROM.write(i,idzs[i]); }
-      } while (0 != idzs[i++]);
-    }
-  }
-  return(i);
-} // setID
-
-int8_t getID (char idzs[])
-{
-  int8_t i=0;
-  do
-  {
-    idzs[i]= EEPROM.read(i);
-  } while (0 != idzs[i++]);
-  return(i);
-} // getID
 
 char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
@@ -166,45 +105,9 @@ int8_t sysLog (Stream& s, uint8_t events)
   }
 #endif
   s.println(str);
+  gRF.report(s);
   return(r);
 } // sysLog
-
-//void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
-
-#include <avr/boot.h>
-void sig (Stream& s)  // looks like garbage...
-{ // avrdude: Device signature = 0x1e950f (probably m328p)
-  char lot[7];
-  s.print("sig:");
-  for (uint8_t i= 0x0E; i < (6+0x0E); i++)
-  { // NB - bizarre endian reversal
-    lot[(i-0x0E)^0x01]= boot_signature_byte_get(i);
-  }
-  lot[6]= 0;
-  s.print("lot:");
-  s.print(lot);
-  s.print(" #");
-  s.print(boot_signature_byte_get(0x15)); // W
-  s.print("(");
-  s.print(boot_signature_byte_get(0x17)); // X
-  s.print(",");
-  s.print(boot_signature_byte_get(0x16)); // Y
-  s.println(")");
-  s.flush();
-  for (uint8_t i=0; i<0xE; i++)
-  { // still doesn't appear to capture everything...
-    uint8_t b= boot_signature_byte_get(i);
-    if (0xFF == b) { s.println(b,HEX); }
-    else { s.print(b,HEX); }
-    s.flush();
-  }
-  // Cal. @ 0x01,03,05 -> 9A FF 4F, (RCOSC, TSOFFSET, TSGAIN)
-  // 1E 9A 95 FF FC 4F F2 6F 
-  // F9 FF 17 FF FF 59 36 31
-  // 34 38 37 FF 13 1A 13 17 
-  // 11 28 13 8F FF F
-} // sig
-
 
 void setup (void)
 {
@@ -224,8 +127,8 @@ void setup (void)
 #endif
   pinMode(PIN_PULSE, OUTPUT);
 
-  Serial.begin(BAUDRATE);
-  Serial.print("Test " __DATE__ " ");
+  Serial.begin(UART_BAUD);
+  Serial.print("RadioA24 " __DATE__ " ");
   Serial.println(__TIME__);
   //sig(Serial);
   //dumpT0(Serial);
@@ -233,10 +136,11 @@ void setup (void)
   interrupts();
   gClock.intervalStart();
   sysLog(Serial,0);
-
-#ifdef DA_HACKRF24
-  HackRF24 hack; hack.test(Serial);
-#endif
+  
+  CIdent id;
+  char idsz[8];
+  id.get(idsz);
+  gRF.init(Serial,idsz);
 } // setup
 
 void pulseHack (void)
@@ -264,11 +168,11 @@ void loop (void)
   { // <=1KHz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
-    if (gClock.intervalUpdate()) { ev|= 0x80; } // 
+    if (gClock.intervalUpdate()) { ev|= 0x80; } // interval timeout
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;
-      if (cmd.cmdF[0] & 0x10) // clock
+      if (cmd.cmdF[0] & 0x10) // clock set message
       {
         uint8_t hms[3], d;
         d= cmd.v[SCI_VAL_MAX-1].extractHMS(hms,3);
@@ -280,21 +184,6 @@ void loop (void)
         }
       }
     }
-#ifdef DA_SPIMHW_HPP
-    if (ev& 0x80)
-    {
-      uint8_t w[]={0x1F,0}, r[]={0xAA,0x55};
-      gM &= SPI_MODE3;
-      gSPIMHW.modeReadWriteN(r,w,2,gM);
-      Serial.print("SPI - M");
-      Serial.print(gM);
-      Serial.print(':');
-      Serial.print(r[0],HEX);
-      Serial.print(',');
-      Serial.println(r[1],HEX);
-      gM+= SPI_MODE1;
-    }
-#endif
     if (ev & 0xF0)
     {
       sysLog(Serial,ev);
@@ -307,4 +196,6 @@ void loop (void)
     }
     pulseHack();
   }
+  if (ev & 0x80) { ev|= 0x0F; } // start a batch
+  gRF.proc(ev);
 } // loop
