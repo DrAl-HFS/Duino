@@ -6,8 +6,11 @@
 #ifndef N5_RF_HPP
 #define N5_RF_HPP
 
-#include <nrf51.h>
-#include <nrf51_bitfields.h>
+#include "Common/N5/N5_Util.hpp"
+#include <RH_NRF51.h>
+
+
+/***/
 
 int8_t getState (NRF_RADIO_Type *pR=NRF_RADIO) { return(pR->STATE); }
 

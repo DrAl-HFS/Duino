@@ -16,7 +16,7 @@ uint8_t iR=0, iC=0, iM=0;
 void setup (void)
 { 
   Serial.begin(115200);
-  n5DumpHWID(Serial);
+  nrf5DumpHWID(Serial);
   
   pinMode(PIN_BTN_A, INPUT);
   pinMode(PIN_BTN_B, INPUT);

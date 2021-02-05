@@ -6,13 +6,13 @@
 #ifndef N5_TIMING
 #define N5_TIMING
 
+#include "N5_Util.hpp"
+
 #define TIMER_ROLLING
 //define TIMER_CC_IDX 3
 #define TIMER_CC_STEP (16000)   // 1ms @ 16MHz
 #define RTC_PRESCALE_MAX ((1<<12)-1)
 
-#include <nrf51.h>
-#include <nrf51_bitfields.h>
 
 class CTimerN5
 {

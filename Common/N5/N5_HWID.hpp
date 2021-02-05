@@ -6,13 +6,13 @@
 #ifndef N5_HWID
 #define N5_HWID
 
-#include <nrf51.h>
-#include <nrf51_bitfields.h>
+#include "N5_Util.hpp"
 
 
 /***/
 
-void n51DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
+#ifdef NRF51_H
+void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
 {
   s.print("\nUBit: "); s.println(0xFFFF & pF->CONFIGID,HEX); // HWID
   s.print("UID= 0x"); s.print(pF->DEVICEID[1],HEX); s.println(pF->DEVICEID[0],HEX); // Unique
@@ -24,6 +24,23 @@ void n51DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
   s.print("Flash= "); s.print(pF->CODEPAGESIZE); s.print("byte*"); s.println(pF->CODESIZE);
   s.print("Ram= "); s.print(pF->SIZERAMBLOCKS); s.print("byte*"); s.println(pF->NUMRAMBLOCK);
   s.print("Ovrd= 0x"); s.println(~(pF->OVERRIDEEN),HEX);
-} // n51DumpHWID
+} // nrf5DumpHWID
+#endif
+
+#ifdef NRF52_H
+void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
+{
+  s.print("\nUBit: "); s.println(0xFFFF & pF->CONFIGID,HEX); // HWID
+  s.print("UID= 0x"); s.print(pF->DEVICEID[1],HEX); s.println(pF->DEVICEID[0],HEX); // Unique
+  {
+    const char apr[]={'P','R'};
+    s.print("Addr= ["); s.print(apr[0x1 & pF->DEVICEADDRTYPE]);  s.print("] 0x");
+    s.print(0xFFFF & pF->DEVICEADDR[1],HEX); s.println(pF->DEVICEADDR[0],HEX);
+  }
+  s.print("Flash= "); s.print(pF->CODEPAGESIZE); s.print("byte*"); s.println(pF->CODESIZE);
+  s.print("Ram= "); s.print(pF->SIZERAMBLOCKS); s.print("byte*"); s.println(pF->NUMRAMBLOCK);
+  s.print("Ovrd= 0x"); s.println(~(pF->OVERRIDEEN),HEX);
+}
+#endif
 
 #endif // N5_HWID

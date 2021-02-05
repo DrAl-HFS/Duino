@@ -8,7 +8,6 @@
 // github.com/NordicPlayground/nrf51-micro-esb/Common/micro_esb.c
 //SDK v15 #define NRF_ESB_LEGACY
 
-#include <RH_NRF51.h>
 #include "N5_RF.hpp"
 #include "Common/M0_Util.hpp"
 #include "Common/N5/N5_HWID.hpp"
@@ -68,7 +67,7 @@ void setup (void)
 
   Serial.begin(115200); // UART->USB link - the usual limitations apply...
   
-  n51DumpHWID(Serial);
+  nrf5DumpHWID(Serial);
   pinMode(PIN_BTN_A, INPUT);
   pinMode(PIN_BTN_B, INPUT);
   
