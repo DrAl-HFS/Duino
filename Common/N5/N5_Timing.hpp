@@ -181,7 +181,7 @@ public:
    void print (Stream& s) const
    {
       uint32_t sec;
-      uint16_t ms= divmod(sec, CTimerN5::tickCount, 1000);
+      uint16_t ms= divmod32(sec, CTimerN5::tickCount, 1000);
       printSecHMS(s,sec);
       printMilliSec(s,ms);
 

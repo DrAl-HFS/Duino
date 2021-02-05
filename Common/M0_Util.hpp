@@ -6,40 +6,34 @@
 #ifndef M0_UTIL
 #define M0_UTIL
 
+// COMMON - TODO : factor out to common (cross-arch) header
+// Return ASCII hex for low 4 bits (nybble)
+// NB - also useful for bcd -> char
+char hexCharL4 (uint8_t u)
+{
+   u&= 0xF;
+   if (u < 0xa) { return('0' + u); } else { return('a'-9 + u); }
+} // hexCharL4
+
+int8_t hexCharU8 (char c[2], uint8_t u)
+{
+   c[1]= hexCharL4(u);
+   c[0]= hexCharL4(u >> 4);
+   return(2);
+} // hexCharU8
+// COMMON
+
+
 // TODO : assess mod&div performance on NRF51 (no HW div on Cortex-M0+)
 // Compute numerator / divisor, store quotient & return remainder,.
-uint32_t divmod (uint32_t& q, uint32_t n, uint32_t d) { q= n / d; return(n % d); }
+uint32_t divmod32 (uint32_t& q, const uint32_t n, const uint32_t d) { q= n / d; return(n % d); }
 
-int bcd4FromU8 (uint8_t bcd[1], uint8_t u)
-{
-   if (u > 99) { return(-1); }
-   if (u <= 9) { bcd[0]= u; return(u>0); }
-   uint8_t q= u / 10; // assume efficient synthesis of division for small constants
-   u-= 10 * q; // remainder
-   bcd[0]= (q << 4) | u;
-   return(2);
-} // bcd4FromU8
 
-int bcd4FromU16 (uint8_t bcd[2], uint16_t u)
-{
-   if (u > 9999) { return(-1); }
-   int8_t d= 0;
-   if (u > 99)
-   {  
-      uint32_t q;
-      bcd4FromU8(bcd+1, divmod(q,u,100));
-      return(2 + bcd4FromU8(bcd+0,q));
-   }//else
-   bcd[0]= 0;
-   return bcd4FromU8(bcd+1,u);
-} // bcd4FromU16
-
-uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
-{
-   uint8_t r= (bcd >> 4); // & 0xF;
-   if (n > 1) { r= 10 * r + (bcd & 0xF); }
-   return(r);
-} // bcd4ToU8
+// Packed BCD remains useful as an intermediate format for stream IO
+// as it results in very compact and efficient code for the majority
+// of simple use cases. General C string handling becomes practical
+// for more complex issues (eg. floating point) but incurs significant
+// cost...
 
 uint8_t bcd4FromChar (const char ch[2], int8_t n)
 {
@@ -55,39 +49,59 @@ uint8_t bcd4FromChar (const char ch[2], int8_t n)
    return(r);
 } // bcd4FromChar
 
-/*** COMMON ***/
-// Return ASCII hex for low 4 bits (nybble)
-char hexCharL4 (uint8_t u)
+int bcd4FromU8 (uint8_t bcd[1], uint8_t u)
 {
-   u&= 0xF;
-   if (u < 0xa) { return('0' + u); } else { return('a'-9 + u); }
-} // hexCharL4
-/*** COMMON ***/
-
-int8_t hexCharU8 (char c[2], uint8_t u)
-{
-   c[1]= hexCharL4(u);
-   c[0]= hexCharL4(u >> 4);
+   if (u > 99) { return(-1); }
+   if (u <= 9) { bcd[0]= u; return(u>0); }
+#if 1
+   uint32_t q;
+   u= divmod32(q, u, 10); // assume remainder comes efficiently out of division
+#else // avr style assumes fast/efficient code synthesis:
+   uint8_t q= u / 10;  // 1) division by small constant (?)
+   u-= 10 * q; // 2) multiplication to synthesise remainder (multi-cycle on nRF51)
+#endif
+   bcd[0]= (q << 4) | u;
    return(2);
-} // hexCharU8
+} // bcd4FromU8
 
-int bcd4ToChar (char ch[], int maxCh, const uint8_t bcd[], int nBCD)
+int bcd4FromU16 (uint8_t bcd[2], uint16_t u)
+{
+   if (u > 9999) { return(-1); }
+   if (u > 99) // likely
+   {  
+      uint32_t q;
+      bcd4FromU8(bcd+1, divmod32(q,u,100));
+      return(2 + bcd4FromU8(bcd+0,q));
+   }//else
+   bcd[0]= 0;
+   return bcd4FromU8(bcd+1,u);
+} // bcd4FromU16
+
+// Packed BCD string of n digits to ASCII
+int bcd4ToChar (char ch[], int maxCh, const uint8_t bcd[], int n)
 {
    int i= 0, nCh= 0;
-   while ((i < nBCD) && (nCh < maxCh))
+   while ((i < n) && (nCh < maxCh))
    {
       nCh+= hexCharU8(ch+nCh, bcd[i++]);
    }
    return(nCh);
 } // bcd4ToChar
 
+uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
+{
+   uint8_t r= (bcd >> 4); // & 0xF;
+   if (n > 1) { r= 10 * r + (bcd & 0xF); }
+   return(r);
+} // bcd4ToU8
+
 uint32_t hmsU8ToSecU32 (uint8_t hms[3]) { return(hms[2] + 60 * (hms[1] + (60 * hms[0]))); }
 
 uint32_t hmsU8FromSecU32 (uint8_t hms[3], uint32_t sec)
 {
-   hms[2]= divmod(sec, sec, 60);
-   hms[1]= divmod(sec, sec, 60); 
-   hms[0]= divmod(sec, sec, 24);
+   hms[2]= divmod32(sec, sec, 60);
+   hms[1]= divmod32(sec, sec, 60); 
+   hms[0]= divmod32(sec, sec, 24);
    return(sec); // days
 } // hmsU8FromSecU32
 
