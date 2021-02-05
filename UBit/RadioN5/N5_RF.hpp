@@ -7,7 +7,10 @@
 #define N5_RF_HPP
 
 #include "Common/N5/N5_Util.hpp"
+
+#ifndef TARGET_NRF51
 #include <RH_NRF51.h>
+#endif
 
 
 /***/

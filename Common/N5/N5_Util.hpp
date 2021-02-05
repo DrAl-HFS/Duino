@@ -11,13 +11,20 @@
 #ifdef _VARIANT_BBC_MICROBIT_
 #include <nrf51.h>
 #include <nrf51_bitfields.h>
+#ifndef TARGET_NRF51
+#define TARGET_NRF51
+#endif
 #endif // _VARIANT_BBC_MICROBIT_
 
 #ifdef _MICROBIT_V2_
+/* seems to be set up automagically - precompiled ?
 #include <nrf52.h>
 #include <nrf52_bitfields.h>
+*/
+#ifndef TARGET_NRF52
+#define TARGET_NRF52
+#endif
 #endif // _MICROBIT_V2_
-
 
 /***/
 

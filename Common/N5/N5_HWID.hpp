@@ -11,10 +11,10 @@
 
 /***/
 
-#ifdef NRF51_H
+#ifdef TARGET_NRF51
 void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
 {
-  s.print("\nUBit: "); s.println(0xFFFF & pF->CONFIGID,HEX); // HWID
+  s.print("\nUBitV1: "); s.println(0xFFFF & pF->CONFIGID,HEX); // HWID
   s.print("UID= 0x"); s.print(pF->DEVICEID[1],HEX); s.println(pF->DEVICEID[0],HEX); // Unique
   {
     const char apr[]={'P','R'};
@@ -25,12 +25,15 @@ void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
   s.print("Ram= "); s.print(pF->SIZERAMBLOCKS); s.print("byte*"); s.println(pF->NUMRAMBLOCK);
   s.print("Ovrd= 0x"); s.println(~(pF->OVERRIDEEN),HEX);
 } // nrf5DumpHWID
-#endif
+#endif // TARGET_NRF51
 
-#ifdef NRF52_H
+#ifdef TARGET_NRF52
 void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
 {
-  s.print("\nUBit: "); s.println(0xFFFF & pF->CONFIGID,HEX); // HWID
+  s.print("\nUBitV2: P#"); s.print(pF->INFO.PART,HEX); 
+  s.print(" V#"); s.print(pF->INFO.VARIANT,HEX); 
+  s.print(" K#"); s.println(pF->INFO.PACKAGE,HEX);
+  
   s.print("UID= 0x"); s.print(pF->DEVICEID[1],HEX); s.println(pF->DEVICEID[0],HEX); // Unique
   {
     const char apr[]={'P','R'};
@@ -38,9 +41,8 @@ void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
     s.print(0xFFFF & pF->DEVICEADDR[1],HEX); s.println(pF->DEVICEADDR[0],HEX);
   }
   s.print("Flash= "); s.print(pF->CODEPAGESIZE); s.print("byte*"); s.println(pF->CODESIZE);
-  s.print("Ram= "); s.print(pF->SIZERAMBLOCKS); s.print("byte*"); s.println(pF->NUMRAMBLOCK);
-  s.print("Ovrd= 0x"); s.println(~(pF->OVERRIDEEN),HEX);
+  s.print("Ram= "); s.println(pF->INFO.RAM); s.print("byte");
 }
-#endif
+#endif // TARGET_NRF52
 
 #endif // N5_HWID
