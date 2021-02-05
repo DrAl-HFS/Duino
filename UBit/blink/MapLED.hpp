@@ -9,6 +9,7 @@
 // This should be encapsulated (in class) but seems to be an old gcc version
 // lacking proper C11 support...
 
+#ifdef _VARIANT_BBC_MICROBIT_
 // Arduino pin numbers
 static const uint8_t row[3]={26,27,28}; // Active high (source)
 static const uint8_t col[9]={3,4,10,23,24,25,9,7,6}; // Active low (sink)
@@ -21,6 +22,9 @@ static const uint8_t m55[5][5]=
   { 0x07, 0x06, 0x05, 0x04, 0x03, },
   { 0x22, 0x16, 0x20, 0x15, 0x21 }
 };
+#endif // _VARIANT_BBC_MICROBIT_
+
+// UBit V2 defs ???
 
 class CMapLED // row-col multiplex 3*9 physical <-> 5*5 logical (+2???)
 {
