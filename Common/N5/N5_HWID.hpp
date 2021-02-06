@@ -28,10 +28,13 @@ void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
 #endif // TARGET_NRF51
 
 #ifdef TARGET_NRF52
+
+//typedef union UU32 { uint32_t u32; uint8_t u8[4]; }; // UU32;
+
 void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
-{
+{ // NB: FICR is entirely read only, despite misleading register "RW" annotations
   s.print("\nUBitV2: P#"); s.print(pF->INFO.PART,HEX); 
-  s.print(" V#"); s.print(pF->INFO.VARIANT,HEX); 
+  s.print(" V#"); s.print(pF->INFO.VARIANT,HEX);
   s.print(" K#"); s.println(pF->INFO.PACKAGE,HEX);
   
   s.print("UID= 0x"); s.print(pF->DEVICEID[1],HEX); s.println(pF->DEVICEID[0],HEX); // Unique
@@ -41,8 +44,9 @@ void nrf5DumpHWID (Stream &s, const NRF_FICR_Type *pF=NRF_FICR)
     s.print(0xFFFF & pF->DEVICEADDR[1],HEX); s.println(pF->DEVICEADDR[0],HEX);
   }
   s.print("Flash= "); s.print(pF->CODEPAGESIZE); s.print("byte*"); s.println(pF->CODESIZE);
-  s.print("Ram= "); s.println(pF->INFO.RAM); s.print("byte");
-}
+  s.print("Ram= "); s.print(pF->INFO.RAM); s.println("kbyte");
+} // nrf5DumpHWID
+
 #endif // TARGET_NRF52
 
 #endif // N5_HWID
