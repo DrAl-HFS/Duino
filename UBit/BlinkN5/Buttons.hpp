@@ -41,6 +41,7 @@ public:
    
 }; // CButton
 
+// Arduinish
 #define PIN_BTN_A 5
 #define PIN_BTN_B 11
 
@@ -51,8 +52,17 @@ public:
    
    CUBitButtons (void) {;}
    
-   void update (void)
+   void init (void)
    {
+      pinMode(PIN_BTN_A, INPUT);
+      pinMode(PIN_BTN_B, INPUT);
+   }
+   void update (void)
+   {  // Caveat Emptor : just single time point samples taken 
+      // periodically: vulnerable to switch bounce. Software
+      // debouncing needs interrupt trigger plus settling time
+      // or search for stability/settling across many closely
+      // spaced reads...
       a.update(digitalRead(PIN_BTN_A));
       b.update(digitalRead(PIN_BTN_B));
    }

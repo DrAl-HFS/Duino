@@ -1,4 +1,4 @@
-// Duino/UBit/blink/blink.ino - Micro:Bit LED map (V1? nrf51822)
+// Duino/UBit/blink/MapLED.hpp - Micro:Bit LED map
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
@@ -6,10 +6,12 @@
 #ifndef MAP_LED_HPP
 #define MAP_LED_HPP
 
+#include "Common/N5/N5_Util.hpp"
+
 // This should be encapsulated (in class) but seems to be an old gcc version
 // lacking proper C11 support...
 
-#ifdef _VARIANT_BBC_MICROBIT_
+#ifdef TARGET_UBITV1
 // Arduino pin numbers
 static const uint8_t row[3]={26,27,28}; // Active high (source)
 static const uint8_t col[9]={3,4,10,23,24,25,9,7,6}; // Active low (sink)
@@ -22,7 +24,20 @@ static const uint8_t m55[5][5]=
   { 0x07, 0x06, 0x05, 0x04, 0x03, },
   { 0x22, 0x16, 0x20, 0x15, 0x21 }
 };
-#endif // _VARIANT_BBC_MICROBIT_
+#endif // TARGET_UBITV1
+
+#ifdef TARGET_UBITV2 // Just an (incorrect) copy of V1 fro now...
+static const uint8_t row[3]={26,27,28}; // Active high (source)
+static const uint8_t col[9]={3,4,10,23,24,25,9,7,6}; // Active low (sink)
+static const uint8_t m55[5][5]=
+{
+  { 0x00, 0x13, 0x01, 0x14, 0x02, },
+  { 0x23, 0x24, 0x25, 0x26, 0x27, },
+  { 0x11, 0x08, 0x12, 0x28, 0x10, },
+  { 0x07, 0x06, 0x05, 0x04, 0x03, },
+  { 0x22, 0x16, 0x20, 0x15, 0x21 }
+};
+#endif // TARGET_UBITV1
 
 // UBit V2 defs ???
 
