@@ -11,9 +11,12 @@
 #ifdef _VARIANT_BBC_MICROBIT_
 #include <nrf51.h>
 #include <nrf51_bitfields.h>
+#ifndef TARGET_UBITV1
+#define TARGET_UBITV1
+#endif //
 #ifndef TARGET_NRF51
 #define TARGET_NRF51
-#endif
+#endif //
 #endif // _VARIANT_BBC_MICROBIT_
 
 #ifdef _MICROBIT_V2_
@@ -21,6 +24,9 @@
 #include <nrf52.h>
 #include <nrf52_bitfields.h>
 */
+#ifndef TARGET_UBITV2
+#define TARGET_UBITV2
+#endif //
 #ifndef TARGET_NRF52
 #define TARGET_NRF52
 #endif
