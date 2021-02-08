@@ -1,4 +1,4 @@
-// Duino/Test.ino - AVR identity
+// Duino/Common/AVR/DA_Ident.hpp - AVR identity
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Feb 2021

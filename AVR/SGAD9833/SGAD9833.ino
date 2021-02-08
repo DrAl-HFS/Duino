@@ -24,8 +24,12 @@
 #include "Common/AVR/DA_Counting.hpp"
 #endif
 #include "Common/AVR/DA_Analogue.hpp"
+#include "Common/AVR/DA_RotEnc.hpp"
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
+
+
+CRotEnc gRotEnc;
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
@@ -156,7 +160,8 @@ void setup (void)
    gADC.init(); gADC.start();
 #endif
    gChirp.begin(FSR_100KHZ);  gChirp.end();
-   
+
+   gRotEnc.init();
    pinMode(PIN_PULSE, OUTPUT);
 
    gSigGen.fsr= FSR_1KHZ;
@@ -199,7 +204,8 @@ void loop (void)
   if (ev > 0)
   { // <=1KHz update rate
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); } // mutiple samples, prior to routine sysLog()
-    if (gClock.intervalUpdate()) { ev|= 0x80; } // 
+    if (gClock.intervalUpdate()) { ev|= 0x80; } //
+    if (gRotEnc.read()) { Serial.print("B:"); Serial.print(gRotEnc.bCount); Serial.print(" C:"); Serial.println(gRotEnc.qCount); } 
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;

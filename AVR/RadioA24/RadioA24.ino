@@ -113,8 +113,7 @@ void setup (void)
 {
   noInterrupts();
   
-  //setID("Nano1");
-  gClock.setA(__TIME__);
+  gClock.setA(__TIME__); // Build time is default
   gClock.start();
 #ifdef DA_ANALOGUE_HPP
   gADC.init(); gADC.start();
@@ -177,7 +176,7 @@ void loop (void)
           cmd.cmdR[0]|= 0x10;
         }
       }
-      else if (cmd.cmdF[0] & 0x20) { gRF.dumpState(); cmd.cmdR[0]|= 0x20; }
+      if (cmd.cmdF[0] & 0x20) { gRF.dumpState(); cmd.cmdR[0]|= 0x20; }
     }
     if (ev & 0xF0)
     {

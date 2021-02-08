@@ -210,14 +210,8 @@ void setup (void)
 {
   noInterrupts();
   
-  //setID("Nano1");
-  uint8_t tt[2];
-  
-  tt[0]= fromBCD4(char2BCD4(__TIME__+0,2),2);
-  tt[1]= fromBCD4(char2BCD4(__TIME__+3,2),2);
-  gClock.setHM(tt);
-  tt[0]= fromBCD4(char2BCD4(__TIME__+5,2),2);
-  gClock.setS(tt[0]);
+  //setID("Nano1" / "UnoV3");
+  gClock.setA(__TIME__);
   gClock.start();
 #ifdef DA_ANALOGUE_HPP
   gADC.init(); gADC.start();

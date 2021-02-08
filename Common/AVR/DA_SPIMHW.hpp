@@ -18,11 +18,11 @@
 // Just use SS pin - must be an output to prevent
 // SPI HW switching to slave mode (master + slave
 // operation requires some extra signalling/arbitration)
-#define PIN_SEL SS // (#10 on Uno)
-// 9
+#define PIN_SEL SS // (D10 on Uno)
 // Hardware SPI pins used implicitly
-//#define PIN_SCK SCK   // (#13 on Uno)
-//#define PIN_DAT MOSI  // (#11 on Uno)
+//#define PIN_SCK SCK   // (D13 on Uno)
+//#define PIN_DAT MISO  // (D12 on Uno)
+//#define PIN_DAT MOSI  // (D11 on Uno)
 #endif
 
 
