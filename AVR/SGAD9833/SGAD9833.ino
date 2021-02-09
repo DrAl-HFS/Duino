@@ -205,7 +205,8 @@ void loop (void)
   { // <=1KHz update rate
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); } // mutiple samples, prior to routine sysLog()
     if (gClock.intervalUpdate()) { ev|= 0x80; } //
-    if (gRotEnc.read()) { Serial.print("B:"); Serial.print(gRotEnc.bCount); Serial.print(" C:"); Serial.println(gRotEnc.qCount); } 
+    if (gRotEnc.read()) { gRotEnc.dump(gClock.tick,Serial); }
+    //|| (gRotEnc.bCount & 0x1)
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;
