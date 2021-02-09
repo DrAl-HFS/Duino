@@ -29,7 +29,7 @@
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
 
-CRotEnc gRotEnc;
+CRotEncDbg gRotEnc;
 
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
@@ -205,8 +205,8 @@ void loop (void)
   { // <=1KHz update rate
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); } // mutiple samples, prior to routine sysLog()
     if (gClock.intervalUpdate()) { ev|= 0x80; } //
-    if (gRotEnc.read()) { gRotEnc.dump(gClock.tick,Serial); }
-    //|| (gRotEnc.bCount & 0x1)
+    if (gRotEnc.update()) { gRotEnc.dump(gClock.tick,Serial); }
+    //
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;
