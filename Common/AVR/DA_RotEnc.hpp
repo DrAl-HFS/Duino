@@ -10,13 +10,14 @@
 #define UI_EVENT_RATE_TICKS 20
 
 // EC11 Rotary Encoder : DFRobot module SEN0235
+// Appears to have 3 resistors + 1 capacitor (HW debounced switch?)
 // Inputs on D2-D4 (Arduino pins #2,3,4)
-// Quadrature (terminals labelled "A" & "B") -> D2,D3 respectively
+// Quadrature (terminals labelled "A" & "B") -> D3,D2
 // Switch (normally closed, terminal "C") -> D4
 class CRotEnc
 {
 protected:
-   uint8_t rawBS; // button: press=1, release=0, 8samples @ 1kHz -> 8ms debounce
+   uint8_t rawBS; // button: press=1, release=0, 8samples @ 1kHz -> 8ms debounce (seems like plenty)
    uint8_t rawQS; // 4bit mask in lo nybble
    int8_t  rateDC; // UI event rate delay counter
    
@@ -25,27 +26,29 @@ protected:
       rawBS= (rawBS << 1) | bm; // &0x1
       if ((0x00 == rawBS) | (0xFF == rawBS))
       {  // steady state -> debounced
-         if ((bCount & 0x1) ^ (rawBS & 0x1)) { bCount= (rawBS & 0x1); rateDC= UI_EVENT_RATE_TICKS; return(0x1); } // set new state & clear count
-         else if (bCount < 0xFD)
-         { // same state, increment count if not already saturated 
-            if (--rateDC <= 0)
+         if ((bCount & 0x1) ^ (rawBS & 0x1))
+         {  // set new state & clear count 
+            bCount= (rawBS & 0x1);
+            rateDC= UI_EVENT_RATE_TICKS;
+            return(0x1); // signal press/release event
+         }
+         else // same state, increment count if not already saturated 
+            if ((bCount < 0xFD) && (--rateDC <= 0))
             {  // 20ms delay to produce 50Hz UI count rate
                rateDC= UI_EVENT_RATE_TICKS;
                bCount+= 0x2;
             }
-         }
-         //rawBS^= 0x1; // block update for debounce interval
       }
       return(0);
    } // updateBS
    
    uint8_t updateQS (uint8_t qm)
-   {
-      if (rawQS ^ qm)
+   {  // No debouncing of rotation, but invalid states ignored (may not
+      if (rawQS ^ qm)   // be sufficient for an old noisy encoder)
       {  // signal change
          rawQS= qm | (rawQS >> 2);
          switch (rawQS)
-         {  // check quadrature patterns - 
+         {  // check the 8 valid quadrature patterns - 
             case 0b0111 : // TODO: Consider ways of encoding
             case 0b1000 : // combinations of inversion
             case 0b1110 : // and reversal
@@ -64,7 +67,7 @@ protected:
    
 public:
    uint8_t bCount; // bit 0 = state, saturating count in bits 1:7
-   int8_t  qCount;
+   int8_t  qCount; // quadrature count, wraps from +127 to -128
    
    CRotEnc (void) { ; }
   
@@ -84,6 +87,8 @@ public:
       return(r); // return change mask
    } // update
    
+   bool buttonState (void) { return(bCount & 0x1); }
+   bool buttonTime (void) { return(bCount >> 1); }
 }; // CRotEnc
 
 class CRotEncDbg : public CRotEnc
@@ -93,7 +98,7 @@ public :
    
    CRotEncDbg (void) { ; }
    
-   uint8_t update (void)
+   uint8_t update (void) // test button timing feature
    {
       uint8_t r= CRotEnc::update();
       if ((bCount & 0x1) && (bCount != lbc)) { lbc= bCount; r|= 0x4; }
