@@ -1,4 +1,4 @@
-// Duino/UBit/blink/Buttons.hpp - Micro:Bit button util
+// Duino/UBit/BlinkN5/Buttons.hpp - Micro:Bit button util
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
@@ -65,6 +65,10 @@ public:
       // spaced reads...
       a.update(digitalRead(PIN_BTN_A));
       b.update(digitalRead(PIN_BTN_B));
+   }
+   uint8_t getTimeAB (const bool state)
+   {
+      return min(a.getTime(state), b.getTime(state));
    }
 
 }; // CUBitButtons
