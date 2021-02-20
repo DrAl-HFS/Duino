@@ -3,6 +3,8 @@
 // Licence: GPL V3A
 // (c) Project Contributors Feb 2021
 
+#define DEBUG Serial1
+
 #include "CMorse.hpp"
 #ifndef CMORSE_HPP
 #include "morsePattern.h"
@@ -13,7 +15,6 @@
 
 #define LED PC13
 #define DEBUG_BAUD 115200 
-#define DEBUG Serial1
 
 uint16_t gSpeed=100;
 
@@ -83,6 +84,24 @@ void setup()
 
 void loop()
 {
+#if 0
   oldHack();
+#else
   //if (!send(gS.next())) { gS.reset(); DEBUG.write('\n'); delay(1000); }
+  
+  if (gS.nextPulse())
+  {
+static const char ch1[]={'.','-','!','*'};
+    digitalWrite(LED, gS.v);
+    if (gS.v) { DEBUG.write(ch1[gS.t]); DEBUG.flush(); }
+    delay(gTimeRelIMC[gS.t]*gSpeed);
+  }
+  else
+  {
+    digitalWrite(LED, 0);
+    DEBUG.write('\n');
+    gS.reset();
+    delay(1000);
+  }
+#endif
 }

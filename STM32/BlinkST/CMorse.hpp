@@ -72,9 +72,9 @@ struct B2Buff
    uint8_t b[4];
    int8_t n, i, l;
 
-   void set (const uint8_t c, const int8_t n)
+   void set (const uint8_t codeBits, const int8_t nBits)
    {
-      n= pulseSeq2bIMC(b, c, n);
+      n= pulseSeq2bIMC(b, codeBits, nBits);
       i= n;
    }
   
@@ -104,13 +104,16 @@ protected:
       CMorsePSS::setM5(imc5); // -> unpackIMC5(&c, imc5);
       b2b.set(CMorsePSS::c, CMorsePSS::n);
    }
-   bool setASCII (const char a)
+   bool setASCII (const signed char a)
    {
-      switch (classifyASCII(a))
+      const signed char c= classifyASCII(a);
+      DEBUG.print("setASCII("); DEBUG.print((char)a); DEBUG.println(')');// DEBUG.println(a);
+      switch (c)
       {
-         case '0' :  return setM5(gNumIMC5[a-'0']); // break;
-         case 'a' :  return setM5(gAlphaIMC5[a-'a']); // break;
-         case 'A' :  return setM5(gAlphaIMC5[a-'A']); // break;
+         case '0' :  return setM5(gNumIMC5[a-c]); // break;
+         case 'a' :  //return setM5(gAlphaIMC5[a-c]); // break;
+         case 'A' :  return setM5(gAlphaIMC5[a-c]); // break;
+         //case '!' : break; // no map yet
       }
       return(false);
    } // setASCII
@@ -123,12 +126,13 @@ protected:
       {
          a= s[++iS];
          if (0 == a) { return(false); }
-         //Serial.print("nextASCII() - "); Serial.print(iS); Serial.print("->"); Serial.println(a);
       } while (!setASCII(a)); // skip any non-translateable
       return(true);
    } // nextASCII
   
 public:
+   uint8_t v, t;
+   
    CMorseSSS (void) { ; }
   
    void set (const char *str)
@@ -154,6 +158,16 @@ public:
       return(r);
    } // next
    
+   bool nextPulse ()
+   {
+      if (b2b.getNext(t) || (nextASCII() && b2b.getNext(t)))
+      {
+         v= (b2b.i & 0x1); // odd numbered on, even off
+         return(true);
+      }
+      else { v= t= 0; }
+      return(false); 
+   } // nextPulse
 }; // CMorseSSS
 
 #endif // CMORSE_HPP
