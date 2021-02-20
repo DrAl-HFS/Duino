@@ -8,113 +8,152 @@
 
 #include "morsePattern.h"
 
-// Pattern Send State
+// DEPRECATE: Pattern Send State - 
 class CMorsePSS 
 {
 protected:
-  uint8_t c;
-  int8_t n, i;
+   uint8_t c;
+   int8_t n, i;
 
-  void set (const uint8_t codeBits, const int8_t nBits) { c= codeBits; n= nBits; i= n; }
+   void set (const uint8_t codeBits, const int8_t nBits) { c= codeBits; n= nBits; i= n; }
   
 public:
-  CMorsePSS (void) { ; }
+   CMorsePSS (void) { ; }
 
-  bool setSafe (const uint8_t codeBits, const int8_t nBits)
-  { 
-    if ((nBits < 0) || (nBits > 8)) { return(false); } //else
-    set(codeBits, nBits);
-    return(true);
-  } // set 
+   bool setSafe (const uint8_t codeBits, const int8_t nBits)
+   { 
+      if ((nBits < 0) || (nBits > 8)) { return(false); } //else
+      set(codeBits, nBits);
+      return(true);
+   } // set 
   
-  bool setM5 (const uint8_t m5=0) { set(m5 & IMC5_C_MASK, m5 >> IMC5_N_SHIFT); }
+   bool setM5 (const uint8_t m5=0) { set(m5 & IMC5_C_MASK, m5 >> IMC5_N_SHIFT); return(true); }
   
-  int8_t next (void)
-  {
-    int8_t v= 0x2; // end of pattern
-    if (i >= 0) { v= (c >> --i) & 0x1; }
-    return(v);
-  }
+   int8_t next (void)
+   {
+      int8_t v= 0x2; // end of pattern
+      if (i >= 0) { v= (c >> --i) & 0x1; }
+      return(v);
+   }
 }; // CMorsePSS
 
-int8_t classifyASCII (const char a)
+// classify as: decimal digit, upper/lower case alpha, symbol, whitespace&control, nul, invalid
+// returns representative character: 0, a, A, !, 1, 0, -1
+signed char classifyASCII (const signed char a)
 {
-  if (a >= '0')
-  {
-    if (a <= '9') { return('0'); } 
-    if (a >= 'A')
-    {
-      if (a <= 'Z') { return('A'); }
-      if ((a >= 'a') && (a <= 'z')) { return('a'); }
-    }
-  }
-  return(-1);
+   if (a >= '0')
+   {
+      if (a <= '9') { return('0'); } 
+      if (a >= 'A')
+      {
+         if (a <= 'Z') { return('A'); }
+         if ((a >= 'a') && (a <= 'z')) { return('a'); }
+      }
+   }
+   if ((a > ' ') && (a < 0x7F)) { return('!'); }
+   return((a > 0) - (a < 0));
 } // classifyASCII
 
-#if 1
+// generate sequence of 2b pulse codes from <=8 bit code
+int8_t pulseSeq2bIMC (uint8_t b[], uint8_t c, const int8_t n)
+{
+const uint8_t seq[]= { 0x00, 0x04, 0x40, 0x44 };
+   int8_t i= 0;
+   do
+   {
+      b[i]= seq[c & 0x3];
+      c>>= 2;
+   } while (++i < n);
+   return(n << 1); // 2*2b pulse codes per bit (representing long/short on, followed by short off time)
+} // pulseSeq2bIMC
+
+struct B2Buff
+{
+   uint8_t b[4];
+   int8_t n, i, l;
+
+   void set (const uint8_t c, const int8_t n)
+   {
+      n= pulseSeq2bIMC(b, c, n);
+      i= n;
+   }
+  
+   bool getNext (uint8_t& v)
+   {
+      if (i > l)
+      {
+         int8_t j, k= --i;
+         j= k >> 2;
+         k&= 0x3;
+         v= (b[j] >> k) & 0x3;
+         return(true);
+      }
+   } // getNext
+}; // B2Buff
 
 // String Send State
-class CMorseSSS : CMorsePSS
+class CMorseSSS : private CMorsePSS
 {
 protected:
-  const char *s;
-  int8_t iS;  // no long strings!
-
-  bool setASCII (const char a)
-  {
-    switch (classifyASCII(a))
-    {
-      case '0' :  return CMorsePSS::setM5(gNumIMC5[a-'0']); // break;
-      case 'a' :  return CMorsePSS::setM5(gAlphaIMC5[a-'a']); // break;
-      case 'A' :  return CMorsePSS::setM5(gAlphaIMC5[a-'A']); // break;
-    }
-    return(false);
-  } // setASCII
+   const char *s;
+   int8_t iS;  // no long strings!
+   B2Buff b2b;
+   
+   bool setM5 (const uint8_t imc5)
+   {
+      CMorsePSS::setM5(imc5); // -> unpackIMC5(&c, imc5);
+      b2b.set(CMorsePSS::c, CMorsePSS::n);
+   }
+   bool setASCII (const char a)
+   {
+      switch (classifyASCII(a))
+      {
+         case '0' :  return setM5(gNumIMC5[a-'0']); // break;
+         case 'a' :  return setM5(gAlphaIMC5[a-'a']); // break;
+         case 'A' :  return setM5(gAlphaIMC5[a-'A']); // break;
+      }
+      return(false);
+   } // setASCII
   
-  bool nextASCII (void)
-  {
-    char a;
-    if (NULL == s) { return(false); }
-    do
-    {
-      a= s[++iS];
-      if (0 == a) { return(false); }
-      //Serial.print("nextASCII() - "); Serial.print(iS); Serial.print("->"); Serial.println(a);
-    } while (!setASCII(a)); // skip any non-translateable
-    return(true);
-  } // nextASCII
+   bool nextASCII (void)
+   {
+      char a;
+      if (NULL == s) { return(false); }
+      do
+      {
+         a= s[++iS];
+         if (0 == a) { return(false); }
+         //Serial.print("nextASCII() - "); Serial.print(iS); Serial.print("->"); Serial.println(a);
+      } while (!setASCII(a)); // skip any non-translateable
+      return(true);
+   } // nextASCII
   
 public:
-  CMorseSSS (void) { ; }
+   CMorseSSS (void) { ; }
   
-  void set (const char *str)
-  { 
-    s= str;
-    reset();
-  } // set
+   void set (const char *str)
+   { 
+      s= str;
+      reset();
+   } // set
   
-  void reset (void)
-  {
-    iS= 0;
-    if (NULL == s) { setASCII(0); }
-    else { setASCII(s[iS]); }
-  } // reset
+   void reset (void)
+   {
+      iS= 0;
+      if (NULL == s) { setASCII(0); }
+      else { setASCII(s[iS]); }
+   } // reset
   
-  int8_t next (void)
-  {
-    int8_t r= CMorsePSS::next();
-    if (r >= 0x2)
-    { 
-      if (!nextASCII()) { r|= 0x4; }
-    }
-    return(r);
-  }
+   int8_t next (void)
+   {
+      int8_t r= CMorsePSS::next();
+      if (r >= 0x2)
+      { 
+         if (!nextASCII()) { r|= 0x4; }
+      }
+      return(r);
+   } // next
+   
 }; // CMorseSSS
-
-#else
-
-class CMorseSSS { public: int i; CMorseSSS (void) { ; } };
-
-#endif
 
 #endif // CMORSE_HPP

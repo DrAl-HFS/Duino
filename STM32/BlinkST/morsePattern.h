@@ -29,6 +29,7 @@ const uint8_t gAlphaIMC5[]=
   IMC5(3 ,0b001), IMC5(4 ,0b0001), IMC5(3 ,0b011), IMC5(4 ,0b1001), // U V W X
   IMC5(4 ,0b1011), IMC5(4 ,0b1100)   // Y Z
 }; // gAlphaIMC5
+//extern
 const uint8_t gNumIMC5[]=
 {
   IMC5(5, 0b11111), IMC5(5, 0b01111), IMC5(5, 0b00111), IMC5(5, 0b00011),   // 0 1 2 3
@@ -38,7 +39,15 @@ const uint8_t gNumIMC5[]=
 
 // Relative duration of dot, dash, inter-symbol gap, inter-word gap
 // Inter-pulse gap assumed to be same duration as dot
+//extern
 const uint8_t gTimeRelIMC[]={1,3,3,7};
+
+// extern
+int8_t unpackIMC5 (uint8_t code[], const uint8_t imc5)
+{
+  code[0]= imc5 & IMC5_C_MASK;
+  return(imc5>>IMC5_N_SHIFT); 
+}
 
 #if 0 //def __cplusplus
 } // extern "C"
