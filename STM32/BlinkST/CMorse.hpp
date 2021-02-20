@@ -175,8 +175,8 @@ public:
   char ch=dbg[v][t];
   if (ch)
   {
-     printf("%c",ch);
-     //DEBUG.write(ch); DEBUG.flush();
+     //printf("%c",ch);
+     DEBUG.write(ch); DEBUG.flush();
   }
 }
 #endif

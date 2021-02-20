@@ -16,7 +16,7 @@
 #define LED PC13
 #define DEBUG_BAUD 115200 
 
-uint16_t gSpeed=100;
+uint16_t gSpeed=60;
 
 
 /***/
@@ -78,7 +78,7 @@ void setup()
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
 #ifdef CMORSE_HPP
-  gS.set("SOK");
+  gS.set("SOS");
 #endif // CMORSE_HPP
 }
 
