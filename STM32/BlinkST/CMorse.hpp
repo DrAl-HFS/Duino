@@ -8,7 +8,7 @@
 
 #include "morsePattern.h"
 
-// DEPRECATE: Pattern Send State - 
+/* DEPRECATE: Pattern Send State - 
 class CMorsePSS 
 {
 protected:
@@ -36,7 +36,7 @@ public:
       return(v);
    }
 }; // CMorsePSS
-
+*/
 // classify as: decimal digit, upper/lower case alpha, symbol, whitespace&control, nul, invalid
 // returns representative character: 0, a, A, !, 1, 0, -1
 signed char classifyASCII (const signed char a)
@@ -72,42 +72,48 @@ struct B2Buff
    uint8_t b[4];
    int8_t n, i, l;
 
-   void set (const uint8_t codeBits, const int8_t nBits)
+   void set (const uint8_t codeBits, const int8_t nBits, const int8_t next=0x2)
    {
-      n= pulseSeq2bIMC(b, codeBits, nBits);
-      i= n;
+      i= n= pulseSeq2bIMC(b, codeBits, nBits);
+      if (next > 0) { b[0]|= next & 0x3; } // set next symbol / word gap
+      else { l= 1; } // end without trailing gap
    }
   
    bool getNext (uint8_t& v)
    {
       if (i > l)
       {
-         int8_t j, k= --i;
-         j= k >> 2;
-         k&= 0x3;
-         v= (b[j] >> k) & 0x3;
+         int8_t iB, i2b= --i;
+         iB= i2b >> 2;
+         i2b&= 0x3;
+         v= (b[iB] >> (2*i2b)) & 0x3;
          return(true);
       }
+      return(false);
    } // getNext
 }; // B2Buff
 
 // String Send State
-class CMorseSSS : private CMorsePSS
+class CMorseSSS
 {
 protected:
    const char *s;
    int8_t iS;  // no long strings!
    B2Buff b2b;
    
-   bool setM5 (const uint8_t imc5)
+   bool setM5 (const uint8_t imc5)  // CMorsePSS::setM5(imc5);
    {
-      CMorsePSS::setM5(imc5); // -> unpackIMC5(&c, imc5);
-      b2b.set(CMorsePSS::c, CMorsePSS::n);
+      uint8_t c;
+      int8_t n= unpackIMC5(&c, imc5);
+      //printf("c,n=0x%X,%d ", c, n);
+      b2b.set(c, n);
+      //printf("b2b=%d,0x%02X,%02X,%02X,%02X\n", b2b.n, b2b.b[3], b2b.b[2], b2b.b[1], b2b.b[0]);
+      return(true);
    }
    bool setASCII (const signed char a)
    {
       const signed char c= classifyASCII(a);
-      DEBUG.print("setASCII("); DEBUG.print((char)a); DEBUG.println(')');// DEBUG.println(a);
+      printf("a=%c : ", a);
       switch (c)
       {
          case '0' :  return setM5(gNumIMC5[a-c]); // break;
@@ -147,7 +153,7 @@ public:
       if (NULL == s) { setASCII(0); }
       else { setASCII(s[iS]); }
    } // reset
-  
+/*
    int8_t next (void)
    {
       int8_t r= CMorsePSS::next();
@@ -157,17 +163,32 @@ public:
       }
       return(r);
    } // next
-   
+*/   
    bool nextPulse ()
    {
       if (b2b.getNext(t) || (nextASCII() && b2b.getNext(t)))
       {
          v= (b2b.i & 0x1); // odd numbered on, even off
+#if 1
+{
+  static const char dbg[2][4]={ { 0x0, 'e', '|',' '}, {'.','-','e','e'} };
+  char ch=dbg[v][t];
+  if (ch)
+  {
+     printf("%c",ch);
+     //DEBUG.write(ch); DEBUG.flush();
+  }
+}
+#endif
+         t= gTimeRelIMC[t]; // * timeScale;
          return(true);
       }
       else { v= t= 0; }
-      return(false); 
+      return(false);
    } // nextPulse
+   
+   void print (void) { printf("[%d] %d*%d\n", b2b.i, v, t); }
+   
 }; // CMorseSSS
 
 #endif // CMORSE_HPP

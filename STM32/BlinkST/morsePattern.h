@@ -38,6 +38,8 @@ const uint8_t gNumIMC5[]=
 }; // gNumIMC5
 
 // Relative duration of dot, dash, inter-symbol gap, inter-word gap
+// TODO: Review hackily merged pulse & gap - should properly be
+// declared as { {1,3,7}, {1,3} } but this is cumbersome at present...)
 // Inter-pulse gap assumed to be same duration as dot
 //extern
 const uint8_t gTimeRelIMC[]={1,3,3,7};

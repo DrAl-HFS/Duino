@@ -91,10 +91,8 @@ void loop()
   
   if (gS.nextPulse())
   {
-static const char ch1[]={'.','-','!','*'};
     digitalWrite(LED, gS.v);
-    if (gS.v) { DEBUG.write(ch1[gS.t]); DEBUG.flush(); }
-    delay(gTimeRelIMC[gS.t]*gSpeed);
+    delay(gS.t*gSpeed);
   }
   else
   {
