@@ -5,9 +5,9 @@
 
 #define DEBUG Serial1
 
-#include "CMorse.hpp"
+#include "Common/Morse/CMorse.hpp"
 #ifndef CMORSE_HPP
-#include "morsePattern.h"
+#include "Common/Morse/morsePattern.h"
 #endif // CMORSE_HPP
 
 

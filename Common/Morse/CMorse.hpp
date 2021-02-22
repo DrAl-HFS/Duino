@@ -50,7 +50,14 @@ signed char classifyASCII (const signed char a)
          if ((a >= 'a') && (a <= 'z')) { return('a'); }
       }
    }
-   if ((a > ' ') && (a < 0x7F)) { return('!'); }
+   if ((' ' == a) || ('\t' == a)) return(' ');
+   if (a > ' ')
+   {  // symbol groups (contiguous ASCII codes)
+      if (a < '/') { return('!'); }
+      if ((a >= ':') && (a <= '@')) { return(':'); }
+      if ((a >= '[') && (a <= '`')) { return('['); }
+      if ((a >= '{') && (a <= '~')) { return('{'); }
+   }
    return((a > 0) - (a < 0));
 } // classifyASCII
 
@@ -72,10 +79,10 @@ struct B2Buff
    uint8_t b[4];
    int8_t n, i, l;
 
-   void set (const uint8_t codeBits, const int8_t nBits, const int8_t next=0x2)
+   void set (const uint8_t codeBits, const int8_t nBits, const int8_t last=0x2)
    {
       i= n= pulseSeq2bIMC(b, codeBits, nBits);
-      if (next > 0) { b[0]|= next & 0x3; } // set next symbol / word gap
+      if (last > 0) { b[0]|= last & 0x3; l= 0; if (i<= 0) { i= 1; } } // set next symbol / word gap
       else { l= 1; } // end without trailing gap
    }
   
@@ -98,41 +105,51 @@ class CMorseSSS
 {
 protected:
    const char *s;
+   char cc[2]; // current & next classification
    int8_t iS;  // no long strings!
    B2Buff b2b;
    
-   bool setM5 (const uint8_t imc5)  // CMorsePSS::setM5(imc5);
+   bool setM5 (const uint8_t imc5, const int8_t last)
    {
       uint8_t c;
       int8_t n= unpackIMC5(&c, imc5);
-      //printf("c,n=0x%X,%d ", c, n);
-      b2b.set(c, n);
-      //printf("b2b=%d,0x%02X,%02X,%02X,%02X\n", b2b.n, b2b.b[3], b2b.b[2], b2b.b[1], b2b.b[0]);
+      b2b.set(c, n, last);
       return(true);
    }
-   bool setASCII (const signed char a)
+   bool setM12 (const uint16_t imc12, const int8_t last)
    {
-      const signed char c= classifyASCII(a);
-      printf("a=%c : ", a);
+      uint16_t c;
+      int8_t n= unpackIMC12(&c, imc12);
+      if ((c & 0xFF) == c) { b2b.set(c, n, last); return(true); }
+      return(false);
+   }
+   bool setASCII (const signed char a, const signed char c, const signed char nc)
+   {
+      int8_t last= 0x2+(' ' == nc);
       switch (c)
       {
-         case '0' :  return setM5(gNumIMC5[a-c]); // break;
-         case 'a' :  //return setM5(gAlphaIMC5[a-c]); // break;
-         case 'A' :  return setM5(gAlphaIMC5[a-c]); // break;
-         //case '!' : break; // no map yet
+         case '0' : return setM5(gNumIMC5[a-c],last); // break;
+         case 'a' :
+         case 'A' : return setM5(gAlphaIMC5[a-c],last); // break;
+         case '!' : return setM12(gSym1IMC12[a-c],last); // break;
+         case ':' : return setM12(gSym2IMC12[a-c],last); // break;
+         case '[' : return setM12(gSym3IMC12[a-'_'],last); // break;
       }
       return(false);
    } // setASCII
   
    bool nextASCII (void)
    {
+      int8_t iC;
       char a;
       if (NULL == s) { return(false); }
       do
       {
          a= s[++iS];
          if (0 == a) { return(false); }
-      } while (!setASCII(a)); // skip any non-translateable
+         iC= iS & 0x1;
+         cc[iC ^ 0x1]= classifyASCII(s[iS+1]);
+      } while ( !setASCII(a, cc[iC], cc[iC^0x1]) ); // skip any non-translateable
       return(true);
    } // nextASCII
   
@@ -150,20 +167,15 @@ public:
    void reset (void)
    {
       iS= 0;
-      if (NULL == s) { setASCII(0); }
-      else { setASCII(s[iS]); }
-   } // reset
-/*
-   int8_t next (void)
-   {
-      int8_t r= CMorsePSS::next();
-      if (r >= 0x2)
-      { 
-         if (!nextASCII()) { r|= 0x4; }
+      if (NULL == s) { setASCII(0,0,0); cc[0]= 0; }
+      else
+      {
+         cc[0]= classifyASCII(s[0]);
+         cc[1]= classifyASCII(s[1]);
+         setASCII(s[0],cc[0],cc[1]);
       }
-      return(r);
-   } // next
-*/   
+   } // reset
+
    bool nextPulse ()
    {
       if (b2b.getNext(t) || (nextASCII() && b2b.getNext(t)))

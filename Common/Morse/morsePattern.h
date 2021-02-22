@@ -17,6 +17,12 @@ extern "C" {
 // declaration macro
 #define IMC5(n,c) ( ((n) << IMC5_N_SHIFT) | ((c) & IMC5_C_MASK) )
 
+// 6-9 pulse encding needed for symbols & prosign s
+#define IMC12_N_SHIFT 12
+#define IMC12_C_MASK ((1<<IMC5_N_SHIFT)-1)
+// declaration macro
+#define IMC12(n,c) ( ((n) << IMC12_N_SHIFT) | ((c) & IMC12_C_MASK) )
+
 // bad form to declare in a header...
 //extern
 const uint8_t gAlphaIMC5[]=
@@ -37,6 +43,29 @@ const uint8_t gNumIMC5[]=
   IMC5(5, 0b11100), IMC5(5, 0b11110)  // 8 9
 }; // gNumIMC5
 
+const uint16_t gSym1IMC12[]= // ASCII characters not mappable: 3/15
+{
+  IMC12(6, 0b101011), IMC12(6, 0b010010), IMC12(0, 0),      // ! " #
+  IMC12(7, 0b0001001), IMC12(0, 0), IMC12(5, 0b0100),       // $ % &
+  IMC12(5, 0b01110),  IMC12(5, 0b10110), IMC12(6, 0b101101),// ' ( )
+  IMC12(0, 0),  IMC12(5, 0b01010),  IMC12(5, 0b110011),     // * + ,
+  IMC12(6, 0b10001), IMC12(6, 0b010101), IMC12(5, 0b10010)  // - . /
+};
+const uint16_t gSym2IMC12[]=  //    2/7
+{
+  IMC12(6, 0b111000), IMC12(6, 0b101010), IMC12(0, 0),      // : ; <
+  IMC12(5, 0b10001), IMC12(0,0), IMC12(6, 0b001100),        // = > ?
+  IMC12(6, 0b011010)                                        // @
+  //
+};
+const uint16_t gSym3IMC12[]=  //    6/9 -> 2/5
+{
+//  IMC12(0, 0), IMC12(0, 0), IMC12(0, 0), IMC12(0, 0),   // [ \ ] ^
+  IMC12(6, 0b001101), IMC12(0,0), IMC12(0,0),     // _ ` >
+  IMC12(6, 0b001100), IMC12(6, 011010)      // ? @
+};
+// const uint8_t gSym4IMC5[]= //  { | } ~   4/4
+
 // Relative duration of dot, dash, inter-symbol gap, inter-word gap
 // TODO: Review hackily merged pulse & gap - should properly be
 // declared as { {1,3,7}, {1,3} } but this is cumbersome at present...)
@@ -49,6 +78,11 @@ int8_t unpackIMC5 (uint8_t code[], const uint8_t imc5)
 {
   code[0]= imc5 & IMC5_C_MASK;
   return(imc5>>IMC5_N_SHIFT); 
+}
+int8_t unpackIMC12 (uint16_t code[], const uint16_t imc12)
+{
+  code[0]= imc12 & IMC12_C_MASK;
+  return(imc12>>IMC12_N_SHIFT);
 }
 
 #if 0 //def __cplusplus
