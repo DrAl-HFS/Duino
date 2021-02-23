@@ -70,14 +70,14 @@ ISR(ADC_vect) { gADC.event(); }
 
 char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
 
-#define SEC_DIG 1
+#define SEC_BCD_BYTES 1
 int8_t sysLog (Stream& s, uint8_t events)
 {
-  uint8_t msBCD[SEC_DIG];
+  uint8_t msBCD[SEC_BCD_BYTES];
   char str[64];
   int8_t m=sizeof(str)-1, r=0, l=-1, n=0, x=0;
   
-  convMilliBCD(msBCD, SEC_DIG, gClock.tick);
+  convMilliBCD(msBCD, SEC_BCD_BYTES, gClock.tick);
 #if 0
   str[n++]= 'V';
   n+= hex2ChU8(str+n, events);
@@ -85,7 +85,7 @@ int8_t sysLog (Stream& s, uint8_t events)
 #endif
   n+= gClock.getStrHM(str+n, m-n, ':');
   n+= hex2ChU8(str+n, msBCD[0]); // seconds
-#if SEC_DIG > 1
+#if SEC_BCD_BYTES > 1
   str[n++]= '.';
   n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
@@ -159,7 +159,7 @@ void setup (void)
 #ifdef DA_ANALOGUE_HPP
    gADC.init(); gADC.start();
 #endif
-   gChirp.begin(FSR_100KHZ);  gChirp.end();
+   gChirp.begin(FSR_100KHZ);  gChirp.end(); // ???
 
    gRotEnc.init();
    pinMode(PIN_PULSE, OUTPUT);
