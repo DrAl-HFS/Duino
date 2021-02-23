@@ -1,4 +1,4 @@
-// Duino/STM32/BlinkST/CMorse.hpp - International Morse Code pattern processing
+// Duino/Common/Morse/CMorse.hpp - International Morse Code pattern processing
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Feb 2021
@@ -6,37 +6,50 @@
 #ifndef CMORSE_HPP
 #define CMORSE_HPP
 
-#include "morsePattern.h"
+#include "morseAlphaNum.h"
+#include "morsePuncSym.h"
 
-/* DEPRECATE: Pattern Send State - 
-class CMorsePSS 
+// TODO : Revised pattern scan-out with implicit generation of spacing
+class CMorseSeq
 {
 protected:
-   uint8_t c;
-   int8_t n, i;
-
-   void set (const uint8_t codeBits, const int8_t nBits) { c= codeBits; n= nBits; i= n; }
-  
+   uint16_t c;
+   int8_t n, i, ls;
+   
 public:
-   CMorsePSS (void) { ; }
+   //uint8_t ss; // stored copy of send state ?
 
-   bool setSafe (const uint8_t codeBits, const int8_t nBits)
-   { 
-      if ((nBits < 0) || (nBits > 8)) { return(false); } //else
-      set(codeBits, nBits);
-      return(true);
-   } // set 
-  
-   bool setM5 (const uint8_t m5=0) { set(m5 & IMC5_C_MASK, m5 >> IMC5_N_SHIFT); return(true); }
-  
-   int8_t next (void)
+   CMorseSeq (void) { ; }
+
+   void set (const uint16_t codeBits, const int8_t nBits, const int8_t last=0x2)
    {
-      int8_t v= 0x2; // end of pattern
-      if (i >= 0) { v= (c >> --i) & 0x1; }
-      return(v);
+      //ss= 0;
+      c= codeBits;
+      n= nBits << 1;
+      i= n;
+      ls= last;
    }
-}; // CMorsePSS
-*/
+   uint8_t nextState (void)
+   {  // bits 1,0 time code, bit 2= pulse on / gap off
+      uint8_t ss=0;
+      if (i > 0)
+      {  // determine on/off state
+         if (--i & 0x1)
+         {  // pulse
+            if (c & (1 << (i>>1))) { ss= 0x6; } // long
+            else { ss= 0x5; } // short
+         }
+         else
+         {  // gap
+            if (0 == i) { ss= ls; } //whatever was set (off, short, intersymbol, inter-word)
+            else { ss= 0x1; } // short
+         } 
+      }
+      return(ss);
+   }
+}; // CMorseSeq
+
+
 // classify as: decimal digit, upper/lower case alpha, symbol, whitespace&control, nul, invalid
 // returns representative character: 0, a, A, !, 1, 0, -1
 signed char classifyASCII (const signed char a)
