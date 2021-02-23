@@ -189,7 +189,7 @@ public:
       }
    } // reset
 
-   bool nextPulse ()
+   bool nextPulse (void)
    {
       if (b2b.getNext(t) || (nextASCII() && b2b.getNext(t)))
       {
@@ -208,9 +208,12 @@ public:
          t= gTimeRelIMC[t]; // * timeScale;
          return(true);
       }
-      else { v= t= 0; }
+      else { v= t= 0; iS= -1; }
       return(false);
    } // nextPulse
+
+   bool ready (void) const { return(iS >= 0); }
+   bool complete (void) const { return(iS < 0); }
    
    void print (void) { printf("[%d] %d*%d\n", b2b.i, v, t); }
    
