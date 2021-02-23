@@ -1,7 +1,7 @@
 // Duino/Common/AVR/DA_Timing.hpp - Arduino-AVR specific class definitions for timer / clock
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2020
+// (c) Project Contributors Nov 2020 - Feb 2021
 
 #ifndef DA_TIMING_HPP
 #define DA_TIMING_HPP
@@ -254,7 +254,7 @@ public:
 
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
    void setS (const uint8_t s) { tick= s*1000; }
-   void setA (const char a[])
+   void setA (const char a[], uint16_t ms=0)
    {  // No parsing! assumes exact "hh:mm:ss"
       uint8_t tt[2];
   
@@ -263,6 +263,7 @@ public:
       setHM(tt);
       tt[0]= fromBCD4(char2BCD4(a+5,2),2);
       setS(tt[0]);
+      tick+= ms;
    }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
    // Serial interface support, debug mostly?
@@ -281,19 +282,29 @@ public:
       }
       return(0);
    } // getStrHM
-   int8_t getStrS (char str[], int8_t max, char end=0) const
+   int8_t getStrS (char str[], int8_t max, int8_t bcdB=1, char end=0) const
    {
       int8_t n= 0;
-      if (max >= 2)
+      if ((max >= 2) && (bcdB > 0))
       {
-         uint8_t tickBCD[1];
-         convMilliBCD(tickBCD, 1, tick);
+         uint8_t tickBCD[3];
+         convMilliBCD(tickBCD, bcdB, tick);
          n= hex2ChU8(str+0, tickBCD[0]);
+         if ((bcdB > 1) && (max >= 5))
+         {
+            str[n++]= '.';
+            n+= hex2ChU8(str+n, tickBCD[1]); // centi-seconds
+         }
          if (n < max) { str[n]= end; n+= (0 != end); }
-         return(n);
       }
       return(n);
    } // getStrS
+   int8_t getStrHMS (char str[], int8_t max, char end=0) const
+   {
+      int8_t n= getStrHM(str, max, ':');
+      if (n > 0) { n+= getStrS(str+n, max-n, 1, end); }
+      return(n);
+   } // getStrHMS
 
 }; // CClock
 

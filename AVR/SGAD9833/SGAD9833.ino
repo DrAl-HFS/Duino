@@ -2,7 +2,7 @@
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov-Dec 2020
+// (c) Project Contributors Nov 2020 - Feb 2021
 
 #include <math.h>
 
@@ -73,23 +73,16 @@ char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?')
 #define SEC_BCD_BYTES 1
 int8_t sysLog (Stream& s, uint8_t events)
 {
-  uint8_t msBCD[SEC_BCD_BYTES];
   char str[64];
   int8_t m=sizeof(str)-1, r=0, l=-1, n=0, x=0;
   
-  convMilliBCD(msBCD, SEC_BCD_BYTES, gClock.tick);
 #if 0
   str[n++]= 'V';
   n+= hex2ChU8(str+n, events);
   str[n++]= ' ';
 #endif
-  n+= gClock.getStrHM(str+n, m-n, ':');
-  n+= hex2ChU8(str+n, msBCD[0]); // seconds
-#if SEC_BCD_BYTES > 1
-  str[n++]= '.';
-  n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
-#endif
-  str[n]= 0;
+  n+= gClock.getStrHMS(str+n, m-n, ' ');
+
 #if 0 //def DA_COUNTING_HPP
   n+= snprintf(str+n, m-n, " Ref: %u, %u; [%d]", gRate.ref.c, gRate.ref.t, gRate.iRes);
   n+= snprintf(str+n, m-n, " R0: %u, %u", gRate.res[0].c, gRate.res[0].t);
@@ -151,7 +144,7 @@ int8_t sysLog (Stream& s, uint8_t events)
 void setup (void)
 {
    noInterrupts();
-   gClock.setA(__TIME__); // Use build time as default
+   gClock.setA(__TIME__,5000); // Use build time as default +5.000 sec
    gClock.start();
 #ifdef DA_COUNTING_HPP
    gRate.start();

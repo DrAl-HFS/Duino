@@ -35,12 +35,13 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 void setup()
 {
-  gClock.setA(__TIME__); // Use build time as default
+  noInterrupts();
+  gClock.setA(__TIME__,25000); // Build time +25.0sec
   gClock.start();
 
   DEBUG.begin(DEBUG_BAUD);
   
-  DEBUG.print("Morse " __DATE__ " ");
+  DEBUG.print("\nMorse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
   pinMode(SIG_PIN, OUTPUT);
@@ -49,6 +50,8 @@ void setup()
 #ifdef CMORSE_HPP
   gS.set("What hath God wrought?"); //SOS");
 #endif // CMORSE_HPP
+  interrupts();
+  gClock.intervalStart();
 }
 
 int16_t gDelayHack=0;
@@ -60,11 +63,8 @@ void loop()
     if (gClock.intervalUpdate())
     {
       char s[12];
-      const int8_t m= sizeof(s)-1;
-      int8_t n;
-      n= gClock.getStrHM(s,m,':');
-      n+= gClock.getStrS(s+n, m-n);
-      DEBUG.println(s);
+      gClock.getStrHMS(s,sizeof(s)-1);
+      DEBUG.print(s); DEBUG.print(' ');
       if (gS.complete()) { gS.reset(); }
     }
     if (gS.ready())
