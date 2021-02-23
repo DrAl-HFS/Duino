@@ -266,7 +266,7 @@ public:
    }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
    // Serial interface support, debug mostly?
-   int8_t getStrHM (char str[], int8_t max, char end=0)
+   int8_t getStrHM (char str[], int8_t max, char end=0) const
    {
       if (max > 5)
       {
@@ -276,12 +276,24 @@ public:
          n= hex2ChU8(str+0, conv2BCD4(hm[0]));
          str[n++]= ':';
          n+= hex2ChU8(str+n, conv2BCD4(hm[1]));
-         str[n]= end;
-         n+= (0!=end);
+         if (n < max) { str[n]= end; n+= (0 != end); }
          return(n);
       }
       return(0);
    } // getStrHM
+   int8_t getStrS (char str[], int8_t max, char end=0) const
+   {
+      int8_t n= 0;
+      if (max >= 2)
+      {
+         uint8_t tickBCD[1];
+         convMilliBCD(tickBCD, 1, tick);
+         n= hex2ChU8(str+0, tickBCD[0]);
+         if (n < max) { str[n]= end; n+= (0 != end); }
+         return(n);
+      }
+      return(n);
+   } // getStrS
 
 }; // CClock
 
