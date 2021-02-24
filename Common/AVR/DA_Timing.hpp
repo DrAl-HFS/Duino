@@ -170,6 +170,21 @@ public:
 #endif
 
 /*** COMMON ***/
+
+class CDownTimer
+{
+protected:
+   int16_t remain;
+
+public:
+   CDownTimer (void) {;}
+   
+   void set (int16_t r) { remain= r; }
+   void add (int16_t r) { remain+= r; }
+   
+   bool update (uint8_t dt=1) { remain-= dt; return(remain<=0); }
+}; // CDownTimer
+
 class CIntervalTimer
 {
 protected:
@@ -254,7 +269,7 @@ public:
 
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
    void setS (const uint8_t s) { tick= s*1000; }
-   void setA (const char a[], uint16_t ms=0)
+   void setA (const char a[], uint16_t msAdd=0)
    {  // No parsing! assumes exact "hh:mm:ss"
       uint8_t tt[2];
   
@@ -263,7 +278,7 @@ public:
       setHM(tt);
       tt[0]= fromBCD4(char2BCD4(a+5,2),2);
       setS(tt[0]);
-      tick+= ms;
+      tick+= msAdd;
    }
    void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
    // Serial interface support, debug mostly?

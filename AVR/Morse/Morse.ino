@@ -20,11 +20,11 @@
 
 // NB tone conflicts with Clock (Timer2)
 
-uint16_t gSpeed=45;
+uint16_t gSpeed=45; // 11.1dps -> 26~27wpm
 
 CClock gClock(15000);
 CMorseSSS gS;
-
+CDownTimer gDT;
 
 /***/
 
@@ -36,7 +36,7 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 void setup()
 {
   noInterrupts();
-  gClock.setA(__TIME__,25000); // Build time +25.0sec
+  gClock.setA(__TIME__,5000); // Build time +5.0sec
   gClock.start();
 
   DEBUG.begin(DEBUG_BAUD);
@@ -54,7 +54,6 @@ void setup()
   gClock.intervalStart();
 }
 
-int16_t gDelayHack=0;
 void loop()
 {
   uint8_t ev= gClock.update();
@@ -67,23 +66,17 @@ void loop()
       DEBUG.print(s); DEBUG.print(' ');
       if (gS.complete()) { gS.reset(); }
     }
-    if (gS.ready())
+    if (gS.ready() && gDT.update(ev))
     {
-      gDelayHack-= ev;
-      if (gDelayHack <= 0)
+      if (gS.nextPulse())
       {
-        if (gS.nextPulse())
-        {
-          //tone(TONE_PIN, 4000, gS.t*gSpeed - 10);
-          digitalWrite(SIG_PIN, gS.v);
-          gDelayHack+= gS.t*gSpeed;
-        }
-        else
-        {
-          digitalWrite(SIG_PIN, 0);
-          DEBUG.write('\n');
-          gDelayHack= 0;
-        }
+        digitalWrite(SIG_PIN, gS.v);
+        gDT.add(gS.t*gSpeed);
+      }
+      else
+      {
+        digitalWrite(SIG_PIN, 0);
+        DEBUG.write('\n');
       }
     } // ready
   } // ev
