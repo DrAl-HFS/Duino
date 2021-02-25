@@ -182,6 +182,7 @@ public:
    void set (int16_t r) { remain= r; }
    void add (int16_t r) { remain+= r; }
    
+   bool isSet (void) { return(remain>0); }
    bool update (uint8_t dt=1) { remain-= dt; return(remain<=0); }
 }; // CDownTimer
 
@@ -241,17 +242,14 @@ public:
 #endif
       { ; } // CClock
 
+   void tickTock (void) { if (tick >= 60000) { tick-= 60000; tock++; } }
    uint8_t update (void)
    {
       uint8_t d= diff();
       if (d > 0)
       {
          tick+= d;
-         if (tick >= 60000)
-         {
-            tick-= 60000;
-            tock++;
-         }
+         tickTock();
          retire(d);
       }
       return(d);
@@ -268,7 +266,11 @@ public:
 #endif
 
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
-   void setS (const uint8_t s) { tick= s*1000; }
+   // HACK! <<<
+   void setS (const uint8_t s) { tick= s*1000; tickTock(); }
+   void addM (int8_t dm) { tock+= dm; } 
+   void addS (int8_t ds) { tick+= ds*1000; tickTock(); } // overflow/wrap hazard
+   // HACK! >>>
    void setA (const char a[], uint16_t msAdd=0)
    {  // No parsing! assumes exact "hh:mm:ss"
       uint8_t tt[2];

@@ -9,40 +9,52 @@
 #include "morseAlphaNum.h"
 #include "morsePuncSym.h"
 
+// default 16bit! need to compile with --short-enum ?
+//enum MorsePG { };
+typedef int8_t MorsePG; // Pulse/Gap 3bits : b0 = on/off
+#define MORSE_PG_NONE  ((MorsePG)0x0)
+#define MORSE_PG_ON    ((MorsePG)0x1)
+#define MORSE_PG_SHORT ((MorsePG)0x2)
+#define MORSE_PG_LONG  ((MorsePG)0x4)
+#define MORSE_PG_INTER ((MorsePG)0x6)
+#define MORSE_PULSE_SHORT (MORSE_PG_ON|MORSE_PG_SHORT)
+#define MORSE_PULSE_LONG  (MORSE_PG_ON|MORSE_PG_LONG)
+#define MORSE_PG_MASK  ((MorsePG)0x7)
+
+
 // TODO : Revised pattern scan-out with implicit generation of spacing
 class CMorseSeq
 {
 protected:
    uint16_t c;
-   int8_t n, i, ls;
+   int8_t i;
+   uint8_t ng; // combined n & gap mask
    
 public:
    //uint8_t ss; // stored copy of send state ?
 
    CMorseSeq (void) { ; }
 
-   void set (const uint16_t codeBits, const int8_t nBits, const int8_t last=0x2)
+   void set (const uint16_t codeBits, const int8_t nBits, const MorsePG last=MORSE_PG_LONG)
    {
-      //ss= 0;
       c= codeBits;
-      n= nBits << 1;
-      i= n;
-      ls= last;
+      i= nBits << 1;
+      ng= last | (i<<3); // worth storing n ??
    }
-   uint8_t nextState (void)
+   int8_t nextState (void)
    {  // bits 1,0 time code, bit 2= pulse on / gap off
-      uint8_t ss=0;
+      int8_t ss=0;
       if (i > 0)
       {  // determine on/off state
          if (--i & 0x1)
          {  // pulse
-            if (c & (1 << (i>>1))) { ss= 0x6; } // long
-            else { ss= 0x5; } // short
+            if (c & (1 << (i>>1))) { ss= MORSE_PULSE_LONG; }
+            else { ss= MORSE_PULSE_SHORT; }
          }
          else
          {  // gap
-            if (0 == i) { ss= ls; } //whatever was set (off, short, intersymbol, inter-word)
-            else { ss= 0x1; } // short
+            if (0 == i) { ss= MORSE_PG_MASK & ng; } //whatever was set (off, short, intersymbol, inter-word)
+            else { ss= MORSE_PG_SHORT; } // short
          } 
       }
       return(ss);
@@ -138,7 +150,7 @@ protected:
    }
    bool setASCII (const signed char a, const signed char c, const signed char nc)
    {
-      int8_t last= 0x2+(' ' == nc);
+      int8_t last= 0x2 + (' ' == nc); // - (0x00 == nc);
       switch (c)
       {
          case '0' : return setM5(gNumIMC5[a-c],last); // break;
@@ -171,13 +183,13 @@ public:
    
    CMorseSSS (void) { ; }
   
-   void set (const char *str)
+   void send (const char *str)
    { 
       s= str;
-      reset();
+      resend();
    } // set
-  
-   void reset (void)
+   
+   void resend (void)
    {
       iS= 0;
       if (NULL == s) { setASCII(0,0,0); cc[0]= 0; }
@@ -187,7 +199,7 @@ public:
          cc[1]= classifyASCII(s[1]);
          setASCII(s[0],cc[0],cc[1]);
       }
-   } // reset
+   } // resend
 
    bool nextPulse (void)
    {
@@ -195,7 +207,7 @@ public:
       {
          v= (b2b.i & 0x1); // odd numbered on, even off
 #if 1
-{
+{  // '\n'
   static const char dbg[2][4]={ { 0x0, 'e', '|',' '}, {'.','-','e','e'} };
   char ch=dbg[v][t];
   if (ch)
