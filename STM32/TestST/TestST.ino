@@ -1,0 +1,42 @@
+// Duino/STM32/TestST/TestST.ino - STM32 test code
+// https://github.com/DrAl-HFS/Duino.git
+// Licence: GPL V3A
+// (c) Project Contributors Feb-Mar 2021
+
+#define DEBUG Serial1
+
+#include "CMifare.hpp"
+
+
+/***/
+
+#define LED PC13
+#define DEBUG_BAUD 115200 
+
+
+/***/
+
+CHackMFRC522 gH;
+
+static int8_t n=1;
+
+void setup (void)
+{
+  DEBUG.begin(DEBUG_BAUD);
+  
+  DEBUG.print("TestST " __DATE__ " ");
+  DEBUG.println(__TIME__);
+  
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, 0);
+  
+  gH.init();
+} // setup
+
+void loop (void)
+{
+  if (n > 0)
+  {
+    n-= gH.hack();
+  }
+} // loop
