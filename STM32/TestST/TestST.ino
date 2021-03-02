@@ -6,6 +6,7 @@
 #define DEBUG Serial1
 
 #include "CMifare.hpp"
+#include "CTimersST.hpp"
 
 
 /***/
@@ -14,9 +15,12 @@
 #define DEBUG_BAUD 115200 
 
 
+
+
 /***/
 
-CHackMFRC522 gH;
+Timer gTim;
+CHackMFRC522 gRC522;
 
 static int8_t n=1;
 
@@ -30,13 +34,16 @@ void setup (void)
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
   
-  gH.init();
+  gTim.start();
+  gRC522.init();
+  DEBUG.println(gTim.poll());
 } // setup
 
 void loop (void)
 {
   if (n > 0)
   {
-    n-= gH.hack();
+    n-= gRC522.hack();
+    DEBUG.println(gTim.poll());
   }
 } // loop
