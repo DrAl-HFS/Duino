@@ -19,10 +19,13 @@
 
 /***/
 
-Timer gTim;
+CTimer gT4(4);
 CHackMFRC522 gRC522;
 
-static int8_t n=1;
+uint32_t gLast= 0;
+uint32_t gTick= 0;
+
+void tickFunc (void) { ++gTick; }
 
 void setup (void)
 {
@@ -34,16 +37,19 @@ void setup (void)
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
   
-  gTim.start();
+  gT4.start(tickFunc);
+
   gRC522.init();
-  DEBUG.println(gTim.poll());
+  DEBUG.println(gTick);//gTim.poll());
 } // setup
 
 void loop (void)
 {
-  if (n > 0)
+  int32_t d= gTick - gLast;
+  if (d >= 1000)
   {
-    n-= gRC522.hack();
-    DEBUG.println(gTim.poll());
+    //gRC522.hack();
+    gLast= gTick;
+    DEBUG.println(gTick); //gTim.poll());
   }
 } // loop

@@ -6,6 +6,28 @@
 #ifndef CTIMERS_ST_HPP
 #define CTIMERS_ST_HPP
 
+// Extend LibMaple utils, http://docs.leaflabs.com/docs.leaflabs.com/index.html
+class CTimer : public HardwareTimer
+{
+public:
+   CTimer (int8_t i=4) : HardwareTimer(i) { ; }
+
+   void start (voidFuncPtr func, uint32_t ivl_us=1000)
+   {
+      setMode( TIMER_CH1, TIMER_OUTPUT_COMPARE );
+      attachInterrupt( TIMER_CH1, func );
+      setPeriod(ivl_us);            // set appropriate prescale & overflow
+      setCompare( TIMER_CH1, -1 );  // clamp to overflow defined by setPeriod()
+      
+      refresh();  // Commit parameters count, prescale, and overflow
+      resume();   // Start counting
+   }
+   //uint16_t poll (timer_gen_reg_map *pR=TIMER4_BASE) { return(pR->CNT); }
+  
+}; // CTimer
+
+#if 0 // DEPRECATED: direct low level hacking not worth the effort...
+
 #include <libmaple/timer.h>
 #include <libmaple/rcc.h>
 #include <libmaple/bitband.h>
@@ -16,7 +38,11 @@ public:
    CSTM32_HW_RCC (void) { ; }
 
    //void enableT4 (rcc_reg_map *pRCC= RCC_BASE) { pRCC->APB1ENR|= RCC_APB1ENR_TIM4EN; }
-   
+   uint8_t checkTimers (void)
+   {
+      //for (int8_t i=RCC_APB1ENR_TIM2EN_BIT; i<RCC_APB1ENR_TIM7EN_BIT; i++) { rm|= bb_peri_get_bit( &(RCC_BASE->APB1ENR), i); rm<<= 1; }
+      return(RCC_BASE->APB1ENR & 0xFF);
+   }
    //int *p= bb_perip(RCC_BASE, RCC_APB1ENR_TIM4EN); *p= 1;
    void enableT4 (void) { bb_peri_set_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM4EN_BIT, 1 ); }
 }; // CSTM32_HW_RCC
@@ -55,7 +81,7 @@ public:
    void start (timer_gen_reg_map *pR=TIMER4_BASE)
    {
       uint8_t v= bb_peri_get_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM4EN_BIT);
-      DEBUG.print("Timer4:"); DEBUG.println(v);
+      DEBUG.print("Timer4:"); DEBUG.println(checkTimers(),HEX);
       DEBUG.print("SR="); DEBUG.println(pR->SR,HEX);
       DEBUG.print("EGR="); DEBUG.println(pR->EGR,HEX);
       //bb_peri_set_bit( &(pR->EGR), 0x01, 1 ); // CC1G
@@ -71,5 +97,8 @@ public:
    uint16_t poll (timer_gen_reg_map *pR=TIMER4_BASE) { return(pR->CNT); }
   
 }; // Timer
+
+#endif
+
 
 #endif // CTIMERS_ST_HPP
