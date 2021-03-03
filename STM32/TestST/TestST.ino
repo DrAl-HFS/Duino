@@ -15,17 +15,15 @@
 #define DEBUG_BAUD 115200 
 
 
-
-
 /***/
 
-CTimer gT4(4);
+CTimer gT;
 CHackMFRC522 gRC522;
 
 uint32_t gLast= 0;
 uint32_t gTick= 0;
 
-void tickFunc (void) { ++gTick; }
+void tickFunc (void) { gT.nextIvl(); }
 
 void setup (void)
 {
@@ -37,21 +35,20 @@ void setup (void)
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
   
-  gT4.start(tickFunc);
+  gT.start(tickFunc);
 
   gRC522.init();
-  gT4.dbgPrint(DEBUG);
+  gT.dbgPrint(DEBUG);
   DEBUG.print("tick"); DEBUG.println(gTick);//gTim.poll());
 } // setup
 
 void loop (void)
 {
-  int32_t d= gTick - gLast;
-  if (d >= 1000)
+  if (gT.diff() >= 1000)
   {
     //gRC522.hack();
-    gLast= gTick;
-    DEBUG.println(gTick); //gTim.poll());
+    gT.retire(1000);
+    DEBUG.println(gT.tickVal()); //gTim.poll());
     //gT4.dbgPrint(DEBUG);
   }
 } // loop

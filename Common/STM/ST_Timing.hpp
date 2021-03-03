@@ -6,9 +6,38 @@
 #ifndef ST_TIMING_HPP
 #define ST_TIMING_HPP
 
-// Extend LibMaple utils, http://docs.leaflabs.com/docs.leaflabs.com/index.html
-class CTimer : public HardwareTimer
+// Direct HW access to clock info using "Reset & Clock Control" register bank
+#include <libmaple/rcc.h>
+
+static uint32_t getClkCfg1 (void) { return( RCC_BASE->CFGR ); } // 0x51840A
+//static void getClkCfg2 (uint32_t c[2]) { c[0]= RCC_BASE->CFGR; c[1]= RCC_BASE->CFGR2; } // not F103
+
+uint32_t hwClkRate (void)
 {
+   uint32_t c= getClkCfg1();
+   if (0xA == (c & 0xF))
+   {  // PLL
+      uint8_t m2=0, pllmul= (c >> 18) & 0xF;
+      
+      if ( ( pllmul >= 0b0010 ) && ( pllmul <= 0b0111) ) { m2= 2*(pllmul+2); }
+      else if (0b1101 == pllmul) { m2= 13; }
+      // Assume 8MHz input to PLL1
+      //uint8_t pd= 1 + (c[1] & 0xF); // PLL1 prediv
+      //uint8_t pd= 1 + ((c >> 17) & 0x1); 
+      //return((m2 * 4) / pd);
+      // PLL1 prediv is 1bit on F103
+      if ((c >> 17) & 0x1) { return(m2 * 2); } else { return(m2 * 4); }
+   }
+   return(0);
+} // hwClkRate
+
+// Extend LibMaple utils, http://docs.leaflabs.com/docs.leaflabs.com/index.html
+class CTimer : protected HardwareTimer
+{
+protected:
+   volatile uint16_t nIvl; // event count
+   uint16_t nRet;           // & tracking
+   
 public:
    CTimer (int8_t iTN=4) : HardwareTimer(iTN) { ; }
 
@@ -22,27 +51,37 @@ public:
       refresh();  // Commit parameters count, prescale, and overflow
       resume();   // Start counting
    }
-   uint32_t hwResolution (uint32_t coreClkPeriodNanoSec)
-   {
-      uint32_t fPS= getPrescaleFactor();
-      return(fPS * coreClkPeriodNanoSec);
-   }
-   uint32_t hwRead (void) { return getCount(); }
    
+   void nextIvl (void) { ++nIvl; }
+
+   uint16_t diff (void) const
+   {
+      int16_t d= nIvl - nRet;
+      return( d>=0 ? d : (nIvl + 0xFFFF-nRet) );
+   } // diff
+
+   void retire (uint16_t d) { if (-1 == d) { nRet= nIvl; } else { nRet+= d; } }
+
+   uint16_t tickVal (void) const { return(nIvl); }
+   // DEBUG
+   uint32_t hwTickRes (void) { return getPrescaleFactor(); }
+   uint32_t hwTickVal (void) { return getCount(); }
    void dbgPrint (Stream& s)
    {
-      s.print("hwres "); s.println(hwResolution(21));
-      s.print("hwcnt "); s.print(hwRead()); s.print(' '); s.println(hwRead());
-   }
+      s.print("hwClkCfg "); s.println(getClkCfg1(),HEX); //s.print(','); s.println(c[1],HEX);
+      s.print("hwClkRate "); s.println(hwClkRate());
+      s.print("hwTickRes "); s.println(hwTickRes());
+      s.print("hwTickVal "); s.print(hwTickVal()); s.print(','); s.println(hwTickVal());
+   } // dbgPrint
+
 }; // CTimer
 
 #if 0 // DEPRECATED: direct low level hacking not worth the effort...
 
 #include <libmaple/timer.h>
-#include <libmaple/rcc.h>
 #include <libmaple/bitband.h>
 
-class CSTM32_HW_RCC // Reset & Clock Control ?!?
+class CSTM32_HW_RCC //  ?!?
 {
 public:
    CSTM32_HW_RCC (void) { ; }

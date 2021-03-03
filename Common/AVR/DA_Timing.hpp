@@ -72,15 +72,13 @@ public:
       ++nIvl;
    } // nextIvl
 
-   uint8_t diff (void)
+   uint8_t diff (void) const
    {
       int8_t d= nIvl - nRet;
-      return( d>=0 ? d : -d ); // paranoid? : verify...
-      //if (d >= 0) { return(d); } //else
-      //return(-d);
+      return( d>=0 ? d : (nIvl + 0xFF-nRet) ); // paranoid? : verify...
    } // diff
 
-   void retire (uint8_t d) { nRet+= d; }
+   void retire (uint8_t d) { if (-1 == d) { nRet= nIvl; } else { nRet+= d; } }
 }; // CBaseTimer
 
 #ifdef AVR_CLOCK_TRIM
