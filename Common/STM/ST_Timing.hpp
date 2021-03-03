@@ -32,6 +32,9 @@ uint32_t hwClkRate (void)
 } // hwClkRate
 
 // Extend LibMaple utils, http://docs.leaflabs.com/docs.leaflabs.com/index.html
+// This timer provides limited range but high precision at the hardware level
+// (16bits @ core clock rate), plus adequate range & precision (>60sec @ 1ms)
+// for human-oriented features at the software level
 class CTimer : protected HardwareTimer
 {
 protected:
@@ -62,16 +65,17 @@ public:
 
    void retire (uint16_t d) { if (-1 == d) { nRet= nIvl; } else { nRet+= d; } }
 
-   uint16_t tickVal (void) const { return(nIvl); }
-   // DEBUG
-   uint32_t hwTickRes (void) { return getPrescaleFactor(); }
+   uint16_t swTickVal (void) const { return(nIvl); }
    uint32_t hwTickVal (void) { return getCount(); }
+
+   // DEBUG
    void dbgPrint (Stream& s)
    {
-      s.print("hwClkCfg "); s.println(getClkCfg1(),HEX); //s.print(','); s.println(c[1],HEX);
-      s.print("hwClkRate "); s.println(hwClkRate());
-      s.print("hwTickRes "); s.println(hwTickRes());
-      s.print("hwTickVal "); s.print(hwTickVal()); s.print(','); s.println(hwTickVal());
+      //s.print("hwClkCfg "); s.println( getClkCfg1(), HEX); //s.print(','); s.println(c[1],HEX);
+      s.print("hwClkRate= "); s.print( hwClkRate() ); s.println("MHz");
+      s.print("hwTickRes= "); s.println( getPrescaleFactor() );
+      s.print("hwTickOflo= "); s.println( getOverflow() );
+      s.print("hwTickVal= "); s.print( hwTickVal()); s.print(','); s.println(hwTickVal());
    } // dbgPrint
 
 }; // CTimer

@@ -20,9 +20,6 @@
 CTimer gT;
 CHackMFRC522 gRC522;
 
-uint32_t gLast= 0;
-uint32_t gTick= 0;
-
 void tickFunc (void) { gT.nextIvl(); }
 
 void setup (void)
@@ -39,7 +36,7 @@ void setup (void)
 
   gRC522.init();
   gT.dbgPrint(DEBUG);
-  DEBUG.print("tick"); DEBUG.println(gTick);//gTim.poll());
+  DEBUG.print("nIvl="); DEBUG.println(gT.swTickVal());
 } // setup
 
 void loop (void)
@@ -48,7 +45,7 @@ void loop (void)
   {
     //gRC522.hack();
     gT.retire(1000);
-    DEBUG.println(gT.tickVal()); //gTim.poll());
+    DEBUG.print("nIvl="); DEBUG.println(gT.swTickVal()); //gTim.poll());
     //gT4.dbgPrint(DEBUG);
   }
 } // loop

@@ -6,11 +6,12 @@
 #define DEBUG Serial1
 
 #include "Common/Morse/CMorse.hpp"
+#include "Common/STM/ST_Timing.hpp"
 
 
 /***/
 
-#define LED PC13
+#define LED PB10
 #define DEBUG_BAUD 115200 
 
 uint16_t gSpeed=45;
@@ -20,6 +21,10 @@ uint16_t gSpeed=45;
 
 
 /***/
+
+CTimer gT;
+void tickFunc (void) { gT.nextIvl(); }
+uint16_t gDT; // initial delay
 
 CMorseSSS gS;
 
@@ -32,21 +37,30 @@ void setup (void)
   
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
-  gS.send("SOS");
+
+  gT.start(tickFunc);
+  gT.dbgPrint(DEBUG);
+  gS.send("What hath God wrought? <SOS> SOS");
+  gDT= 1000;
 } // setup
 
 void loop (void)
 {
-  if (gS.nextPulse())
+  if (gT.diff() >= gDT)
   {
-    digitalWrite(LED, gS.v);
-    delay(gS.t*gSpeed);
+    gT.retire(gDT); // chop or stretch ?...
+    if (gS.nextPulse())
+    {
+      digitalWrite(LED, gS.v);
+      gDT= gS.t*gSpeed;
+    }
+    else
+    {
+      digitalWrite(LED, 0);
+      DEBUG.print("\nnIvl="); DEBUG.println(gT.swTickVal());
+      gS.resend();
+      gDT= 1000;
+    }
   }
-  else
-  {
-    digitalWrite(LED, 0);
-    DEBUG.write('\n');
-    gS.resend();
-    delay(1000);
-  }
+  //delay(dT);
 } // loop
