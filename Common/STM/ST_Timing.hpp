@@ -1,16 +1,16 @@
-// Duino/STM32/TestST/CTimersST.hpp - STM32 timer hacking
+// Duino/STM32/Common/STM/ST_Timing.hpp - STM32/libMaple timer utils
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Mar 2021
 
-#ifndef CTIMERS_ST_HPP
-#define CTIMERS_ST_HPP
+#ifndef ST_TIMING_HPP
+#define ST_TIMING_HPP
 
 // Extend LibMaple utils, http://docs.leaflabs.com/docs.leaflabs.com/index.html
 class CTimer : public HardwareTimer
 {
 public:
-   CTimer (int8_t i=4) : HardwareTimer(i) { ; }
+   CTimer (int8_t iTN=4) : HardwareTimer(iTN) { ; }
 
    void start (voidFuncPtr func, uint32_t ivl_us=1000)
    {
@@ -22,8 +22,18 @@ public:
       refresh();  // Commit parameters count, prescale, and overflow
       resume();   // Start counting
    }
-   //uint16_t poll (timer_gen_reg_map *pR=TIMER4_BASE) { return(pR->CNT); }
-  
+   uint32_t hwResolution (uint32_t coreClkPeriodNanoSec)
+   {
+      uint32_t fPS= getPrescaleFactor();
+      return(fPS * coreClkPeriodNanoSec);
+   }
+   uint32_t hwRead (void) { return getCount(); }
+   
+   void dbgPrint (Stream& s)
+   {
+      s.print("hwres "); s.println(hwResolution(21));
+      s.print("hwcnt "); s.print(hwRead()); s.print(' '); s.println(hwRead());
+   }
 }; // CTimer
 
 #if 0 // DEPRECATED: direct low level hacking not worth the effort...
@@ -101,4 +111,4 @@ public:
 #endif
 
 
-#endif // CTIMERS_ST_HPP
+#endif // ST_TIMING_HPP

@@ -6,7 +6,7 @@
 #define DEBUG Serial1
 
 #include "CMifare.hpp"
-#include "CTimersST.hpp"
+#include "Common/STM/ST_Timing.hpp"
 
 
 /***/
@@ -40,7 +40,8 @@ void setup (void)
   gT4.start(tickFunc);
 
   gRC522.init();
-  DEBUG.println(gTick);//gTim.poll());
+  gT4.dbgPrint(DEBUG);
+  DEBUG.print("tick"); DEBUG.println(gTick);//gTim.poll());
 } // setup
 
 void loop (void)
@@ -51,5 +52,6 @@ void loop (void)
     //gRC522.hack();
     gLast= gTick;
     DEBUG.println(gTick); //gTim.poll());
+    //gT4.dbgPrint(DEBUG);
   }
 } // loop
