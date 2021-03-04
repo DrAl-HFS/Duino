@@ -103,7 +103,7 @@ void u8bcd4FromA (uint8_t u[], int8_t n, const char a[], uint8_t aStride=3) cons
    // CAVEAT: Hacky assumption of element ordering...
    // Assumes hh:mm:ss format. No parse/check!
    void hmsFromA (const char a[]) { u8bcd4FromA(&hour,3,a); }
-   void yFromA (const char a[]) { int y= atoi(a); year= y-1970; }
+   void yFromA (const char a[]) { int y= atoi(a); if (y > 1970) { year= y-1970; } }
    void mFromA (const char a[]) { int8_t m= monthNumJulian(a); if (m > 0) { month= m; } }
    void dFromA (const char a[]) { day= bcd2bin(bcd4FromASafe(a,2)); }
 
@@ -122,10 +122,26 @@ static const char endCh[]={' ','\t','\n',0x00};
       s.print(b);
    } // printTime
 
-   int strHMS (char s[], const int m, const char endCh=0) const
-      { return snprintf(s, m, "%02u:%02u:%02u%c", hour, minute, second, endCh);  }
+   int strHMS (char s[], const int m, const signed char endCh=0) const
+   {
+      const int n= 8+(endCh>0);
+      if (m >= n)
+      {
+         hex2ChU8(s+0,bin2bcd(hour));
+         s[2]= ':';
+         hex2ChU8(s+3,bin2bcd(minute));
+         s[5]= ':';
+         hex2ChU8(s+6,bin2bcd(second));
+         s[8]= endCh;
+         if (n > 8) { s[n]= 0; }
+         return(n);
+      }
+      return(0);
+   } // strHMS
+   
+   // { return snprintf(s, m, "%02u:%02u:%02u%c", hour, minute, second, endCh);  }
    int strYMD (char s[], const int m, const char endCh=0) const
-      { return snprintf(s, m, "%u/%u/%u%c", year, month, day, endCh);  }
+      { return snprintf(s, m, "%u/%u/%u%c", 1970+year, month, day, endCh);  }
 }; // DateTime
 
 class CClock : public RTClock, public DateTime
@@ -133,8 +149,9 @@ class CClock : public RTClock, public DateTime
 public:
    CClock () { ; }
 
-   void setA (const char ahms[])
+   void setA (const char amdy[], const char ahms[])
    {
+      mdyFromA(amdy);
       hmsFromA(ahms);
       setTime(makeTime(*this));
    }

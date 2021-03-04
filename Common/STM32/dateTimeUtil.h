@@ -3,6 +3,22 @@
 #ifndef DTU_H
 #define DTU_H
 
+// TODO: factor common code!
+
+// Return ASCII for low 4 bits (nybble)
+char hexCharL4 (uint_fast8_t u)
+{
+   u&= 0xF;
+   if (u <= 9) { return(u+'0'); } else { return(u-9+'a'); }
+} // hexCharL4
+
+int8_t hex2ChU8 (char c[2], uint8_t u) // hexCharFromU8
+{
+   c[1]= hexCharL4(u);
+   c[0]= hexCharL4(u>>4);
+   return(2);
+} // hex2ChU8
+
 // max 2 ACII chars -> 2 digit packed bcd.
 // CAVEAT: No range checking!
 uint8_t bcd4FromA (const char a[], int8_t nD)

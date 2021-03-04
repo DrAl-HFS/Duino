@@ -43,7 +43,7 @@ void setup (void)
   pinMode(SIGNAL, OUTPUT);
   digitalWrite(SIGNAL, 0);
 
-  gClock.setA(__TIME__);
+  gClock.setA(__DATE__,__TIME__);
 
   interrupts();
   //gClock.begin();
@@ -69,7 +69,7 @@ void loop (void)
     {
       //digitalWrite(LED, 0);
       DEBUG.print("\nnIvl="); DEBUG.println(gT.swTickVal());
-      gClock.print(DEBUG,0x2);
+      gClock.print(DEBUG,0x82);
       gS.resend();
       gDT= 1000;
     }
