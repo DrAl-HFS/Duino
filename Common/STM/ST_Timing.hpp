@@ -19,13 +19,12 @@ uint32_t hwClkRate (void)
    {  // PLL
       uint8_t m2=0, pllmul= (c >> 18) & 0xF;
       
-      if ( ( pllmul >= 0b0010 ) && ( pllmul <= 0b0111) ) { m2= 2*(pllmul+2); }
-      else if (0b1101 == pllmul) { m2= 13; }
+      if ( ( pllmul >= 0b0010 ) && ( pllmul <= 0b0111) ) { m2= 2*(pllmul+2); } // (4..9) * 2
+      else if (0b1101 == pllmul) { m2= 13; } // 6.5 * 2
       // Assume 8MHz input to PLL1
       //uint8_t pd= 1 + (c[1] & 0xF); // PLL1 prediv
-      //uint8_t pd= 1 + ((c >> 17) & 0x1); 
       //return((m2 * 4) / pd);
-      // PLL1 prediv is 1bit on F103
+      // PLL1 prediv is 1bit on F103: pd= 1 + ((c >> 17) & 0x1); =1,2
       if ((c >> 17) & 0x1) { return(m2 * 2); } else { return(m2 * 4); }
    }
    return(0);
