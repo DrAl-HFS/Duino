@@ -43,7 +43,7 @@ int findCh (const char c, const char a[], const int n)
    return(i);
 } // findCh
 
-// Minimal & hacky Julian calendar month text discrimination
+// Minimal & hacky Julian calendar month English text discrimination
 // CAVEAT : GIGO
 int8_t monthNumJulian (const char a[])
 {
@@ -60,21 +60,21 @@ int8_t monthNumJulian (const char a[])
          switch(i)
          {
             case 0 :
-               if ('l' == c) { return(7); } // Jul : J*l
+               if ('l' == c) { return(7); } // Jul : J?l
                else if ('u' == tolower(a[1])) { return(6); } // Jun : Ju*
-               break; // Jan : J**
+               break; // Jan : J*
             case 2 :
-               if ('y' == c) { return(5); } // May
-               break; // Mar : M**
+               if ('y' == c) { return(5); } // May : M?y
+               break; // Mar : M*
             case 3 :
-               if ('g' == c) { return(8); } // Aug
-               break; // Apr : A**
+               if ('g' == c) { return(8); } // Aug : A?g
+               break; // Apr : A*
          }
       }
       return(1+i); // Jan, Feb, Mar, Apr
    }
    else
-   {  // First character only
+   {  // First character only!
       i= findCh(c, m9, sizeof(m9));
       if (i < sizeof(m9)) { return(9+i); }
    }
