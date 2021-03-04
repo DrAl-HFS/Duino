@@ -30,6 +30,9 @@ uint32_t hwClkRate (void)
    return(0);
 } // hwClkRate
 
+//#include <libmaple/bitband.h>
+//void enableT4 (void) { bb_peri_set_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM4EN_BIT, 1 ); }
+
 // Extend LibMaple utils, http://docs.leaflabs.com/docs.leaflabs.com/index.html
 // This timer provides limited range but high precision at the hardware level
 // (16bits @ core clock rate), plus adequate range & precision (>60sec @ 1ms)
@@ -53,7 +56,7 @@ public:
       refresh();  // Commit parameters count, prescale, and overflow
       resume();   // Start counting
    }
-   
+
    void nextIvl (void) { ++nIvl; }
 
    uint16_t diff (void) const
@@ -79,10 +82,152 @@ public:
 
 }; // CTimer
 
+#if 1 // clock
+
+// DISPLACE to where ?
+// max 2 ACII chars -> 2 digit packed bcd.
+// CAVEAT: No range checking!
+uint8_t bcd4FromA (const char a[], int8_t nD)
+{
+   uint8_t r= 0;
+   if (nD > 0)
+   {
+      r= 0xF & (a[0] - '0');
+      if (nD > 1)
+      {
+         r= (r << 4) | (0xF & (a[1] - '0'));
+      }
+   }
+   return(r);
+} // bcd4FromA
+
+// CAVEAT: Ignores any leading non-digit
+uint8_t bcd4FromASafe (const char a[], int8_t nA)
+{
+   if (nA > 0)
+   {
+      uint8_t mD= isdigit(a[0]);
+      if (nA > 1) { mD|= isdigit(a[1])<<1; }
+      switch (mD)
+      {
+         case 0b01 : return bcd4FromA(a+0, 1);
+         case 0b10 : return bcd4FromA(a+1, 1);
+         case 0b11 : return bcd4FromA(a+0, 2);
+      }
+   }
+   return(0);
+} // bcd4FromASafe
+
+int findCh (const char c, const char a[], const int n)
+{
+   int i= 0;
+   while ((i < n) && (a[i] != c)) { ++i; }
+   return(i);
+} // findCh
+
+// Minimal & hacky Julian calendar month text discrimination
+// CAVEAT : GIGO
+int8_t monthNumJulian (const char a[])
+{
+   static const char m1[4]={'J','F','M','A'};
+   static const char m9[4]={'SOND'};
+   char c= toupper(a[0]);
+   int8_t i;
+   i= findCh(c, m1, sizeof(m1));
+   if (i < sizeof(m1))
+   {  // likely
+      if (1 != i)
+      {
+         c= tolower(a[2]);
+         switch(i)
+         {
+            case 0 :
+               if ('l' == c) { return(7); } // Jul : J*l
+               else if ('u' == tolower(a[1])) { return(6); } // Jun : Ju*
+               break; // Jan : J**
+            case 2 :
+               if ('y' == c) { return(5); } // May
+               break; // Mar : M**
+            case 3 :
+               if ('g' == c) { return(8); } // Aug
+               break; // Apr : A**
+         }
+      }
+      return(1+i); // Jan, Feb, Mar, Apr
+   }
+   else
+   {  // First character only
+      i= findCh(c, m9, sizeof(m9));
+      if (i < sizeof(m9)) { return(9+i); }
+   }
+   return(-1);
+} // monthNumJulian
+
+#include <RTClock.h>
+
+class DateTime : public tm_t
+{
+public:
+   DateTime (void) { memset(this, 0, sizeof(*this)); } //const char *ahms=NULL) { if (ahms) { hmsFromA(ahms);} }
+
+// Doesn't belong in class, but uses a method (erroneous declaration)
+// Scan n packed bcd4 digit pairs at locations spaced by ASCII stride
+void u8bcd4FromA (uint8_t u[], int8_t n, const char a[], uint8_t aStride=3) const
+{
+   for (int8_t i=0; i<n; i++) { u[i]= bcd2bin(bcd4FromA(a+(i*aStride),2)); }
+} // u8bcd4FromA
+
+   // CAVEAT: Hacky assumption of element ordering...
+   // Assumes hh:mm:ss format. No parse/check!
+   void hmsFromA (const char a[]) { u8bcd4FromA(&hour,3,a); }
+   void yFromA (const char a[]) { uint32_t y; sscanf(a, "%u", y); year= y-1970; }
+   void mFromA (const char a[]) { int8_t m= monthNumJulian(a); if (m > 0) { month= m; } }
+   void dFromA (const char a[]) { day= bcd2bin(bcd4FromASafe(a,2)); }
+
+   void mdyFromA (const char a[]) { mFromA(a); dFromA(a+5); yFromA(a+7); }
+
+   void print (Stream& s, uint8_t opt=0x00) const
+   {
+static const char endCh[]={' ','\t','\n',0x00};
+      char b[16];
+      if (opt & 0xF0)
+      {
+         int8_t i= strYMD(b, sizeof(b)-1, endCh[(opt>>4)&0x3]);
+         s.print(b);
+      }
+      strHMS(b, sizeof(b)-1, endCh[opt&0x3]);
+      s.print(b);
+   } // printTime
+
+   int strHMS (char s[], const int m, const char endCh=0) const
+      { return snprintf(s, m, "%02u:%02u:%02u%c", hour, minute, second, endCh);  }
+   int strYMD (char s[], const int m, const char endCh=0) const
+      { return snprintf(s, m, "%u/%u/%u%c", year, month, day, endCh);  }
+}; // DateTime
+
+class CClock : public RTClock, public DateTime
+{
+public:
+   CClock () { ; }
+
+   void setA (const char ahms[])
+   {
+      hmsFromA(ahms);
+      setTime(makeTime(*this));
+   }
+
+   void print (Stream& s, uint8_t opt=0x00)
+   {
+      getTime(*this);
+      DateTime::print(s,opt);
+   }
+}; // CClock
+
+#endif // clock
+
 #if 0 // DEPRECATED: direct low level hacking not worth the effort...
 
 #include <libmaple/timer.h>
-#include <libmaple/bitband.h>
 
 class CSTM32_HW_RCC //  ?!?
 {
@@ -96,7 +241,6 @@ public:
       return(RCC_BASE->APB1ENR & 0xFF);
    }
    //int *p= bb_perip(RCC_BASE, RCC_APB1ENR_TIM4EN); *p= 1;
-   void enableT4 (void) { bb_peri_set_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM4EN_BIT, 1 ); }
 }; // CSTM32_HW_RCC
 
 // template <int TN> ???

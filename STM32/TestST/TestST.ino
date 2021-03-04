@@ -6,7 +6,7 @@
 #define DEBUG Serial1
 
 #include "CMifare.hpp"
-#include "Common/STM/ST_Timing.hpp"
+#include "Common/STM32/ST_Timing.hpp"
 
 
 /***/
