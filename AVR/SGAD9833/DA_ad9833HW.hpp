@@ -28,21 +28,29 @@ class DA_AD9833SPI : public DA_SPIMHW
 public:
    DA_AD9833SPI () : DA_SPIMHW() {;}
 
-   void writeSeq (const uint8_t b[], const uint8_t n)
+   void setGain (uint8_t b)
+   {
+      beginTransS1();
+      //writeS2(0x21, 0x00); // shutdown
+      writeS2(0x11, b);
+      endTrans();
+   } // setGain
+   
+   void writeAD9833 (const uint8_t b[], const uint8_t n)
    {
 #ifdef DA_FAST_POLL_TIMER_HPP
       // Direct twiddling of select-pin helps performance but variable latency
       // ('duino interrupts & setup?) results in throughput of 0.6~0.8 MByte/s
       stamp();
 #endif // DA_FAST_POLL_TIMER_HPP
-      beginTrans();
-      for (uint8_t i=0; i<n; i+= 2) { writeA16BE(b+i); }
+      beginTransS1();
+      for (uint8_t i=0; i<n; i+= 2) { writeS1A16BE(b+i); }
       endTrans();
 #ifdef DA_FAST_POLL_TIMER_HPP
       dbgTransClk= diff();
       dbgTransBytes= n;
 #endif // DA_FAST_POLL_TIMER_HPP
-   } // writeSeq
+   } // writeAD9833
 }; // class DA_AD9833SPI
 
 // displace ??
@@ -126,6 +134,8 @@ public:
       struct { UU16 ctrl; DA_AD9833FreqPhaseReg fpr[2]; };
    };
 
+   using DA_AD9833SPI::setGain;
+   
    DA_AD9833Reg (void)
    {
       ctrl.u8[1]= AD9833_FL1_B28|AD9833_FL1_RST;
@@ -150,11 +160,11 @@ public:
       //else { fpr[ia].setPAddr(ia^ix); }
    }
 
-   void write (uint8_t f, uint8_t c) { return writeSeq(b+(f<<1), c<<1); }
+   void write (uint8_t f, uint8_t c) { return writeAD9833(b+(f<<1), c<<1); }
 
    void write (const uint8_t wm=0x7F)
    {
-      if (0x07 == wm) { return writeSeq(b, 6); }
+      if (0x07 == wm) { return writeAD9833(b, 6); }
       else
       {
          uint8_t first= 0, count=0, tm= wm & 0x7F;
@@ -165,7 +175,7 @@ public:
       if ((wm & 0x80) && (ctrl.u8[1] & AD9833_FL1_RST))
       {
          ctrl.u8[1]^= AD9833_FL1_RST;
-         writeSeq(b,2);
+         writeAD9833(b,2);
       }
    } // write
 }; // class DA_AD9833Reg
@@ -197,7 +207,7 @@ public:
       
       fpr[0].setFAddr(1);
       fpr[0].setZeroPSR(1);
-      writeSeq(b,8); // write everything
+      writeAD9833(b,8); // write everything
       // Prepare for compact writes (ctrl + upper word of fsr)
    } // begin
 
@@ -208,22 +218,22 @@ public:
       fpr[0].fr[0].u16= fpr[0].fr[1].u16; // reuse lo word as incrementable hi
       ctrl.u8[0]= 0; // sine
       ctrl.u8[1]= AD9833_FL1_HLB|AD9833_FL1_FSEL|AD9833_FL1_PSEL; // compact writes: hi word only
-      beginTrans(); // noInterrupts();
-      writeA16BE(b+0);
-      writeA16BE(b+2);
+      beginTransS1(); // noInterrupts();
+      writeS1A16BE(b+0);
+      writeS1A16BE(b+2);
       for (int8_t i=0; i<10; i++)
       {
          // spin delay 5~10us ???
          delayMicroseconds(dus);
          fpr[0].fr[0].u16+= step;
-         writeA16BE(b+0);
-         writeA16BE(b+2);
+         writeS1A16BE(b+0);
+         writeS1A16BE(b+2);
       }
       delayMicroseconds(dus);
       // go quiet, ready for next chirp
       //ctrl.u8[0]= AD9833_FL0_SLP_DAC|AD9833_FL0_SLP_MCLK; // useless
       ctrl.u8[1]= AD9833_FL1_RST;
-      writeA16BE(b+0);
+      writeS1A16BE(b+0);
       endTrans(); // interrupts();
    } // chirp
 
@@ -231,7 +241,7 @@ public:
    {
       ctrl.u8[0]= 0;
       ctrl.u8[1]= AD9833_FL1_B28;
-      writeSeq(b,2);
+      writeAD9833(b,2);
    }// end
 
 }; // DA_AD9833Chirp

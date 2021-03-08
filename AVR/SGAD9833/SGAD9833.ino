@@ -170,6 +170,7 @@ void setup (void)
    interrupts();
    gClock.intervalStart();
    sysLog(Serial,0);
+   gSigGen.setGain(0x40);
 } // setup
 
 CmdSeg cmd; // Would be temp on stack but problems arise...
@@ -198,7 +199,11 @@ void loop (void)
   { // <=1KHz update rate
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); } // mutiple samples, prior to routine sysLog()
     if (gClock.intervalUpdate()) { ev|= 0x80; } //
-    if (gRotEnc.update()) { gRotEnc.dump(gClock.tick,Serial); }
+    if (gRotEnc.update())
+    { 
+      gRotEnc.dump(gClock.tick,Serial); 
+      if (gRotEnc.qCount >= 0) { gSigGen.setGain(gRotEnc.qCount); }
+    }
     //
     if (gStreamCmd.read(cmd,Serial))
     {
