@@ -14,8 +14,10 @@
 
 // Communication with MCP41010 seems unreliable, even at lower speed.
 // Have to send a great many times to see a change, and behaviour is
-// not predictable; quasi-random hysteresis.. ?
+// not predictable;                          bg                      ,.l  quasi-random hysteresis.. ?
 // Board design (routing) problems? Circuit design issue?
+// Rheostat mode AD9833 out -> PA0, PW0 -> amp input.
+// Amp package 5pin SOP labelled "90 H" (SOT-23 TLV9051 equivalent/clone?)
 
 #ifdef AVR // 328P specific ?
 // Pin number used for SPI select (active low)

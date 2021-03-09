@@ -83,10 +83,12 @@ int8_t sysLog (Stream& s, uint8_t events)
 #endif
   n+= gClock.getStrHMS(str+n, m-n, ' ');
 
-#if 0 //def DA_COUNTING_HPP
-  n+= snprintf(str+n, m-n, " Ref: %u, %u; [%d]", gRate.ref.c, gRate.ref.t, gRate.iRes);
-  n+= snprintf(str+n, m-n, " R0: %u, %u", gRate.res[0].c, gRate.res[0].t);
-  n+= snprintf(str+n, m-n, " R1: %u, %u", gRate.res[1].c, gRate.res[1].t);
+#ifdef DA_COUNTING_HPP
+  n+= snprintf(str+n, m-n, " rate: %u, %u; [%d]\n", gRate.ref.c, gRate.ref.t, gRate.iRes);
+  s.println(str);
+  n= 0;
+  //n+= snprintf(str+n, m-n, " R0: %u, %u", gRate.res[0].c, gRate.res[0].t);
+  //n+= snprintf(str+n, m-n, " R1: %u, %u", gRate.res[1].c, gRate.res[1].t);
 /*
   if (events & 0x20)
   {
@@ -244,7 +246,7 @@ void loop (void)
       }
       gClock.intervalStart();
     }
-    pulseHack();
+    //if (0 == gGSC) { pulseHack(); }
     gSigGen.commit(); // send whatever needs sent
   }
 } // loop

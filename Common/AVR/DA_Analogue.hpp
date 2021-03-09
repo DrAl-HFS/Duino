@@ -33,18 +33,18 @@ protected:
 public:
    CAnalogue (void)
    {
-      vmux[0]= 0x40; // Vcc / A0 - OK
-      vmux[1]= 0xC0; // 1.1Vref / A0  - OK
-      // vmux[]= 0x4E; // Vcc / 1.1Vref - OK
-      vmux[2]= 0xCF; // 1.1Vref / Gnd
-      vmux[3]= 0xC8; // 1.1Vref / thermistor (A8) ~0x0161
+      vmux[0]= 0x40; // A0 / Vcc
+      vmux[1]= 0xC0; // A0 / 1.1Vref
+      // vmux[]= 0x4E; // Vcc / 1.1Vref (sanity check)
+      vmux[2]= 0xCF; // Gnd / 1.1Vref (sanity check)
+      vmux[3]= 0xC8; // thermistor (A8) / 1.1Vref ~0x0161
    } // CTOR
 
    // deferred start essential to prevent overwrite by Arduino setup
    // (assume memclear, static construction, then handoff to "app" level)
    void init (void)
    {
-      nE= nR= 0; id= 2;
+      nE= nR= 0; id= 0;
       ADMUX=  vmux[id];
       ADCSRA= (1<<ADEN) | (1<<ADIE) | 0x07; // ADC enable, Interrupt enable, clock prescaler 128 -> 125kHz sampling clock
       // 1<<ADATE; auto trigger enable
