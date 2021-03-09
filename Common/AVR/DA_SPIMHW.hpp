@@ -1,7 +1,7 @@
 // Duino/Common/AVR/DA_SPIMHW.hpp - Arduino-AVR SPI Master Hardware wrapper
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020
+// (c) Project Contributors Dec 2020 - Mar 2021
 
 #ifndef DA_SPIMHW_HPP
 #define DA_SPIMHW_HPP
@@ -12,14 +12,19 @@
 
 /***/
 
+// Communication with MCP41010 seems unreliable, even at lower speed.
+// Have to send a great many times to see a change, and behaviour is
+// not predictable; quasi-random hysteresis.. ?
+// Board design (routing) problems? Circuit design issue?
+
 #ifdef AVR // 328P specific ?
 // Pin number used for SPI select (active low)
 // any logic 1|0 output will do...
-// Just use SS pin - must be an output to prevent
+// Just use SS pin (D10 on Uno) - must be an output to prevent
 // SPI HW switching to slave mode (master + slave
-// operation requires some extra signalling/arbitration)
-#define PIN_SEL1 SS // (D10 on Uno)
-#define PIN_SEL2 9 // Additional device select
+// operation would require extra signalling/arbitration)
+#define PIN_SEL1 SS // ADS9833 device select (inverted)  CPOL1 (falling) CPHA0 (leading)
+#define PIN_SEL2 9  // MCP41010 device select (inverted) CPOL0 (rising) CPHA0 (leading)
 // Hardware SPI pins used implicitly
 //#define PIN_SCK SCK   // (D13 on Uno)
 //#define PIN_DAT MISO  // (D12 on Uno)
@@ -44,8 +49,13 @@ TODO - properly comprehend gcc assembler arg handling...
 #define SET_SEL1_LO() digitalWrite(PIN_SEL1, LOW)
 #define SET_SEL1_HI() digitalWrite(PIN_SEL1, HIGH)
 #endif
+#if 0
 #define SET_SEL2_LO() digitalWrite(PIN_SEL2, LOW)
 #define SET_SEL2_HI() digitalWrite(PIN_SEL2, HIGH)
+#else
+#define SET_SEL2_LO() PORTB &= ~(1<<1)
+#define SET_SEL2_HI() PORTB |= (1<<1)
+#endif
 
 class DA_SPIMHW // : public CFastPollTimer
 {

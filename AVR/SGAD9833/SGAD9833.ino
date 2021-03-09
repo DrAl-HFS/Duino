@@ -191,9 +191,9 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
+uint8_t gGSC=0;
 void loop (void)
 {
-//static uint16_t n=0;  if (0 == n++)  { dumpT0(Serial); }
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
@@ -201,9 +201,10 @@ void loop (void)
     if (gClock.intervalUpdate()) { ev|= 0x80; } //
     if (gRotEnc.update())
     { 
-      gRotEnc.dump(gClock.tick,Serial); 
-      if (gRotEnc.qCount >= 0) { gSigGen.setGain(gRotEnc.qCount); }
+      gRotEnc.dump(gClock.tick,Serial);
+      gGSC= 100;
     }
+    if (gGSC > 0) { --gGSC; gSigGen.setGain(gRotEnc.qCount); } 
     //
     if (gStreamCmd.read(cmd,Serial))
     {
