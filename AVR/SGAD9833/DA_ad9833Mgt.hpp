@@ -210,8 +210,10 @@ public:
    int8_t iFN;
    uint16_t hph; // hacky hold phase
 
-   DA_AD9833Control (void) { iFN= 0; rwm= 0; } // Not reliably cleared by reset (?)
+   DA_AD9833Control (void) { iFN= 0; rwm= 0; } // reg.setGain(0x80); } // Not reliably cleared by reset (?)
 
+   void setGain (uint8_t v) { reg.setGain(v); }
+   
    int8_t waveform (int8_t w=0) // overwrite any sleep/hold setting
    {
 static const U8 ctrlB0[]=

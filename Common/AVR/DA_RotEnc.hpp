@@ -66,10 +66,10 @@ protected:
    } // updateQS
    
 public:
-   uint8_t bCount; // bit 0 = state, saturating count in bits 1:7
-   int8_t  qCount; // quadrature count, wraps from +127 to -128
+   uint8_t bCount;   // bit 0 = state, saturating count in bits 1:7
+   uint8_t qCount;  // quadrature count, unsigned wrap 255<->0 (signed wrap +127 <-> -128)
    
-   CRotEnc (void) { ; }
+   CRotEnc (void) { qCount=0x80; } // start midscale
   
    void init (void)
    {  // PortD: 2,3,4
