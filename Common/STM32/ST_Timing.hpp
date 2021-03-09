@@ -43,6 +43,12 @@ protected:
    volatile uint16_t nIvl; // event count
    uint16_t nRet;           // & tracking
    
+   uint16_t diffWrap16 (uint16_t a, uint16_t b) const
+   {
+      int16_t d= a - b;
+      return( d>=0 ? d : (a + 0xFFFF-b) );
+   } // diffWrap16
+
 public:
    CTimer (int8_t iTN=4) : HardwareTimer(iTN) { ; }
 
@@ -59,17 +65,24 @@ public:
 
    void nextIvl (void) { ++nIvl; }
 
-   uint16_t diff (void) const
-   {
-      int16_t d= nIvl - nRet;
-      return( d>=0 ? d : (nIvl + 0xFFFF-nRet) );
-   } // diff
+   uint16_t diff (void) const { return diffWrap16(nIvl, nRet); }
 
    void retire (uint16_t d) { if (-1 == d) { nRet= nIvl; } else { nRet+= d; } }
 
    uint16_t swTickVal (void) const { return(nIvl); }
-   uint32_t hwTickVal (void) { return getCount(); }
-
+   uint16_t hwTickVal (void) { return getCount(); }
+/*
+   void hwSpinWait (uint16_t until)
+   {
+      uint16_t now, oflo= getOverflow();
+      if (until > oflo) { until-= oflo; }
+      now= hwTickVal();
+      do
+      {
+         now= hwTickVal();
+      } while (now < until);
+   } // hwTickSpin
+*/
    // DEBUG
    void dbgPrint (Stream& s)
    {
@@ -95,10 +108,14 @@ public:
 
 // Doesn't belong in class, but uses a method (erroneous declaration)
 // Scan n packed bcd4 digit pairs at locations spaced by ASCII stride
-void u8bcd4FromA (uint8_t u[], int8_t n, const char a[], uint8_t aStride=3) const
+void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aStride=3) const
 {
-   for (int8_t i=0; i<n; i++) { u[i]= bcd2bin(bcd4FromA(a+(i*aStride),2)); }
+   for (int8_t i=0; i<n; i++) { u[i]= bcd2bin( bcd4FromA(a+(i*aStride), 2) ); }
 } // u8bcd4FromA
+void u8bcd4ToA (char a[], const uint8_t u[], const int8_t n, const uint8_t aStride=3) const
+{
+   for (int8_t i=0; i<n; i++) { hex2ChU8( a+(i*aStride), bin2bcd(u[i]) ); }
+} // u8bcd4ToA
 
    // CAVEAT: Hacky assumption of element ordering...
    // Assumes hh:mm:ss format. No parse/check!
@@ -108,6 +125,29 @@ void u8bcd4FromA (uint8_t u[], int8_t n, const char a[], uint8_t aStride=3) cons
    void dFromA (const char a[]) { day= bcd2bin(bcd4FromASafe(a,2)); }
 
    void mdyFromA (const char a[]) { mFromA(a); dFromA(a+5); yFromA(a+7); }
+
+   int strHMS (char s[], const int m, const signed char endCh=0) const
+   // { return snprintf(s, m, "%02u:%02u:%02u%c", hour, minute, second, endCh);  }
+   {
+      const int n= 8+(endCh>0);
+      if (m >= n)
+      {
+         u8bcd4ToA(s, &hour, 3, 3);
+#if 0
+         hex2ChU8(s+0,bin2bcd(hour));
+         hex2ChU8(s+3,bin2bcd(minute));
+         hex2ChU8(s+6,bin2bcd(second));
+#endif
+         s[2]= s[5]= ':';
+         s[8]= endCh;
+         if (n > 8) { s[n]= 0; }
+         return(n);
+      }
+      return(0);
+   } // strHMS
+   
+   int strYMD (char s[], const int m, const char endCh=0) const
+      { return snprintf(s, m, "%u/%u/%u%c", 1970+year, month, day, endCh);  }
 
    void print (Stream& s, uint8_t opt=0x00) const
    {
@@ -121,27 +161,6 @@ static const char endCh[]={' ','\t','\n',0x00};
       strHMS(b, sizeof(b)-1, endCh[opt&0x3]);
       s.print(b);
    } // printTime
-
-   int strHMS (char s[], const int m, const signed char endCh=0) const
-   {
-      const int n= 8+(endCh>0);
-      if (m >= n)
-      {
-         hex2ChU8(s+0,bin2bcd(hour));
-         s[2]= ':';
-         hex2ChU8(s+3,bin2bcd(minute));
-         s[5]= ':';
-         hex2ChU8(s+6,bin2bcd(second));
-         s[8]= endCh;
-         if (n > 8) { s[n]= 0; }
-         return(n);
-      }
-      return(0);
-   } // strHMS
-   
-   // { return snprintf(s, m, "%02u:%02u:%02u%c", hour, minute, second, endCh);  }
-   int strYMD (char s[], const int m, const char endCh=0) const
-      { return snprintf(s, m, "%u/%u/%u%c", 1970+year, month, day, endCh);  }
 }; // DateTime
 
 class CClock : public RTClock, public DateTime

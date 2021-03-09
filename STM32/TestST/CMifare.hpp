@@ -95,24 +95,24 @@ public:
 
    CHackMFRC522 () { ; }
    
-   int8_t identify (void)
+   int8_t identify (Stream& s)
    {
       uint8_t iob= 0x37;
       int8_t r= readN(&iob, &iob, 1);
       if ((r > 0) && (0x90 == (iob & 0xF0)))
       {
          r= iob & 0x0F;
-         DEBUG.print("Mifare RC522 V");
-         DEBUG.println(r);
+         s.print("Mifare RC522 V");
+         s.println(r);
          return(r);
       }
       return(0);
    } // identify
    
-   int8_t hack (void)
+   int8_t hack (Stream& s)
    {
       int8_t r=0;
-      if (identify())
+      if (identify(s))
       {
          uint8_t in[HACK_MAXB], out[HACK_MAXB];
          int8_t n=0;
@@ -129,8 +129,8 @@ public:
          r= readN(in, out, n);
          for (int8_t i=0; i<r; i++)
          {
-            DEBUG.print(in[i], HEX);
-            DEBUG.print( st[ i>=(r-1) ] );
+            s.print(in[i], HEX);
+            s.print( st[ i>=(r-1) ] );
          }
       }
       return(r);

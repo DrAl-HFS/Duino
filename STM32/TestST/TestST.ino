@@ -11,12 +11,14 @@
 
 /***/
 
-#define LED PC13
+#define PIN_LED    PC13
+#define PIN_PULSE  PB12
 #define DEBUG_BAUD 115200 
 
 
 /***/
 
+CClock gClock;
 CTimer gT;
 CHackMFRC522 gRC522;
 
@@ -24,28 +26,56 @@ void tickFunc (void) { gT.nextIvl(); }
 
 void setup (void)
 {
+  noInterrupts();
   DEBUG.begin(DEBUG_BAUD);
   
+  pinMode(PIN_LED, OUTPUT);
+  digitalWrite(PIN_LED, 0);
+
+  pinMode(PIN_PULSE, OUTPUT);
+  digitalWrite(PIN_PULSE, 0);
+
+  gClock.setA(__DATE__,__TIME__);
+  gT.start(tickFunc);
+
+  interrupts();
   DEBUG.print("TestST " __DATE__ " ");
   DEBUG.println(__TIME__);
   
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, 0);
-  
-  gT.start(tickFunc);
-
   gRC522.init();
   gT.dbgPrint(DEBUG);
-  DEBUG.print("nIvl="); DEBUG.println(gT.swTickVal());
 } // setup
 
+uint16_t last=0;
+uint8_t c=0;
 void loop (void)
 {
-  if (gT.diff() >= 1000)
+  const uint16_t d= gT.diff();
+  if (d >= 1000)
   {
-    //gRC522.hack();
+    digitalWrite(PIN_LED, 1);
+    gClock.print(DEBUG);
+    gRC522.hack(DEBUG);
     gT.retire(1000);
-    DEBUG.print("nIvl="); DEBUG.println(gT.swTickVal()); //gTim.poll());
-    //gT4.dbgPrint(DEBUG);
+    c= 100;
+  }
+  if (d != last)
+  {
+    c-= (c>0);
+    digitalWrite(PIN_LED, c > 0);
+    last= d;
+#if 1
+    uint16_t t[2], j;
+    for (int i=0; i<20; i++)
+    {
+      j= i & 0x1;
+      digitalWrite(PIN_PULSE, j);
+      //t[j]= hwTickVal();
+      //delayMicroseconds(1);
+    }
+    digitalWrite(PIN_PULSE, 0);
+#else
+    digitalWrite(PIN_PULSE, gT.swTickVal() & 0x1 );
+#endif
   }
 } // loop
