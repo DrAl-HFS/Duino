@@ -1,7 +1,7 @@
 // Duino/Test.ino - Arduino IDE & AVR test harness
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020 -Jan 2021
+// (c) Project Contributors Dec 2020 -Mar 2021
 
 #include <math.h>
 //include <avr.h>
@@ -11,6 +11,8 @@
 
 #define BAUDRATE   115200
 
+#define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
+#define PIN_DA0 2
 
 /***/
 
@@ -19,10 +21,10 @@
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
-#include "Common/AVR/DA_SPIMHW.hpp"
+//include "Common/AVR/DA_SPIMHW.hpp"
 
 
-#ifdef DA_SPI_M_HW_HPP
+#ifdef DA_SPIMHW_HPP
 // Very basic SPI comm test
 #define DA_HACKRF24
 
@@ -44,9 +46,23 @@ public:
    }
 }; // class HackRF24
 
-#endif // DA_SPI_M_HW_HPP
+DA_SPIMHW gSPIMHW;
+uint8_t gM= SPI_MODE3;
+/*    if (ev& 0x80)
+    {
+      uint8_t w[]={0x1F,0}, r[]={0xAA,0x55};
+      gM &= SPI_MODE3;
+      gSPIMHW.modeReadWriteN(r,w,2,gM);
+      Serial.print("SPI - M");
+      Serial.print(gM);
+      Serial.print(':');
+      Serial.print(r[0],HEX);
+      Serial.print(',');
+      Serial.println(r[1],HEX);
+      gM+= SPI_MODE1;
+    }*/
+#endif // DA_SPIMHW_HPP
 
-#define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 
 CClock gClock(3000);
 
@@ -70,10 +86,6 @@ ISR(ADC_vect) { gADC.event(); }
 
 #endif // DA_ANALOGUE_HPP
 
-#ifdef DA_SPIMHW_HPP
-DA_SPIMHW gSPIMHW;
-uint8_t gM= SPI_MODE3;
-#endif
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
@@ -217,6 +229,7 @@ void setup (void)
   gADC.init(); gADC.start();
 #endif
   pinMode(PIN_PULSE, OUTPUT);
+  pinMode(PIN_PULSE, PIN_DA0);
 
   Serial.begin(BAUDRATE);
   Serial.print("Test " __DATE__ " ");
@@ -252,7 +265,6 @@ static uint16_t gHackCount= 0;
 
 void loop (void)
 {
-//static uint16_t n=0;  if (0 == n++)  { dumpT0(Serial); }
   uint8_t ev= gClock.update();
   if (ev > 0)
   { // <=1KHz update rate
@@ -274,21 +286,6 @@ void loop (void)
         }
       }
     }
-#ifdef DA_SPIMHW_HPP
-    if (ev& 0x80)
-    {
-      uint8_t w[]={0x1F,0}, r[]={0xAA,0x55};
-      gM &= SPI_MODE3;
-      gSPIMHW.modeReadWriteN(r,w,2,gM);
-      Serial.print("SPI - M");
-      Serial.print(gM);
-      Serial.print(':');
-      Serial.print(r[0],HEX);
-      Serial.print(',');
-      Serial.println(r[1],HEX);
-      gM+= SPI_MODE1;
-    }
-#endif
     if (ev & 0xF0)
     {
       sysLog(Serial,ev);
@@ -300,5 +297,6 @@ void loop (void)
       gClock.intervalStart();
     }
     pulseHack();
+    digitalWrite(PIN_DA0, gClock.tick & 0x1);
   }
 } // loop

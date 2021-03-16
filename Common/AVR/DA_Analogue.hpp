@@ -49,7 +49,7 @@ public:
       ADCSRA= (1<<ADEN) | (1<<ADIE) | 0x07; // ADC enable, Interrupt enable, clock prescaler 128 -> 125kHz sampling clock
       // 1<<ADATE; auto trigger enable
       ADCSRB= 0x00; // Free run (when auto-trigger)
-      //DIDR0=
+      DIDR0= 0x3F; // Disable digital input buffers on D5-D0
    } // start
 
    void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }

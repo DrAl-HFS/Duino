@@ -12,10 +12,8 @@
 
 /***/
 
-// Communication with MCP41010 seems unreliable, even at lower speed.
-// Have to send a great many times to see a change, and behaviour is
-// not predictable;                          bg                      ,.l  quasi-random hysteresis.. ?
-// Board design (routing) problems? Circuit design issue?
+// Communication with MCP41010 can be unreliable above 1MHz clock (despite manufacturers 10MHz claim). 
+// Presumably a board design (routing) problem or other circuit design issue...
 // Rheostat mode AD9833 out -> PA0, PW0 -> amp input.
 // Amp package 5pin SOP labelled "90 H" (SOT-23 TLV9051 equivalent/clone?)
 
@@ -25,8 +23,8 @@
 // Just use SS pin (D10 on Uno) - must be an output to prevent
 // SPI HW switching to slave mode (master + slave
 // operation would require extra signalling/arbitration)
-#define PIN_SEL1 SS // ADS9833 device select (inverted)  CPOL1 (falling) CPHA0 (leading)
-#define PIN_SEL2 9  // MCP41010 device select (inverted) CPOL0 (rising) CPHA0 (leading)
+#define PIN_SEL1 SS // PB2 ADS9833 device select (inverted)  CPOL1 (falling) CPHA0 (leading)
+#define PIN_SEL2 9  // PB1 MCP41010 device select (inverted) CPOL0 (rising) CPHA0 (leading)
 // Hardware SPI pins used implicitly
 //#define PIN_SCK SCK   // (D13 on Uno)
 //#define PIN_DAT MISO  // (D12 on Uno)
@@ -51,19 +49,21 @@ TODO - properly comprehend gcc assembler arg handling...
 #define SET_SEL1_LO() digitalWrite(PIN_SEL1, LOW)
 #define SET_SEL1_HI() digitalWrite(PIN_SEL1, HIGH)
 #endif
-#if 0
-#define SET_SEL2_LO() digitalWrite(PIN_SEL2, LOW)
-#define SET_SEL2_HI() digitalWrite(PIN_SEL2, HIGH)
-#else
+// Same for secondary SPI select
+#if (9 == PIN_SEl2) // PB1
 #define SET_SEL2_LO() PORTB &= ~(1<<1)
 #define SET_SEL2_HI() PORTB |= (1<<1)
+#else
+#define SET_SEL2_LO() digitalWrite(PIN_SEL2, LOW)
+#define SET_SEL2_HI() digitalWrite(PIN_SEL2, HIGH)
 #endif
 
 class DA_SPIMHW // : public CFastPollTimer
 {
 protected:
    void beginTransS1 (void) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2)); }
-   void beginTransS2 (void) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE0)); }
+   // NB: keep SPI clock low for better reliability
+   void beginTransS2 (void) { SPI.beginTransaction(SPISettings(1E6, MSBFIRST, SPI_MODE0)); }
 
    // AD9833 specific
    // Atomic (select hi->lo) write necesary to latch each register
@@ -80,7 +80,7 @@ protected:
    void writeS2 (const uint8_t cmd, const uint8_t b)
    {
       SET_SEL2_LO();    // active low
-      SPI.transfer(cmd);  // command byte
+      SPI.transfer(cmd);// command byte
       SPI.transfer(b);  // data byte
       SET_SEL2_HI();    // end
    } // writeS2

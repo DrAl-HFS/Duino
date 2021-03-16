@@ -172,7 +172,7 @@ void setup (void)
    interrupts();
    gClock.intervalStart();
    sysLog(Serial,0);
-   gSigGen.setGain(0x40);
+   gSigGen.setGain(gRotEnc.qCount);
 } // setup
 
 CmdSeg cmd; // Would be temp on stack but problems arise...
@@ -193,7 +193,6 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
-uint8_t gGSC=0;
 void loop (void)
 {
   uint8_t ev= gClock.update();
@@ -204,10 +203,8 @@ void loop (void)
     if (gRotEnc.update())
     { 
       gRotEnc.dump(gClock.tick,Serial);
-      gGSC= 100;
+      gSigGen.setGain(gRotEnc.qCount);
     }
-    if (gGSC > 0) { --gGSC; gSigGen.setGain(gRotEnc.qCount); } 
-    //
     if (gStreamCmd.read(cmd,Serial))
     {
       ev|= 0x40;
