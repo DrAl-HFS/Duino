@@ -17,11 +17,15 @@
 // Timer1 (16bit) used for pulse counting or fast poll (debug)
 #define AVR_CLOCK_TIMER 2
 
+#ifndef AVR_MILLI_TICKS
+#define AVR_MILLI_TICKS 1
+#endif
+
 // NB: Timer0 used for delay() etc.
 #if (0 == AVR_CLOCK_TIMER) || (2 == AVR_CLOCK_TIMER)
-#define AVR_CLOCK_IVL 250
+#define AVR_CLOCK_IVL (250 / AVR_MILLI_TICKS)
 #else
-#define AVR_CLOCK_IVL 2000
+#define AVR_CLOCK_IVL (2000 / AVR_MILLI_TICKS)
 #endif // AVR_CLOCK_TIMER
 
 
@@ -75,7 +79,7 @@ public:
    uint8_t diff (void) const
    {
       int8_t d= nIvl - nRet;
-      return( d>=0 ? d : (nIvl + 0xFF-nRet) ); // paranoid? : verify...
+      return( d >= 0 ? d : (nIvl + 0xFF-nRet) ); // paranoid? : verify...
    } // diff
 
    void retire (uint8_t d) { if (-1 == d) { nRet= nIvl; } else { nRet+= d; } }
@@ -244,11 +248,12 @@ public:
    uint8_t update (void)
    {
       uint8_t d= diff();
-      if (d > 0)
+      if (d > AVR_MILLI_TICKS)
       {
-         tick+= d;
+         uint8_t m= d / AVR_MILLI_TICKS;
+         tick+= m;
          tickTock();
-         retire(d);
+         retire(m * AVR_MILLI_TICKS);
       }
       return(d);
    } // update

@@ -107,6 +107,10 @@ public:
    } // dump
 }; // CAnalogueDbg
 
+// PWM needs timer/counter - plenty extra on Mega series
+// at 1kHz update rate (standard for general purpose task management) a
+// 470 Ohm resistor & 10uF capacitor gives reasonable smoothing. 
+// TODO - find suitable values for 10kHz update (10uF laggy, 2uF noisy).
 class CFastPulseDAC
 {
 public:
@@ -115,13 +119,13 @@ public:
    int8_t init (uint8_t m)
    {
 #ifdef ARDUINO_AVR_MEGA2560 // 640, 1280 ???
+      // Use timer 3 (provides triple compare channels)
       pinMode(5, OUTPUT); // OC3A
       pinMode(2, OUTPUT); // OC3B
       pinMode(3, OUTPUT); // OC3C
-      // timer 3
-      //  - wgm=0101 - 8b fast PWM
-      //  - com(a)=01 - toggle, com(b,c)=00 - ignore
-      //  - cs=001= clk/1 (16MHz)
+      //  - wgm=0101 - fast 8b PWM
+      //  - com=10 - f8pwm, com=00 - ignore
+      //  - cs=001 - clk/1 (16MHz)
       TCCR3A= 0b10101001;   // com:a,b,c:2,wgm:2
       TCCR3B=    0b01001;   // wgm:2,cs:3
       //TCCR3C= 0;

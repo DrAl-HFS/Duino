@@ -14,6 +14,9 @@
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 #define PIN_DA0 2
+// 10kHz clock update - 100us (1600 coreClk) interrupt
+// Allows up to ~5kHz bandwidth for PWM-DAC signal reconstruction
+#define AVR_MILLI_TICKS 10
 
 /***/
 
@@ -270,12 +273,12 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
-uint8_t gAV=0x01;
+uint8_t gLastEV=0, gAV=0x01;
 
 void loop (void)
 {
   uint8_t ev= gClock.update();
-  if (ev > 0)
+  if (ev > AVR_MILLI_TICKS)
   { // <=1KHz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
@@ -306,16 +309,17 @@ void loop (void)
       gClock.intervalStart();
     }
     pulseHack();
+  }
 #ifdef ARDUINO_AVR_MEGA2560
-  //if (0 == (gClock.tick & 0x3F))
-  {
+  if (ev != gLastEV)
+  { // synthesise analogue voltage ramp
     gDAC.set(gAV, gAV<<1, gAV<<2);
     //analogWrite(PIN_DA0,gAV); // pin2 = timer3 PWM0
-    gAV++; //= 0xF;
+    gAV++;
+    gLastEV= ev;
   }
-  //gAV++; // synthesise analogue voltage ramp
+  //gAV++; 
 #else
-    digitalWrite(PIN_DA0, gClock.tick & 0x1);
+  //digitalWrite(PIN_DA0, gClock.tick & 0x1);
 #endif
-  }
 } // loop
