@@ -1,7 +1,7 @@
 // Duino/Test.ino - Arduino IDE & AVR test harness
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020 -Mar 2021
+// (c) Project Contributors Dec 2020 - Mar 2021
 
 #include <math.h>
 //include <avr.h>
@@ -9,7 +9,8 @@
 
 /***/
 
-#define BAUDRATE   115200
+#define DEBUG      Serial
+#define DEBUG_BAUD 115200
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 #define PIN_DA0 2
@@ -41,8 +42,8 @@ public:
       wb[0]= 0x07; wb[1]= 0x00;
       int8_t i, nr= readWriteN(rb,wb,2);
       //rf.endTrans();
-      for (i=0; i<nr-1; i++) { Serial.print(rb[i],HEX); Serial.print(','); }
-      Serial.println(rb[i],HEX);
+      for (i=0; i<nr-1; i++) { s.print(rb[i],HEX); s.print(','); }
+      s.println(rb[i],HEX);
    }
 }; // class HackRF24
 
@@ -80,7 +81,8 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 #ifdef DA_ANALOGUE_HPP
 
-CAnalogue gADC;
+CAnalogueDbg gADC;
+CFastPulseDAC gDAC;
 
 ISR(ADC_vect) { gADC.event(); }
 
@@ -142,6 +144,8 @@ int8_t sysLog (Stream& s, uint8_t events)
 #endif
   str[n]= 0;
 #ifdef DA_ANALOGUE_HPP
+  s.print("DACt=");
+  s.println(gDAC.get());
   l= gADC.avail();
   if (l >= 0)
   {
@@ -222,27 +226,30 @@ void setup (void)
 {
   noInterrupts();
   
-  //setID("Nano1" / "UnoV3");
+  //setID("Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
 #ifdef DA_ANALOGUE_HPP
   gADC.init(); gADC.start();
+  gDAC.init(1); gDAC.set(0);
 #endif
   pinMode(PIN_PULSE, OUTPUT);
-  pinMode(PIN_PULSE, PIN_DA0);
+  pinMode(PIN_DA0, OUTPUT);
 
-  Serial.begin(BAUDRATE);
-  Serial.print("Test " __DATE__ " ");
-  Serial.println(__TIME__);
-  //sig(Serial);
-  //dumpT0(Serial);
+  DEBUG.begin(DEBUG_BAUD);
+  char sid[8];
+  if (getID(sid) > 0) { DEBUG.print(sid); }
+  DEBUG.print(" Test " __DATE__ " ");
+  DEBUG.println(__TIME__);
+  //sig(DEBUG);
+  //dumpT0(DEBUG);
    
   interrupts();
   gClock.intervalStart();
-  sysLog(Serial,0);
+  sysLog(DEBUG,0);
 
 #ifdef DA_HACKRF24
-  HackRF24 hack; hack.test(Serial);
+  HackRF24 hack; hack.test(DEBUG);
 #endif
 } // setup
 
@@ -263,6 +270,8 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
+uint8_t gAV=0x01;
+
 void loop (void)
 {
   uint8_t ev= gClock.update();
@@ -271,7 +280,7 @@ void loop (void)
     // Pre-collect multiple ADC samples, for pending sysLog()
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
     if (gClock.intervalUpdate()) { ev|= 0x80; } // 
-    if (gStreamCmd.read(cmd,Serial))
+    if (gStreamCmd.read(cmd,DEBUG))
     {
       ev|= 0x40;
       if (cmd.cmdF[0] & 0x10) // clock
@@ -288,15 +297,25 @@ void loop (void)
     }
     if (ev & 0xF0)
     {
-      sysLog(Serial,ev);
+      sysLog(DEBUG,ev);
       if (ev & 0x40)
       {
-        gStreamCmd.respond(cmd,Serial);
+        gStreamCmd.respond(cmd,DEBUG);
         cmd.clean();
       }
       gClock.intervalStart();
     }
     pulseHack();
+#ifdef ARDUINO_AVR_MEGA2560
+  if (0 == (gClock.tick & 0x3F))
+  {
+    gDAC.set(gAV);
+    //analogWrite(PIN_DA0,gAV); // pin2 = timer3 PWM0
+    gAV++; //= 0xF;
+  }
+  //gAV++; // synthesise analogue voltage ramp
+#else
     digitalWrite(PIN_DA0, gClock.tick & 0x1);
+#endif
   }
 } // loop

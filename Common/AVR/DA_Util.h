@@ -11,6 +11,9 @@
 extern "C" {
 #endif
 
+#ifdef ARDUINO_ARCH_AVR
+#endif
+
 //#include <?>
 
 

@@ -1,4 +1,4 @@
-// Duino/Common/AVR/DA_Analogue_HPP.hpp - Arduino-AVR interfacing to ADC
+// Duino/Common/AVR/DA_Analogue_HPP.hpp - Arduino-AVR interfacing to ADC and experimental PWM-DAC
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020
@@ -14,6 +14,7 @@
 
 /***/
 
+// Collect multiplexed
 #define ANLG_MUX_SH (2)
 #define ANLG_MUX_MAX (1<<ANLG_MUX_SH)
 #define ANLG_MUX_MSK  (ANLG_MUX_MAX-1)
@@ -80,6 +81,7 @@ public:
       return(n); // min(n,ANLG_VQ_MAX);
    } // avail
 
+   // return channel index or -1 if no data
    int8_t get (uint16_t& r)
    {
       if (avail() <= 0) { return(-1); }
@@ -89,6 +91,12 @@ public:
       r= t & 0xFFF;     // trust compiler to generate efficient
       return(t >> 12); // byte & nybble handling
    } // get
+}; // CAnalogue
+
+class CAnalogueDbg : public CAnalogue
+{
+public:
+   CAnalogueDbg (void) { ; }
 
    // Debug
    int8_t dump (char s[], int8_t max)
@@ -97,8 +105,33 @@ public:
       for (int8_t i=0; i<ANLG_VQ_MAX; i++) { n+= snprintf(s+n, max-n," %X", v[i]); }
       return(n);
    } // dump
+}; // CAnalogueDbg
 
-}; // CAnalogue
+class CFastPulseDAC
+{
+public:
+   CFastPulseDAC (void) { ; }
+
+   int8_t init (uint8_t m)
+   {
+#ifdef ARDUINO_AVR_MEGA2560 // 640, 1280 ???
+      pinMode(5, OUTPUT); // OC3A
+      pinMode(2, OUTPUT); // OC3B
+      pinMode(3, OUTPUT); // OC3C
+      // timer 3
+      //  - wgm=0101 - 8b fast PWM
+      //  - com(a)=01 - toggle, com(b,c)=00 - ignore
+      //  - cs=001= clk/1 (16MHz)
+      TCCR3A= 0b01010101;   // com:a,b,c:2,wgm:2
+      TCCR3B=    0b01001;   // wgm:2,cs:3
+      //TCCR3C= 0;
+#else
+#endif
+      return(0);
+   }
+   void set (uint8_t v) { OCR3A= OCR3B= OCR3C= v; }
+   uint16_t get (void) { return(TCNT3); }
+}; // CFastPulseDAC
 
 #endif //  DA_ANALOGUE_HPP
 
