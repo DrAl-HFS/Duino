@@ -122,14 +122,20 @@ public:
       //  - wgm=0101 - 8b fast PWM
       //  - com(a)=01 - toggle, com(b,c)=00 - ignore
       //  - cs=001= clk/1 (16MHz)
-      TCCR3A= 0b01010101;   // com:a,b,c:2,wgm:2
+      TCCR3A= 0b10101001;   // com:a,b,c:2,wgm:2
       TCCR3B=    0b01001;   // wgm:2,cs:3
       //TCCR3C= 0;
 #else
 #endif
       return(0);
    }
-   void set (uint8_t v) { OCR3A= OCR3B= OCR3C= v; }
+   void set (uint8_t vA, uint8_t vB, uint8_t vC)
+   { 
+      OCR3A= vA;
+      OCR3B= vB;
+      OCR3C= vC;
+   }
+   void set (uint8_t v) { set(v,v,v); }
    uint16_t get (void) { return(TCNT3); }
 }; // CFastPulseDAC
 

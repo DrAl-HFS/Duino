@@ -307,9 +307,9 @@ void loop (void)
     }
     pulseHack();
 #ifdef ARDUINO_AVR_MEGA2560
-  if (0 == (gClock.tick & 0x3F))
+  //if (0 == (gClock.tick & 0x3F))
   {
-    gDAC.set(gAV);
+    gDAC.set(gAV, gAV<<1, gAV<<2);
     //analogWrite(PIN_DA0,gAV); // pin2 = timer3 PWM0
     gAV++; //= 0xF;
   }
