@@ -86,6 +86,7 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 CAnalogueDbg gADC;
 CFastPulseDAC gDAC;
+CMiniLUT8 gSin;
 
 ISR(ADC_vect) { gADC.event(); }
 
@@ -147,8 +148,8 @@ int8_t sysLog (Stream& s, uint8_t events)
 #endif
   str[n]= 0;
 #ifdef DA_ANALOGUE_HPP
-  s.print("DACt=");
-  s.println(gDAC.get());
+  //s.print("DACt=");
+  //s.println(gDAC.get());
   l= gADC.avail();
   if (l >= 0)
   {
@@ -313,7 +314,7 @@ void loop (void)
 #ifdef ARDUINO_AVR_MEGA2560
   if (ev != gLastEV)
   { // synthesise analogue voltage ramp
-    gDAC.set(gAV, gAV<<1, gAV<<2);
+    gDAC.set(gSin.sampleU8(gAV), triangle(gAV), gAV<<2);
     //analogWrite(PIN_DA0,gAV); // pin2 = timer3 PWM0
     gAV++;
     gLastEV= ev;
