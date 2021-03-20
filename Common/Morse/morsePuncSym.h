@@ -1,5 +1,7 @@
-// Duino/STM32/BlinkST/morseSymbol.h - International Morse Code bit
+// DuinoCommon/Morse/morseSymbol.h - International Morse Code bit
 // (pulse) patterns for punctuation and other symbols in ASCII.
+// Structured as 3 lookup tables corresponding to ASCII codes - this
+// wastes a little storage but is overall an efficient approach.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Feb 2021
