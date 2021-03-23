@@ -45,7 +45,17 @@ int8_t unpackIMC12 (uint16_t code[], const uint16_t imc12)
 {
    code[0]= imc12 & IMC12_C_MASK;
    return(imc12>>IMC12_N_SHIFT);
-}
+} // unpackIMC12
+
+// Prosigns
+const uint16_t gProsIMC12[]=
+{
+   IMC12(4,0b0101), IMC12(5,0b01010), IMC12(5,0b01000),     // <AA> <AR> <AS>
+   IMC12(5,0b10001), IMC12(5,0b10101), IMC12(8,0b00000000), // <BT> <CT> <HH>
+   IMC12(5,0b00101), IMC12(5,0b10101), IMC12(5,0b00010),    // <INT> <KA> <VE>=<SN>
+   IMC12(5,0b10110), IMC12(6, 0b100111), IMC12(6,0b000101), // <KN> <NJ> <SK>
+   IMC12(9, 0b00011000)    // <SOS>
+}; // gProsIMC12
 
 #if 0 //def __cplusplus
 } // extern "C"
