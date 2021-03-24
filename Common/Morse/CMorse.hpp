@@ -125,13 +125,50 @@ struct B2Buff
    } // getNext
 }; // B2Buff
 
-// String Send State
-class CMorseSSS
+// Test/debug buffer with Arduino-Stream interface
+class CMorseBuff : public Stream
 {
 protected:
-   const char *s;
-   char cc[2]; // current & next classification
-   int8_t iS;  // no long strings!
+   const char *sM;
+   int8_t nM, iM;  // no long strings!
+   
+public:
+   CMorseBuff () {;}
+   
+   void set (const char *msg) { sM= msg; nM= strlen(msg); reset(); }
+   void reset (void) { iM= 0; }
+   
+   // Hacks
+   int ipeek (uint8_t i)
+   {
+      if (available() > i) { return(sM[i]); } //else
+      return(-1);
+   } // ipeek
+   //int8_t iget (void) { return(iM); }
+   
+   // Stream interface methods
+   int available (void) override
+   {
+      if (sM) { return(nM-iM); } // else
+      return(0);
+   } // available
+   int peek (void) override
+   {
+      if (available()) { return(sM[iM]); } //else
+      return(-1);
+   } // peek
+   int read (void) override
+   {
+      if (available()) { return(sM[iM++]); } //else
+      return(-1);
+   } // read
+   size_t write (uint8_t b) override { return(0); }
+}; // CMorseBuff
+
+// String Send State
+class CMorseSSS : CMorseBuff
+{
+protected:
    B2Buff b2b;
    
    bool setM5 (const uint8_t imc5, const int8_t last)
@@ -145,7 +182,7 @@ protected:
    {
       uint16_t c;
       int8_t n= unpackIMC12(&c, imc12);
-      if ((c & 0xFF) == c) { b2b.set(c, n, last); return(true); }
+      if ((c & 0x3FF) == c) { b2b.set(c, n, last); return(true); }
       return(false);
    }
    bool setASCII (const signed char a, const signed char c, const signed char nc)
@@ -158,23 +195,20 @@ protected:
          case 'A' : return setM5(gAlphaIMC5[a-c],last); // break;
          case '!' : return setM12(gSym1IMC12[a-c],last); // break;
          case ':' : return setM12(gSym2IMC12[a-c],last); // break;
-         case '[' : return setM12(gSym3IMC12[a-'_'],last); // break;
+         case '[' : if (a >= '_') { return setM12(gSym3IMC12[a-'_'],last); } break; // NB first 4 non-mappable skipped
+         // ???case 0x80: if (a <= 0x8C) { return setM12(gProsIMC12[a-0x80],last); } break;
       }
       return(false);
    } // setASCII
   
-   bool nextASCII (void)
+   bool nextASCII (Stream& s)
    {
-      int8_t iC;
       char a;
-      if (NULL == s) { return(false); }
+      if (0 == s.available()) { return(false); }
       do
       {
-         a= s[++iS];
-         if (0 == a) { return(false); }
-         iC= iS & 0x1;
-         cc[iC ^ 0x1]= classifyASCII(s[iS+1]);
-      } while ( !setASCII(a, cc[iC], cc[iC^0x1]) ); // skip any non-translateable
+         a= s.read(); //if (0 == a) { return(false); }
+      } while ( !setASCII( a, classifyASCII(a), classifyASCII(s.peek()) ) ); // skip any non-translateable
       return(true);
    } // nextASCII
   
@@ -183,27 +217,22 @@ public:
    
    CMorseSSS (void) { ; }
   
-   void send (const char *str)
-   { 
-      s= str;
-      resend();
-   } // set
+   void send (const char *msg) { CMorseBuff::set(msg); }
    
    void resend (void)
    {
-      iS= 0;
-      if (NULL == s) { setASCII(0,0,0); cc[0]= 0; }
-      else
+      CMorseBuff::reset();
+      if (this->available())
       {
-         cc[0]= classifyASCII(s[0]);
-         cc[1]= classifyASCII(s[1]);
-         setASCII(s[0],cc[0],cc[1]);
-      }
+         char a= CMorseBuff::peek();
+         char c= classifyASCII(a);
+         setASCII(a,c,c); // hacky!
+      } else { setASCII(0,0,0); }
    } // resend
 
    bool nextPulse (void)
    {
-      if (b2b.getNext(t) || (nextASCII() && b2b.getNext(t)))
+      if (b2b.getNext(t) || (nextASCII(*this) && b2b.getNext(t)))
       {
          v= (b2b.i & 0x1); // odd numbered on, even off
 #if 1
@@ -220,12 +249,13 @@ public:
          t= gTimeRelIMC[t]; // * timeScale;
          return(true);
       }
-      else { v= t= 0; iS= -1; }
+      else { v= t= 0; }
       return(false);
    } // nextPulse
 
-   bool ready (void) const { return(iS >= 0); }
-   bool complete (void) const { return(iS < 0); }
+   // TODO : find better condition...
+   bool ready (void) const { return(this->available() > 0); }
+   bool complete (void) const { return(this->available() <= 0); }
    
    void print (void) { printf("[%d] %d*%d\n", b2b.i, v, t); }
    

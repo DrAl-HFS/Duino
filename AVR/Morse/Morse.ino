@@ -20,7 +20,7 @@
 
 
 
-uint16_t gSpeed=45; // 11.1dps -> 26~27wpm
+uint16_t gPulseInterval=100; //ms 45; // 11.1dps -> 26~27wpm
 
 CClock gClock(15000); // 15.0 sec interval timer
 CMorseSSS gS;
@@ -101,7 +101,7 @@ void loop (void)
       if (gS.nextPulse())
       {
         digitalWrite(SIG_PIN, gS.v);
-        gMorseDT.add(gS.t*gSpeed);
+        gMorseDT.add(gS.t*gPulseInterval);
       }
       else
       {
