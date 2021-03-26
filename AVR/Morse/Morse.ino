@@ -18,12 +18,8 @@
 
 /***/
 
-
-
-uint16_t gPulseInterval=100; //ms 45; // 11.1dps -> 26~27wpm
-
-CClock gClock(15000); // 15.0 sec interval timer
-CMorseSSS gS;
+CClock gClock(5000); // 15.0 sec interval timer
+CMorseDebug gS;
 CDownTimer gMorseDT;
 CDownTimer gStreamDT;
 
@@ -74,9 +70,8 @@ void setup (void)
   DEBUG.print("\nMorse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
-  gS.send("What hath God wrought? <SOS> SOS");
+  gS.send("SOS "); //"What hath God wrought?"); // 
   gClock.intervalStart();
-  // DEBUG.print("MorsePG->"); DEBUG.println(sizeof(MorsePG));
   set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
 } // setup
@@ -100,8 +95,8 @@ void loop (void)
     {
       if (gS.nextPulse())
       {
-        digitalWrite(SIG_PIN, gS.v);
-        gMorseDT.add(gS.t*gPulseInterval);
+        digitalWrite(SIG_PIN, gS.pulseState());
+        gMorseDT.add(gS.t);
       }
       else
       {

@@ -51,7 +51,7 @@ const uint8_t gNumIMC5[]=
 // CONSIDER : better to include NUL state for last pulse flexibility? 
 // 0x0,0x1,0x2,0x3 -> 0,1,3,7
 //extern
-const uint8_t gTimeRelIMC[]={1,3,3,7};
+//const uint8_t gTimeRelIMC[]={1,3,3,7};
 
 // extern
 int8_t unpackIMC5 (uint8_t code[], const uint8_t imc5)

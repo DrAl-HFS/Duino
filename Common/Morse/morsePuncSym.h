@@ -47,7 +47,8 @@ int8_t unpackIMC12 (uint16_t code[], const uint16_t imc12)
    return(imc12>>IMC12_N_SHIFT);
 } // unpackIMC12
 
-// Prosigns
+#if 0
+// Prosigns - symbols composed of 2,3 characters without inter-character gap
 const uint16_t gProsIMC12[]=
 {
    IMC12(4,0b0101), IMC12(5,0b01010), IMC12(5,0b01000),     // <AA> <AR> <AS>
@@ -56,6 +57,7 @@ const uint16_t gProsIMC12[]=
    IMC12(5,0b10110), IMC12(6, 0b100111), IMC12(6,0b000101), // <KN> <NJ> <SK>
    IMC12(9, 0b000111000)    // <SOS>
 }; // gProsIMC12
+#endif
 
 #if 0 //def __cplusplus
 } // extern "C"

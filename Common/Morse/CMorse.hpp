@@ -29,7 +29,7 @@ protected:
    uint16_t c;
    int8_t i;
    uint8_t ng; // combined n & gap mask
-   
+
 public:
    //uint8_t ss; // stored copy of send state ?
 
@@ -86,65 +86,67 @@ signed char classifyASCII (const signed char a)
    return((a > 0) - (a < 0));
 } // classifyASCII
 
-// generate sequence of 2b pulse codes from <=8 bit code
-int8_t pulseSeq2bIMC (uint8_t b[], uint8_t c, const int8_t n)
+// Generate sequence of 2*2b pulse codes from 2b codes within 16b sequence
+int8_t pulseSeq2bIMC (uint8_t b[], uint16_t c, const int8_t n)
 {
-const uint8_t seq[]= { 0x00, 0x04, 0x40, 0x44 };
+//const uint8_t seq[]= { 0x00, 0x04, 0x40, 0x44 };
+const uint8_t seq[]= { 0x55, 0x59, 0x95, 0x99 };
    int8_t i= 0;
    do
    {
-      b[i]= seq[c & 0x3];
+      b[i]= seq[c & 0x3]; // order reversal
       c>>= 2;
    } while (++i < n);
-   return(n << 1); // 2*2b pulse codes per bit (representing long/short on, followed by short off time)
+   return(n << 1); // 2*2b pulse codes per bit (representing long/short on, followed by short off time, ie. 0bxx01)
 } // pulseSeq2bIMC
 
 struct B2Buff
 {
-   uint8_t b[4];
+   uint8_t b[5];
    int8_t n, i, l;
 
-   void set (const uint8_t codeBits, const int8_t nBits, const int8_t last=0x2)
+   bool set (const uint16_t codeBits, const int8_t nBits, const int8_t last=0x2)
    {
       i= n= pulseSeq2bIMC(b, codeBits, nBits);
-      if (last > 0) { b[0]|= last & 0x3; l= 0; if (i<= 0) { i= 1; } } // set next symbol / word gap
+      if (last > 0) { b[0]= (b[0] & 0xFC) | (last & 0x3); l= 0; if (i<= 0) { i= 1; } } // set next symbol / word gap
       else { l= 1; } // end without trailing gap
+      return(n > 0);
    }
-  
-   bool getNext (uint8_t& v)
+
+   bool getNext (uint8_t& tc)
    {
       if (i > l)
       {
          int8_t iB, i2b= --i;
          iB= i2b >> 2;
          i2b&= 0x3;
-         v= (b[iB] >> (2*i2b)) & 0x3;
+         tc= (b[iB] >> (2*i2b)) & 0x3;
          return(true);
       }
       return(false);
    } // getNext
 }; // B2Buff
 
-// Test/debug buffer with Arduino-Stream interface
+// Test/debug input ASCII text buffer with Arduino-Stream interface
 class CMorseBuff : public Stream
 {
 protected:
    const char *sM;
    int8_t nM, iM;  // no long strings!
-   
+
 public:
    CMorseBuff () {;}
-   
+
    void set (const char *msg) { sM= msg; nM= strlen(msg); reset(); }
    void reset (void) { iM= 0; }
-   
-   // Hacks
+
+   /* Unused Hacks
    int ipeek (uint8_t i)
    {
       if (available() > i) { return(sM[i]); } //else
       return(-1);
    } // ipeek
-   //int8_t iget (void) { return(iM); }
+   int8_t iget (void) { return(iM); }*/
    
    // Stream interface methods
    int available (void) override
@@ -165,29 +167,32 @@ public:
    size_t write (uint8_t b) override { return(0); }
 }; // CMorseBuff
 
-// String Send State
+// String Send State : generates output code sequence
 class CMorseSSS : CMorseBuff
 {
 protected:
    B2Buff b2b;
+   uint8_t gap;
    
    bool setM5 (const uint8_t imc5, const int8_t last)
    {
       uint8_t c;
       int8_t n= unpackIMC5(&c, imc5);
-      b2b.set(c, n, last);
-      return(true);
+      return b2b.set(c, n, last);
    }
+
    bool setM12 (const uint16_t imc12, const int8_t last)
    {
       uint16_t c;
       int8_t n= unpackIMC12(&c, imc12);
-      if ((c & 0x3FF) == c) { b2b.set(c, n, last); return(true); }
+      if ((c & 0x3FF) == c) { return b2b.set(c, n, last); }
       return(false);
    }
+
    bool setASCII (const signed char a, const signed char c, const signed char nc)
    {
-      int8_t last= 0x2 + (' ' == nc); // - (0x00 == nc);
+      int8_t last= gap;
+      if (' ' == nc) { last= 0x3; } // if (0x0 == nc) { gap= 0x0; }
       switch (c)
       {
          case '0' : return setM5(gNumIMC5[a-c],last); // break;
@@ -200,31 +205,31 @@ protected:
       }
       return(false);
    } // setASCII
-  
+
    bool nextASCII (Stream& s)
    {
       char a;
-      if (0 == s.available()) { return(false); }
       do
       {
-         a= s.read(); //if (0 == a) { return(false); }
+         if (0 == s.available()) { return(false); }
+         a= s.read();
       } while ( !setASCII( a, classifyASCII(a), classifyASCII(s.peek()) ) ); // skip any non-translateable
       return(true);
    } // nextASCII
-  
+
 public:
-   uint8_t v, t;
-   
-   CMorseSSS (void) { ; }
-  
+   uint8_t tc;
+
+   CMorseSSS (void) { gap=0x2; }
+
    void send (const char *msg) { CMorseBuff::set(msg); }
-   
+
    void resend (void)
    {
       CMorseBuff::reset();
       if (this->available())
       {
-         char a= CMorseBuff::peek();
+         char a= CMorseBuff::read();
          char c= classifyASCII(a);
          setASCII(a,c,c); // hacky!
       } else { setASCII(0,0,0); }
@@ -232,33 +237,66 @@ public:
 
    bool nextPulse (void)
    {
-      if (b2b.getNext(t) || (nextASCII(*this) && b2b.getNext(t)))
-      {
-         v= (b2b.i & 0x1); // odd numbered on, even off
-#if 1
-{  // '\n'
-  static const char dbg[2][4]={ { 0x0, 'e', '|',' '}, {'.','-','e','e'} };
-  char ch=dbg[v][t];
-  if (ch)
-  {
-     //printf("%c",ch);
-     DEBUG.write(ch); DEBUG.flush();
-  }
-}
-#endif
-         t= gTimeRelIMC[t]; // * timeScale;
-         return(true);
-      }
-      else { v= t= 0; }
+      if (b2b.getNext(tc) || (nextASCII(*this) && b2b.getNext(tc))) { return(true); }
+      //else
+      tc= 0;
       return(false);
    } // nextPulse
+
+   uint8_t pulseState (void) { return(b2b.i & 0x1); }
 
    // TODO : find better condition...
    bool ready (void) const { return(this->available() > 0); }
    bool complete (void) const { return(this->available() <= 0); }
-   
-   void print (void) { printf("[%d] %d*%d\n", b2b.i, v, t); }
-   
+
 }; // CMorseSSS
+
+// Apply a simple timing model to coded output
+class CMorseTime : public CMorseSSS
+{
+public:
+   uint16_t scale, t;
+
+   CMorseTime (uint16_t s) : scale{s} { ; } //ms 45; // 11.1dps -> 26~27wpm
+
+   bool nextPulse (void)
+   {
+      bool r= CMorseSSS::nextPulse();
+      switch(tc & 0x3)
+      {
+         case 0x1 : t= scale; break;
+         case 0x2 : t= 3*scale; break;
+         case 0x3 : t= 7*scale; break;
+         case 0x0 : t= 0; break;
+      }
+      return(r);
+   } // nextPulse
+
+}; // CMorseTime
+
+class CMorseDebug : public CMorseTime
+{
+public :
+   CMorseDebug (uint16_t s=100) : CMorseTime(s) { ; }
+
+   // unnecessary for publicly inherited
+   //using CMorseSSS::send;
+   //using CMorseSSS::resend;
+
+   bool nextPulse (void)
+   {
+      bool r= CMorseTime::nextPulse();
+      static const char dbg[2][4]={ { '\n', 0x0, '|', ' ' }, { '0', '.', '-', '3' } };
+      //DEBUG.print( tc );
+      DEBUG.write( dbg[pulseState()][tc] ); DEBUG.flush();
+      return(r);
+   } // nextPulse
+
+   //using CMorseSSS::ready;
+   //using CMorseSSS::complete;
+
+   //void print (void) { printf("[%d] %d*%d\n", b2b.i, v, t); }
+
+}; // CMorseDebug
 
 #endif // CMORSE_HPP
