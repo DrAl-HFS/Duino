@@ -14,8 +14,6 @@
 #define SIGNAL PB10
 #define DEBUG_BAUD 115200 
 
-uint16_t gSpeed=45;
-
 
 /***/
 
@@ -27,7 +25,7 @@ CTimer gT;
 void tickFunc (void) { gT.nextIvl(); }
 uint16_t gDT; // initial delay
 
-CMorseSSS gS;
+CMorseDebug gS;
 
 void setup (void)
 {
@@ -49,7 +47,7 @@ void setup (void)
   //gClock.begin();
   gT.start(tickFunc);
   gT.dbgPrint(DEBUG);
-  gS.send("What hath God wrought? <SOS> SOS");
+  gS.send("SOS <SOS>"); // "What hath God wrought?");
   gDT= 1000;
   gClock.print(DEBUG,0x82);
 } // setup
@@ -61,9 +59,10 @@ void loop (void)
     gT.retire(gDT); // chop or stretch ?...
     if (gS.nextPulse())
     {
-      digitalWrite(LED, gS.v);
-      digitalWrite(SIGNAL, gS.v);
-      gDT= gS.t*gSpeed;
+      uint8_t v= gS.pulseState();
+      digitalWrite(LED, v);
+      digitalWrite(SIGNAL, v);
+      gDT= gS.t;
     }
     else
     {

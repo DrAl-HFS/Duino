@@ -136,7 +136,12 @@ protected:
 public:
    CMorseBuff () {;}
 
-   void set (const char *msg) { sM= msg; nM= strlen(msg); reset(); }
+   void set (const char *msg)
+   {
+      sM= msg;
+      if (msg) { nM= strlen(msg); } else { nM= 0; }
+      reset();
+   }
    void reset (void) { iM= 0; }
 
    /* Unused Hacks
@@ -164,6 +169,9 @@ public:
       return(-1);
    } // read
    size_t write (uint8_t b) override { return(0); }
+   
+   // Required for STM32 build, but not AVR?? (lax compiler settings?)
+   void flush (void) override { ; }
 }; // CMorseBuff
 
 // String Send State : generates output code sequence
@@ -252,8 +260,8 @@ public:
    uint8_t pulseState (void) { return(b2b.i & 0x1); }
 
    // TODO : find better condition...
-   bool ready (void) const { return(this->available() > 0); }
-   bool complete (void) const { return(this->available() <= 0); }
+   bool ready (void) { return(this->available() > 0); }
+   bool complete (void) { return(this->available() <= 0); }
 
 }; // CMorseSSS
 
