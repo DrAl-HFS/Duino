@@ -103,19 +103,18 @@ const uint8_t seq[]= { 0x55, 0x59, 0x95, 0x99 };
 struct B2Buff
 {
    uint8_t b[5];
-   int8_t n, i, l;
+   int8_t n, i;
 
-   bool set (const uint16_t codeBits, const int8_t nBits, const int8_t last=0x2)
+   bool set (const uint16_t codeBits, const int8_t nBits, const int8_t addLast=0x1)
    {
       i= n= pulseSeq2bIMC(b, codeBits, nBits);
-      if (last > 0) { b[0]= (b[0] & 0xFC) | (last & 0x3); l= 0; if (i<= 0) { i= 1; } } // set next symbol / word gap
-      else { l= 1; } // end without trailing gap
+      b[0]+= addLast;
       return(n > 0);
    }
 
    bool getNext (uint8_t& tc)
    {
-      if (i > l)
+      if (i > 0)
       {
          int8_t iB, i2b= --i;
          iB= i2b >> 2;
@@ -172,35 +171,35 @@ class CMorseSSS : CMorseBuff
 {
 protected:
    B2Buff b2b;
-   uint8_t gap;
+   int8_t addLastGap;
    
-   bool setM5 (const uint8_t imc5, const int8_t last)
+   bool setM5 (const uint8_t imc5, const int8_t addLast)
    {
       uint8_t c;
       int8_t n= unpackIMC5(&c, imc5);
-      return b2b.set(c, n, last);
+      return b2b.set(c, n, addLast);
    }
 
-   bool setM12 (const uint16_t imc12, const int8_t last)
+   bool setM12 (const uint16_t imc12, const int8_t addLast)
    {
       uint16_t c;
       int8_t n= unpackIMC12(&c, imc12);
-      if ((c & 0x3FF) == c) { return b2b.set(c, n, last); }
+      if ((c & 0x3FF) == c) { return b2b.set(c, n, addLast); }
       return(false);
    }
 
    bool setASCII (const signed char a, const signed char c, const signed char nc)
    {
-      int8_t last= gap;
-      if (' ' == nc) { last= 0x3; } // if (0x0 == nc) { gap= 0x0; }
+      int8_t addLast= addLastGap;
+      if (' ' == nc) { ++addLast; }
       switch (c)
       {
-         case '0' : return setM5(gNumIMC5[a-c],last); // break;
+         case '0' : return setM5(gNumIMC5[a-c],addLast); // break;
          case 'a' :
-         case 'A' : return setM5(gAlphaIMC5[a-c],last); // break;
-         case '!' : return setM12(gSym1IMC12[a-c],last); // break;
-         case ':' : return setM12(gSym2IMC12[a-c],last); // break;
-         case '[' : if (a >= '_') { return setM12(gSym3IMC12[a-'_'],last); } break; // NB first 4 non-mappable skipped
+         case 'A' : return setM5(gAlphaIMC5[a-c],addLast); // break;
+         case '!' : return setM12(gSym1IMC12[a-c],addLast); // break;
+         case ':' : return setM12(gSym2IMC12[a-c],addLast); // break;
+         case '[' : if (a >= '_') { return setM12(gSym3IMC12[a-'_'],addLast); } break; // NB first 4 non-mappable skipped
          // ???case 0x80: if (a <= 0x8C) { return setM12(gProsIMC12[a-0x80],last); } break;
       }
       return(false);
@@ -208,19 +207,26 @@ protected:
 
    bool nextASCII (Stream& s)
    {
+      bool r;
       char a;
       do
       {
          if (0 == s.available()) { return(false); }
          a= s.read();
-      } while ( !setASCII( a, classifyASCII(a), classifyASCII(s.peek()) ) ); // skip any non-translateable
-      return(true);
+         switch(a)
+         {
+            case '<' : addLastGap= 0x0; // prosign on
+            case '>' : addLastGap= 0x1; //      off
+            default : r= setASCII( a, classifyASCII(a), classifyASCII(s.peek()) );
+         }
+      } while (!r); // skip any non-translateable
+      return(r);
    } // nextASCII
 
 public:
    uint8_t tc;
 
-   CMorseSSS (void) { gap=0x2; }
+   CMorseSSS (void) { addLastGap=0x1; }
 
    void send (const char *msg) { CMorseBuff::set(msg); }
 
@@ -255,18 +261,19 @@ public:
 class CMorseTime : public CMorseSSS
 {
 public:
-   uint16_t scale, t;
+   uint8_t msPulse;
+   uint16_t t;
 
-   CMorseTime (uint16_t s) : scale{s} { ; } //ms 45; // 11.1dps -> 26~27wpm
+   CMorseTime (uint8_t dps) { msPulse= 500 / dps; } //ms 45; // 11.1dps -> 26~27wpm
 
    bool nextPulse (void)
    {
       bool r= CMorseSSS::nextPulse();
       switch(tc & 0x3)
       {
-         case 0x1 : t= scale; break;
-         case 0x2 : t= 3*scale; break;
-         case 0x3 : t= 7*scale; break;
+         case 0x1 : t= msPulse; break;
+         case 0x2 : t= 3*msPulse; break;
+         case 0x3 : t= 7*msPulse; break;
          case 0x0 : t= 0; break;
       }
       return(r);
@@ -277,7 +284,7 @@ public:
 class CMorseDebug : public CMorseTime
 {
 public :
-   CMorseDebug (uint16_t s=100) : CMorseTime(s) { ; }
+   CMorseDebug (uint8_t dps=10) : CMorseTime(dps) { ; }
 
    // unnecessary for publicly inherited
    //using CMorseSSS::send;

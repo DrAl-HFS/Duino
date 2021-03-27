@@ -19,7 +19,7 @@
 /***/
 
 CClock gClock(5000); // 15.0 sec interval timer
-CMorseDebug gS;
+CMorseDebug gS(6);
 CDownTimer gMorseDT;
 CDownTimer gStreamDT;
 
@@ -70,7 +70,7 @@ void setup (void)
   DEBUG.print("\nMorse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
-  gS.send("SOS "); //"What hath God wrought?"); // 
+  gS.send("SOS <SOS>"); //"What hath God wrought?"); // 
   gClock.intervalStart();
   set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
