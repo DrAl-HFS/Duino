@@ -2,7 +2,7 @@
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Oct-Dec 2020
+// (c) Project Contributors Oct 2020 - Mar 2021
 
 // HW Ref:  http://www.analog.com/media/en/technical-documentation/data-sheets/AD9833.pdf
 
@@ -30,7 +30,7 @@ public:
 
    void setGain (uint8_t b)
    {
-      beginTransS1();
+      beginTransS2();
       //writeS2(0x21, 0x00); // shutdown
       writeS2(0x11, b);
       endTrans();

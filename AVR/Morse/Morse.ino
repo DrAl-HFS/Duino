@@ -1,7 +1,7 @@
 // Duino/AVR/Morse/Morse.ino - Morse code generation
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Feb 2021
+// (c) Project Contributors Feb - Mar 2021
 
 #define DEBUG Serial
 

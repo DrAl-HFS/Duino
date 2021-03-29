@@ -1,7 +1,7 @@
 // Duino/Common/AVR/DA_Analogue_HPP.hpp - Arduino-AVR interfacing to ADC and experimental PWM-DAC
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020
+// (c) Project Contributors Dec 2020 - Mar 2021
 
 #ifndef DA_ANALOGUE_HPP
 #define DA_ANALOGUE_HPP
@@ -130,18 +130,25 @@ public:
       TCCR3B=    0b01001;   // wgm:2,cs:3
       //TCCR3C= 0;
 #else
+      // Timer 0/1 ?
 #endif
       return(0);
    }
    void set (uint8_t vA, uint8_t vB, uint8_t vC)
    { 
+#ifdef ARDUINO_AVR_MEGA2560
       OCR3A= vA;
       OCR3B= vB;
       OCR3C= vC;
+#else
+#endif
    }
    void set (uint8_t v) { set(v,v,v); }
    //uint16_t get (void) { return(TCNT3); }
 }; // CFastPulseDAC
+
+
+/*** TODO: displace... ***/
 
 // Quarter sine table: 32 * 4 = 128 sample values generated
 static const int8_t qSinQ7M5[32]=

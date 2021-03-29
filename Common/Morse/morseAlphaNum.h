@@ -2,7 +2,7 @@
 // bit (pulse) patterns for minimal (ie. alphanumeric) ASCII characters.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Feb 2021
+// (c) Project Contributors Feb - Mar 2021
 
 #ifndef MORSE_ALPHA_NUM_H
 #define MORSE_ALPHA_NUM_H

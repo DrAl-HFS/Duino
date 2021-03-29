@@ -2,7 +2,7 @@
 // Analog Devices AD9833 signal generator with SPI/3-wire compatible interface.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2020 - Feb 2021
+// (c) Project Contributors Nov 2020 - Mar 2021
 
 #include <math.h>
 
@@ -59,7 +59,7 @@ ISR(TIMER1_OVF_vect)  { gRate.event(); }
 
 #ifdef DA_ANALOGUE_HPP
 
-CAnalogue gADC;
+CAnalogueDbg gADC;
 
 ISR(ADC_vect) { gADC.event(); }
 

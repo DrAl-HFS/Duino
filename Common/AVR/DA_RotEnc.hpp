@@ -1,7 +1,7 @@
 // Duino/Common/AVR/DA_RotEnc.hpp - handle EC11 Rotary Encoder with Button
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Feb 2021
+// (c) Project Contributors Feb - Mar 2021
 
 #ifndef DA_ROT_ENC_HPP
 #define DA_ROT_ENC_HPP
@@ -17,8 +17,8 @@
 class CRotEnc
 {
 protected:
-   uint8_t rawBS; // button: press=1, release=0, 8samples @ 1kHz -> 8ms debounce (seems like plenty)
-   uint8_t rawQS; // 4bit mask in lo nybble
+   uint8_t rawBS;  // button: press=1, release=0, 8samples @ 1kHz -> 8ms debounce (seems like plenty)
+   uint8_t rawQS;  // 4bit data in lo nybble: new state in bits 3,2, previous in bits 1,0
    int8_t  rateDC; // UI event rate delay counter
    
    uint8_t updateBS (uint8_t bm)
@@ -43,10 +43,10 @@ protected:
    } // updateBS
    
    uint8_t updateQS (uint8_t qm)
-   {  // No debouncing of rotation, but invalid states ignored (may not
-      if (rawQS ^ qm)   // be sufficient for an old noisy encoder)
-      {  // signal change
-         rawQS= qm | (rawQS >> 2);
+   {  // No debouncing of rotation, but invalid states ignored (may not be sufficient for an old noisy encoder)
+      if (0x0C & (rawQS ^ qm))
+      {  // state change detected
+         rawQS= qm | (rawQS >> 2); // form current + previous mask
          switch (rawQS)
          {  // check the 8 valid quadrature patterns - 
             case 0b0111 : // TODO: Consider ways of encoding
@@ -66,10 +66,10 @@ protected:
    } // updateQS
    
 public:
-   uint8_t bCount;   // bit 0 = state, saturating count in bits 1:7
-   uint8_t qCount;  // quadrature count, unsigned wrap 255<->0 (signed wrap +127 <-> -128)
+   uint8_t bCount; // bit 0 = state, saturating count in bits 1:7
+   uint8_t qCount; // quadrature count, unsigned wrap 255<->0 (signed wrap +127 <-> -128)
    
-   CRotEnc (void) { qCount=0x80; } // start midscale
+   CRotEnc (uint8_t c=0x80) { qCount=c; } // : qCount{c} start midscale
   
    void init (void)
    {  // PortD: 2,3,4
@@ -83,7 +83,7 @@ public:
    uint8_t update (void)
    { 
       uint8_t r= PIND;  // invert NC button so 1 means pressed
-      r= updateBS(0 == (r & 0x10)) | updateQS(r & 0xC);
+      r= updateBS(0 == (r & 0x10)) | updateQS(r & 0x0C);
       return(r); // return change mask
    } // update
    
@@ -113,5 +113,5 @@ public :
    } // dump
 }; // CRotEncDbg
 
-#endif // #include <EEPROM.h>
+#endif // DA_ROT_ENC_HPP
 

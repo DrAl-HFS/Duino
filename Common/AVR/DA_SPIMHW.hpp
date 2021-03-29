@@ -62,8 +62,7 @@ class DA_SPIMHW // : public CFastPollTimer
 {
 protected:
    void beginTransS1 (void) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE2)); }
-   // NB: keep SPI clock low for better reliability
-   void beginTransS2 (void) { SPI.beginTransaction(SPISettings(1E6, MSBFIRST, SPI_MODE0)); }
+   void beginTransS2 (void) { SPI.beginTransaction(SPISettings(8E6, MSBFIRST, SPI_MODE0)); }
 
    // AD9833 specific
    // Atomic (select hi->lo) write necesary to latch each register

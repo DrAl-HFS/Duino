@@ -1,7 +1,7 @@
 // Duino/Common/Morse/CMorse.hpp - International Morse Code pattern processing
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Feb 2021
+// (c) Project Contributors Feb - Mar 2021
 
 #ifndef CMORSE_HPP
 #define CMORSE_HPP
@@ -11,7 +11,7 @@
 
 // default 16bit! need to compile with --short-enum ?
 //enum MorsePG { };
-typedef int8_t MorsePG; // Pulse/Gap 3bits : b0 = on/off
+typedef int8_t MorsePG; // Pulse/Gap 3bits : b0 = on/off (llo)
 #define MORSE_PG_NONE  ((MorsePG)0x0)
 #define MORSE_PG_ON    ((MorsePG)0x1)
 #define MORSE_PG_SHORT ((MorsePG)0x2)
@@ -89,12 +89,11 @@ signed char classifyASCII (const signed char a)
 // Generate sequence of 2*2b pulse codes from 2b codes within 16b sequence
 int8_t pulseSeq2bIMC (uint8_t b[], uint16_t c, const int8_t n)
 {
-//const uint8_t seq[]= { 0x00, 0x04, 0x40, 0x44 };
 const uint8_t seq[]= { 0x55, 0x59, 0x95, 0x99 };
    int8_t i= 0;
    do
    {
-      b[i]= seq[c & 0x3]; // order reversal
+      b[i]= seq[c & 0x3];
       c>>= 2;
    } while (++i < n);
    return(n << 1); // 2*2b pulse codes per bit (representing long/short on, followed by short off time, ie. 0bxx01)
