@@ -172,6 +172,7 @@ class CMorseSSS : CMorseBuff
 protected:
    B2Buff b2b;
    int8_t addLastGap;
+   uint8_t dbgFlag;
    
    bool setM5 (const uint8_t imc5, const int8_t addLast)
    {
@@ -190,8 +191,14 @@ protected:
 
    bool setASCII (const signed char a, const signed char c, const signed char nc)
    {
-      int8_t addLast= addLastGap;
-      if (' ' == nc) { ++addLast; }
+      int8_t addLast;
+      switch(nc)
+      {
+         default : addLast= addLastGap; dbgFlag|= 0x1; break; // use current prosign state
+         case ' ' : addLast= 2; dbgFlag|= 0x2; break;  // word gap
+         case '>' : addLast= 2; dbgFlag|= 0x4; break;  // end of prosign, force word (?) gap
+         case 0x0 : addLast= -1; dbgFlag|= 0x8; break; // end of message, remove trailing gap
+     }
       switch (c)
       {
          case '0' : return setM5(gNumIMC5[a-c],addLast); // break;
@@ -200,7 +207,6 @@ protected:
          case '!' : return setM12(gSym1IMC12[a-c],addLast); // break;
          case ':' : return setM12(gSym2IMC12[a-c],addLast); // break;
          case '[' : if (a >= '_') { return setM12(gSym3IMC12[a-'_'],addLast); } break; // NB first 4 non-mappable skipped
-         // ???case 0x80: if (a <= 0x8C) { return setM12(gProsIMC12[a-0x80],last); } break;
       }
       return(false);
    } // setASCII
@@ -215,16 +221,15 @@ protected:
          a= s.read();
          switch(a)
          {
-            case 0x0 : addLastGap= -1; break; // end of message
-            case '<' : addLastGap= 0; break; // prosign on
-            case '>' : addLastGap= 1; break; //      off
+            case '<' : addLastGap= 0; dbgFlag|= 0x80; break; // prosign on
+            case '>' : addLastGap= 1; dbgFlag|= 0x40; break; //      off
             default : r= setASCII( a, classifyASCII(a), classifyASCII(s.peek()) ); break;
          }
       } while (!r); // skip any non-translateable
       return(r);
    } // nextASCII
 
-   void resetGap (void) { addLastGap=0x1; }
+   void resetGap (void) { addLastGap=0x1; dbgFlag=0; }
 public:
    uint8_t tc;
 
@@ -292,6 +297,7 @@ public :
       bool r= CMorseTime::nextPulse();
       static const char dbg[2][4]={ { '\n', 0, '|', ' ' }, { '0', '.', '-', '3' } };
       DEBUG.write( dbg[pulseState()][tc] ); DEBUG.flush();
+      if (dbgFlag & 0x0C) { DEBUG.print("f:"); DEBUG.println(dbgFlag,HEX); }
       return(r);
    } // nextPulse
 

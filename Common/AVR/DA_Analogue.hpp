@@ -19,7 +19,7 @@
 #define ANLG_MUX_MAX (1<<ANLG_MUX_SH)
 #define ANLG_MUX_MSK  (ANLG_MUX_MAX-1)
 
-#define ANLG_VQ_SH (3)
+#define ANLG_VQ_SH (4)
 #define ANLG_VQ_MAX (1<<ANLG_VQ_SH)
 #define ANLG_VQ_MSK  (ANLG_VQ_MAX-1)
 
