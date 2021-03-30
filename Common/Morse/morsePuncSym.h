@@ -48,6 +48,7 @@ int8_t unpackIMC12 (uint16_t code[], const uint16_t imc12)
 } // unpackIMC12
 
 #if 0
+// DEPRECATED : handled as multi-character with gap reduction
 // Prosigns - symbols composed of 2,3 characters without inter-character gap
 const uint16_t gProsIMC12[]=
 {

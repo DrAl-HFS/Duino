@@ -3,17 +3,19 @@
 // Licence: GPL V3A
 // (c) Project Contributors Feb - Mar 2021
 
-#define DEBUG Serial
-
-#include "Common/Morse/CMorse.hpp"
+//#include "Common/Morse/CMorse.hpp"
 #include "Common/AVR/DA_Timing.hpp"
+#include "Common/AVR/DA_Config.hpp"
 
 
 /***/
 
-#define SIG_PIN 2
-//define TONE_PIN 3 // // NB tone conflicts with Clock (Timer2)
+#define DEBUG Serial
 #define DEBUG_BAUD 115200 
+#include "Common/Morse/CMorse.hpp" // DEBUG accessibility problems...
+
+#define SIG_PIN 17  // Uno ADC3 / PC3
+//define TONE_PIN 3 // // NB tone conflicts with Clock (Timer2)
 
 
 /***/
@@ -55,9 +57,12 @@ char procCmd (Stream& s)
 
 void setup (void)
 {
+  char sid[8];
   noInterrupts();
 
   DEBUG.begin(DEBUG_BAUD);
+
+  getID(sid);
 
   pinMode(SIG_PIN, OUTPUT);
   digitalWrite(SIG_PIN, 0);
@@ -66,11 +71,11 @@ void setup (void)
   gClock.start();
 
   interrupts();
-  
-  DEBUG.print("\nMorse " __DATE__ " ");
+  DEBUG.print(sid);
+  DEBUG.print(" Morse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
-  gS.send("SOS <SOS>"); //"What hath God wrought?"); // 
+  gS.send("<SOS> <SOS> <SOS>   What hath God wrought? <AR>");
   gClock.intervalStart();
   set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
@@ -93,7 +98,7 @@ void loop (void)
     }
     if (gS.ready() && gMorseDT.update(ev))
     {
-      if (gS.nextPulse())
+      if (gS.nextPulse()) // DEBUG))
       {
         digitalWrite(SIG_PIN, gS.pulseState());
         gMorseDT.add(gS.t);

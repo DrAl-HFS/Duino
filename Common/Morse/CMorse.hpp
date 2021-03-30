@@ -101,7 +101,7 @@ const uint8_t seq[]= { 0x55, 0x59, 0x95, 0x99 };
 
 struct B2Buff
 {
-   uint8_t b[5];
+   uint8_t b[4]; // Up to 8 pulses, max 7 needed ( $ symbol)
    int8_t n, i;
 
    bool set (const uint16_t codeBits, const int8_t nBits, const int8_t addLast=0x1)
@@ -139,18 +139,11 @@ public:
    {
       sM= msg;
       if (msg) { nM= strlen(msg); } else { nM= 0; }
+      nM+= (nM>0); // include trailing NUL to cleanly terminate message
       reset();
    }
    void reset (void) { iM= 0; }
 
-   /* Unused Hacks
-   int ipeek (uint8_t i)
-   {
-      if (available() > i) { return(sM[i]); } //else
-      return(-1);
-   } // ipeek
-   int8_t iget (void) { return(iM); }*/
-   
    // Stream interface methods
    int available (void) override
    {
@@ -169,7 +162,7 @@ public:
    } // read
    size_t write (uint8_t b) override { return(0); }
    
-   // Required for STM32 build, but not AVR?? (lax compiler settings?)
+   // Required for STM32 build, whereas AVR build ignores.. ??
    void flush (void) override { ; }
 }; // CMorseBuff
 
@@ -222,30 +215,27 @@ protected:
          a= s.read();
          switch(a)
          {
-            case '<' : addLastGap= 0x0; // prosign on
-            case '>' : addLastGap= 0x1; //      off
-            default : r= setASCII( a, classifyASCII(a), classifyASCII(s.peek()) );
+            case 0x0 : addLastGap= -1; break; // end of message
+            case '<' : addLastGap= 0; break; // prosign on
+            case '>' : addLastGap= 1; break; //      off
+            default : r= setASCII( a, classifyASCII(a), classifyASCII(s.peek()) ); break;
          }
       } while (!r); // skip any non-translateable
       return(r);
    } // nextASCII
 
+   void resetGap (void) { addLastGap=0x1; }
 public:
    uint8_t tc;
 
-   CMorseSSS (void) { addLastGap=0x1; }
+   CMorseSSS (void) { ; }
 
-   void send (const char *msg) { CMorseBuff::set(msg); }
+   void send (const char *msg) { CMorseBuff::set(msg); resetGap(); }
 
    void resend (void)
    {
       CMorseBuff::reset();
-      if (this->available())
-      {
-         char a= CMorseBuff::read();
-         char c= classifyASCII(a);
-         setASCII(a,c,c); // hacky!
-      } else { setASCII(0,0,0); }
+      resetGap();
    } // resend
 
    bool nextPulse (void)
@@ -268,7 +258,7 @@ public:
 class CMorseTime : public CMorseSSS
 {
 public:
-   uint8_t msPulse;
+   uint8_t msPulse; // 10~100
    uint16_t t;
 
    CMorseTime (uint8_t dps) { msPulse= 500 / dps; } //ms 45; // 11.1dps -> 26~27wpm
@@ -293,23 +283,20 @@ class CMorseDebug : public CMorseTime
 public :
    CMorseDebug (uint8_t dps=10) : CMorseTime(dps) { ; }
 
-   // unnecessary for publicly inherited
+   // (<using> clauses necessary for private inheritance)
    //using CMorseSSS::send;
    //using CMorseSSS::resend;
 
-   bool nextPulse (void)
+   bool nextPulse (void) // (Stream& log)
    {
       bool r= CMorseTime::nextPulse();
-      static const char dbg[2][4]={ { '\n', 0x0, '|', ' ' }, { '0', '.', '-', '3' } };
-      //DEBUG.print( tc );
+      static const char dbg[2][4]={ { '\n', 0, '|', ' ' }, { '0', '.', '-', '3' } };
       DEBUG.write( dbg[pulseState()][tc] ); DEBUG.flush();
       return(r);
    } // nextPulse
 
    //using CMorseSSS::ready;
    //using CMorseSSS::complete;
-
-   //void print (void) { printf("[%d] %d*%d\n", b2b.i, v, t); }
 
 }; // CMorseDebug
 

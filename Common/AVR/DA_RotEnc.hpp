@@ -9,6 +9,8 @@
 // Scaling from system 1ms tick to 50Hz UI events
 #define UI_EVENT_RATE_TICKS 20
 
+// TODO : factor hardware handling out from higher level features (HAL model)
+
 // EC11 Rotary Encoder : DFRobot module SEN0235
 // Appears to have 3 resistors + 1 capacitor (HW debounced switch?)
 // Inputs on D2-D4 (Arduino pins #2,3,4)
