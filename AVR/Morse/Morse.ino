@@ -69,8 +69,12 @@ void receive (void)
 {
   int8_t r;
 #ifndef DA_ANALOGUE_HPP
-  r= digitalRead(DET_PIN);
+  r= digitalRead(DET_PIN); // sensor seems to be active low
   rs.n[r]++;
+  if ((++rs.r < 32) && r)
+  {
+    rs.v[rs.r >> 4] |= r << (rs.r & 0xF);
+  }
 #else
   int8_t n=0;
   uint16_t v; //[8];
@@ -92,9 +96,9 @@ void receive (void)
 void dumpRS (Stream& s)
 {
   s.print("RS:"); s.println(rs.r);
-  s.print("v[0,1]:"); s.print(rs.v[0]); s.print(','); s.println(rs.v[1]);
+  s.print("v[0,1]:"); s.print(rs.v[0],HEX); s.print(','); s.println(rs.v[1],HEX);
   s.print("n[0,1]:"); s.print(rs.n[0]); s.print(','); s.println(rs.n[1]);
-  rs.v[0]= -1; rs.v[1]= 0;
+  rs.v[0]= rs.v[1]= 0;
   rs.n[0]= rs.n[1]= rs.r= 0;
 } // dumpRS
 
@@ -114,7 +118,8 @@ void setup (void)
   gClock.start();
 
 #ifdef DA_ANALOGUE_HPP
-  gADC.init(); gADC.startAuto();
+  // This messes up output timing, why ?
+  //gADC.init(); // gADC.start(); //Auto();
 #else
   pinMode(DET_PIN, INPUT);
 #endif
