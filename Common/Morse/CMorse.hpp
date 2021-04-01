@@ -266,7 +266,14 @@ public:
    uint8_t msPulse; // 10~100
    uint16_t t;
 
-   CMorseTime (uint8_t dps) { msPulse= 500 / dps; } //ms 45; // 11.1dps -> 26~27wpm
+   CMorseTime (uint8_t np, uint8_t tu)
+   {
+      if (tu > 0)
+      {
+         msPulse= 60000 / (np * MORSE_CANONICAL_WORD); // wpm
+      }
+      else { msPulse= 500 / np; } // dps
+   } //ms 45; // 11.1dps -> 26~27wpm
 
    bool nextPulse (void)
    {
@@ -286,7 +293,7 @@ public:
 class CMorseDebug : public CMorseTime
 {
 public :
-   CMorseDebug (uint8_t dps=10) : CMorseTime(dps) { ; }
+   CMorseDebug (uint8_t np=25, uint8_t tu=1) : CMorseTime(np,tu) { ; }
 
    // (<using> clauses necessary for private inheritance)
    //using CMorseSSS::send;

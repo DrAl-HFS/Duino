@@ -11,11 +11,13 @@
 extern "C" {
 #endif
 
+#define MORSE_CANONICAL_WORD  50 // "PARIS "
+//#define MORSE_CANONICAL_SYMBOL (MORSE_CANONICAL_WORD/5)
+
 // Consider: Alternative coding scheme using a stop bit would allow all
 // patterns up to 7bits (alphanumeric+punctuation) to fit into a byte.
 // For msb first transmission this requires msb alignment and left-shifting
 // until the value 0x80 is reached (i.e. only the stop bit remaining).
-// Allowing for prosigns would still require a 16bit extended scheme...
 
 // International Morse Code (up to) 5 pulse/bit patterns packed into uint8_t 
 // 3b # in MSB, 5b code in LSB (transmitted msb # first)

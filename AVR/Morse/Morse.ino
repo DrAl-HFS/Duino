@@ -128,6 +128,7 @@ void setup (void)
   DEBUG.print(" Morse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
+  DEBUG.print("msPulse=");DEBUG.println(gS.msPulse);
   gS.send("<SOS> What hath God wrought? <AR>");
   gClock.intervalStart();
 #ifndef DA_ANALOGUE_HPP
