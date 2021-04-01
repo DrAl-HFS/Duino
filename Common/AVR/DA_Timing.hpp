@@ -248,7 +248,7 @@ public:
    uint8_t update (void)
    {
       uint8_t d= diff();
-      if (d > AVR_MILLI_TICKS)
+      if (d >= AVR_MILLI_TICKS)
       {
          uint8_t m= d / AVR_MILLI_TICKS;
          tick+= m;
