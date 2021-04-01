@@ -4,7 +4,7 @@
 // (c) Project Contributors Feb - Mar 2021
 
 //#include "Common/Morse/CMorse.hpp"
-//#include "Common/AVR/DA_Analogue.hpp"
+#include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Config.hpp"
 
@@ -23,9 +23,9 @@
 /***/
 
 CClock gClock(5000); // 5.0 sec interval timer
-CMorseDebug gS(5);
+CMorseDebug gS;
 CDownTimer gMorseDT;
-CDownTimer gStreamDT;
+//CDownTimer gStreamDT;
 
 #ifdef DA_ANALOGUE_HPP
 CAnalogue gADC;
@@ -98,7 +98,7 @@ void dumpRS (Stream& s)
   s.print("RS:"); s.println(rs.r);
   s.print("v[0,1]:"); s.print(rs.v[0],HEX); s.print(','); s.println(rs.v[1],HEX);
   s.print("n[0,1]:"); s.print(rs.n[0]); s.print(','); s.println(rs.n[1]);
-  rs.v[0]= rs.v[1]= 0;
+  rs.v[0]= -1; rs.v[1]= 0;
   rs.n[0]= rs.n[1]= rs.r= 0;
 } // dumpRS
 
@@ -118,8 +118,7 @@ void setup (void)
   gClock.start();
 
 #ifdef DA_ANALOGUE_HPP
-  // This messes up output timing, why ?
-  //gADC.init(); // gADC.start(); //Auto();
+  gADC.init(); gADC.startAuto();
 #else
   pinMode(DET_PIN, INPUT);
 #endif
@@ -131,15 +130,20 @@ void setup (void)
   
   gS.send("<SOS> What hath God wrought? <AR>");
   gClock.intervalStart();
+#ifndef DA_ANALOGUE_HPP
   set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
+#endif
 } // setup
+
+uint8_t lastEV=0;
 
 void loop (void)
 {
   uint8_t ev= gClock.update();
   if (ev > 0)
   {
+    //if (lastEV != ev) { lastEV= ev; DEBUG.print("ev"); DEBUG.print(ev); DEBUG.print(" t"); DEBUG.println(gClock.tick); }
     receive(); // 1kHz
     if (gClock.intervalUpdate())
     {
@@ -169,5 +173,7 @@ void loop (void)
   } // ev
   else { procCmd(DEBUG); }
   
+#ifndef DA_ANALOGUE_HPP
   sleep_cpu();
+#endif
 } // loop
