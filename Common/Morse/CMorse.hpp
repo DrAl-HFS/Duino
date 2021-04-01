@@ -245,7 +245,7 @@ public:
 
    bool nextPulse (void)
    {
-      if (b2b.getNext(tc) || (nextASCII(*this) && b2b.getNext(tc))) { return(true); }
+      if (b2b.getNext(tc) || (nextASCII(*this) && b2b.getNext(tc))) { tc|= pulseState()<<2; return(true); }
       //else
       tc= 0;
       return(false);
@@ -263,54 +263,49 @@ public:
 class CMorseTime : public CMorseSSS
 {
 public:
-   uint8_t msPulse; // 10~100
+   uint8_t msPulse, q4FGS; // 50~100 typically
    uint16_t t;
 
    CMorseTime (uint8_t np, uint8_t tu)
    {
-      if (tu > 0)
+      if (tu > 0x10) { q4FGS= tu; } else { q4FGS= 0; }
+      switch(tu)
       {
-         msPulse= 60000 / (np * MORSE_CANONICAL_WORD); // wpm
+         default : msPulse= 60000 / (np * MORSE_CANONICAL_WORD); break; // wpm
+         case 0 : msPulse= 500 / np; break; // dps
       }
-      else { msPulse= 500 / np; } // dps
-   } //ms 45; // 11.1dps -> 26~27wpm
+   }
 
    bool nextPulse (void)
    {
       bool r= CMorseSSS::nextPulse();
+      if (0 != q4FGS)
+      {  // Farnsworth gap stretching
+         switch(tc & 0x7)
+         {
+            case 0x2 : t= (3 * q4FGS * msPulse) >> 4; return(r);
+            case 0x3 : t= (7 * q4FGS * msPulse) >> 4; return(r);
+         }
+      }
+      //else
       switch(tc & 0x3)
       {
          case 0x1 : t= msPulse; break;
          case 0x2 : t= 3*msPulse; break;
          case 0x3 : t= 7*msPulse; break;
-         case 0x0 : t= 0; break;
+         default: // case 0x0 : 
+            t= 0; break;
       }
       return(r);
    } // nextPulse
 
-}; // CMorseTime
-
-class CMorseDebug : public CMorseTime
-{
-public :
-   CMorseDebug (uint8_t np=25, uint8_t tu=1) : CMorseTime(np,tu) { ; }
-
    // (<using> clauses necessary for private inheritance)
    //using CMorseSSS::send;
    //using CMorseSSS::resend;
-
-   bool nextPulse (void) // (Stream& log)
-   {
-      bool r= CMorseTime::nextPulse();
-      static const char dbg[2][4]={ { '\n', 0, '|', ' ' }, { '0', '.', '-', '3' } };
-      DEBUG.write( dbg[pulseState()][tc] ); DEBUG.flush();
-      if (dbgFlag & 0x0C) { DEBUG.print("f:"); DEBUG.println(dbgFlag,HEX); }
-      return(r);
-   } // nextPulse
-
    //using CMorseSSS::ready;
    //using CMorseSSS::complete;
+   
+}; // CMorseTime
 
-}; // CMorseDebug
 
 #endif // CMORSE_HPP

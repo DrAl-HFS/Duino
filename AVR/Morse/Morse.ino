@@ -19,6 +19,28 @@
 #define DET_PIN 14  // Uno ADC0 / PC0
 //define TONE_PIN 3 // // NB tone conflicts with Clock (Timer2)
 
+/***/
+
+class CMorseDebug : public CMorseTime
+{
+public :
+   CMorseDebug (uint8_t np=25, uint8_t tu=0x20) : CMorseTime(np,tu) { ; }
+
+   bool nextPulse (void) // (Stream& log)
+   {
+      bool r= CMorseTime::nextPulse();
+      static const char dbg[8]={ '\n', 0, '|', ' ' , '0', '.', '-', '3' };
+      DEBUG.write( dbg[tc&0x7] ); DEBUG.flush();
+      //if (dbgFlag & 0x0C) { DEBUG.print("f:"); DEBUG.println(dbgFlag,HEX); }
+      return(r);
+   } // nextPulse
+
+   void info (void) // (Stream& s) not working due to inherited CMorseBuff::Stream interface???
+   {
+     DEBUG.print("msPulse="); DEBUG.println(msPulse);
+   } // info
+
+}; // CMorseDebug
 
 /***/
 
@@ -27,15 +49,14 @@ CMorseDebug gS;
 CDownTimer gMorseDT;
 //CDownTimer gStreamDT;
 
-#ifdef DA_ANALOGUE_HPP
 CAnalogue gADC;
 ISR(ADC_vect) { gADC.event(); }
-#endif
 
 
 /***/
 
 SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
+
 
 /***/
 
@@ -62,44 +83,43 @@ char procCmd (Stream& s)
   return(0);
 } // procCmd
 
-struct ReadState { uint16_t v[2], n[2], r; };
+struct ReadState { uint16_t mm[2], n[4]; };
 
 ReadState rs;
 void receive (void)
 {
-  int8_t r;
-#ifndef DA_ANALOGUE_HPP
-  r= digitalRead(DET_PIN); // sensor seems to be active low
-  rs.n[r]++;
-  if ((++rs.r < 32) && r)
+#ifdef DA_ANALOGUE_HPP
+  if (gADC.avail())
   {
-    rs.v[rs.r >> 4] |= r << (rs.r & 0xF);
-  }
-#else
-  int8_t n=0;
-  uint16_t v; //[8];
-  do
-  {
-    r= gADC.get(v);
-    if (r >= 0)
+    int8_t r;
+    int8_t n=0;
+    uint16_t v, mm[2]={-1,0}, s=0;
+    do
     {
-      if (v < rs.v[0]) { rs.v[0]= v; }
-      if (v > rs.v[1]) { rs.v[1]= v; }
-      int8_t t= v > ((rs.v[0]+rs.v[1])/2);
-      rs.n[ t ]++;
-      rs.r++;
-    }
-  } while (r >= 0);
+      r= gADC.get(v);
+      if (0 == r)
+      {
+        s+= v; ++n;
+        if (v < mm[0]) { mm[0]= v; }
+        if (v > mm[1]) { mm[1]= v; }
+      }
+    } while (r >= 0);
+    r= 0;
+    if (mm[0] < rs.mm[0]) { rs.mm[0]= mm[0]; r|= 0x1; }
+    if (mm[1] > rs.mm[1]) { rs.mm[1]= mm[1]; r|= 0x2; }
+    //uint16_t pm= ((rs.v[0]+rs.v[1])/2);
+    rs.n[ r ]++;
+  }
 #endif
 } // receive
 
 void dumpRS (Stream& s)
 {
-  s.print("RS:"); s.println(rs.r);
-  s.print("v[0,1]:"); s.print(rs.v[0],HEX); s.print(','); s.println(rs.v[1],HEX);
-  s.print("n[0,1]:"); s.print(rs.n[0]); s.print(','); s.println(rs.n[1]);
-  rs.v[0]= -1; rs.v[1]= 0;
-  rs.n[0]= rs.n[1]= rs.r= 0;
+  s.print("RS:");
+  s.print("mm[]:"); s.print(rs.mm[0]); s.print(','); s.println(rs.mm[1]);
+  s.print("n[]:"); s.print(rs.n[0]); s.print(','); s.print(rs.n[1]); s.print(','); s.print(rs.n[2]); s.print(','); s.println(rs.n[3]);
+  rs.mm[0]= -1; rs.mm[1]= 0;
+  rs.n[0]= rs.n[1]= rs.n[2]= rs.n[3]= 0;
 } // dumpRS
 
 void setup (void)
@@ -128,7 +148,7 @@ void setup (void)
   DEBUG.print(" Morse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
-  DEBUG.print("msPulse=");DEBUG.println(gS.msPulse);
+  gS.info(); //DEBUG);
   gS.send("<SOS> What hath God wrought? <AR>");
   gClock.intervalStart();
 #ifndef DA_ANALOGUE_HPP
