@@ -167,9 +167,10 @@ public:
 }; // CMorseBuff
 
 // String Send State : generates output code sequence
-class CMorseSSS : CMorseBuff
+class CMorseSSS
 {
 protected:
+   CMorseBuff  sb;
    B2Buff b2b;
    int8_t addLastGap;
    uint8_t dbgFlag;
@@ -235,17 +236,17 @@ public:
 
    CMorseSSS (void) { ; }
 
-   void send (const char *msg) { CMorseBuff::set(msg); resetGap(); }
+   void send (const char *msg) { sb.set(msg); resetGap(); }
 
    void resend (void)
    {
-      CMorseBuff::reset();
+      sb.reset();
       resetGap();
    } // resend
 
    bool nextPulse (void)
    {
-      if (b2b.getNext(tc) || (nextASCII(*this) && b2b.getNext(tc))) { tc|= pulseState()<<2; return(true); }
+      if (b2b.getNext(tc) || (nextASCII(sb) && b2b.getNext(tc))) { tc|= pulseState()<<2; return(true); }
       //else
       tc= 0;
       return(false);
@@ -254,11 +255,17 @@ public:
    uint8_t pulseState (void) { return(b2b.i & 0x1); }
 
    // TODO : find better condition...
-   bool ready (void) { return(this->available() > 0); }
-   bool complete (void) { return(this->available() <= 0); }
+   bool ready (void) { return(sb.available() > 0); }
+   bool complete (void) { return(sb.available() <= 0); }
 
 }; // CMorseSSS
 
+#define MORSE_FARNSWORTH_OFF  0x10
+#define MORSE_FARNSWORTH_1Q12 0x12
+#define MORSE_FARNSWORTH_1Q25 0x14
+#define MORSE_FARNSWORTH_1Q50 0x18
+#define MORSE_FARNSWORTH_1Q75 0x1C
+#define MORSE_FARNSWORTH_2Q00 0x20
 // Apply a simple timing model to coded output
 class CMorseTime : public CMorseSSS
 {
@@ -268,7 +275,7 @@ public:
 
    CMorseTime (uint8_t np, uint8_t tu)
    {
-      if (tu > 0x10) { q4FGS= tu; } else { q4FGS= 0; }
+      if (tu > MORSE_FARNSWORTH_OFF) { q4FGS= tu; } else { q4FGS= 0; }
       switch(tu)
       {
          default : msPulse= 60000 / (np * MORSE_CANONICAL_WORD); break; // wpm
@@ -307,5 +314,26 @@ public:
    
 }; // CMorseTime
 
+class CMorseDebug : public CMorseTime
+{
+public :
+   CMorseDebug (uint8_t np=25, uint8_t tu=MORSE_FARNSWORTH_1Q50) : CMorseTime(np,tu) { ; }
+
+   bool nextPulse (Stream& log)
+   {
+      bool r= CMorseTime::nextPulse();
+      static const char dbg[8]={ '\n', 0, '|', ' ' , '0', '.', '-', '3' };
+      log.write( dbg[tc&0x7] ); log.flush();
+      //if (dbgFlag & 0x0C) { log.print("f:"); log.println(dbgFlag,HEX); }
+      return(r);
+   } // nextPulse
+
+   void info (Stream& log)
+   {
+     log.print("msPulse="); log.println(msPulse);
+     log.print("Farnsworth="); log.println(q4FGS,HEX);
+   } // info
+
+}; // CMorseDebug
 
 #endif // CMORSE_HPP

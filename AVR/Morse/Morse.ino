@@ -3,7 +3,7 @@
 // Licence: GPL V3A
 // (c) Project Contributors Feb - Mar 2021
 
-//#include "Common/Morse/CMorse.hpp"
+#include "Common/Morse/CMorse.hpp"
 #include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Config.hpp"
@@ -13,7 +13,9 @@
 
 #define DEBUG Serial
 #define DEBUG_BAUD 115200 
+#ifndef CMORSE_HPP
 #include "Common/Morse/CMorse.hpp" // DEBUG accessibility problems...
+#endif
 
 #define SIG_PIN 17  // Uno ADC3 / PC3
 #define DET_PIN 14  // Uno ADC0 / PC0
@@ -21,26 +23,6 @@
 
 /***/
 
-class CMorseDebug : public CMorseTime
-{
-public :
-   CMorseDebug (uint8_t np=25, uint8_t tu=0x20) : CMorseTime(np,tu) { ; }
-
-   bool nextPulse (void) // (Stream& log)
-   {
-      bool r= CMorseTime::nextPulse();
-      static const char dbg[8]={ '\n', 0, '|', ' ' , '0', '.', '-', '3' };
-      DEBUG.write( dbg[tc&0x7] ); DEBUG.flush();
-      //if (dbgFlag & 0x0C) { DEBUG.print("f:"); DEBUG.println(dbgFlag,HEX); }
-      return(r);
-   } // nextPulse
-
-   void info (void) // (Stream& s) not working due to inherited CMorseBuff::Stream interface???
-   {
-     DEBUG.print("msPulse="); DEBUG.println(msPulse);
-   } // info
-
-}; // CMorseDebug
 
 /***/
 
@@ -83,7 +65,8 @@ char procCmd (Stream& s)
   return(0);
 } // procCmd
 
-struct ReadState { uint16_t mm[2], n[4]; };
+#define BATCH 32
+struct ReadState { uint16_t s[BATCH]; uint16_t i, n; };
 
 ReadState rs;
 void receive (void)
@@ -91,35 +74,39 @@ void receive (void)
 #ifdef DA_ANALOGUE_HPP
   if (gADC.avail())
   {
+    uint16_t v, s=0;
     int8_t r;
-    int8_t n=0;
-    uint16_t v, mm[2]={-1,0}, s=0;
+    int8_t n=0, m=0;
     do
     {
       r= gADC.get(v);
-      if (0 == r)
+      if (0x1 == r)// channel1, sensitivity ~1.07mV (1.1V ref vs 10bits)
       {
-        s+= v; ++n;
-        if (v < mm[0]) { mm[0]= v; }
-        if (v > mm[1]) { mm[1]= v; }
+        s+= v;
+        n++;
+        m+= (v <= 0);
       }
-    } while (r >= 0);
-    r= 0;
-    if (mm[0] < rs.mm[0]) { rs.mm[0]= mm[0]; r|= 0x1; }
-    if (mm[1] > rs.mm[1]) { rs.mm[1]= mm[1]; r|= 0x2; }
-    //uint16_t pm= ((rs.v[0]+rs.v[1])/2);
-    rs.n[ r ]++;
+    } while ((r >= 0) && (n < 10));
+    if (n > m)
+    {
+      rs.s[rs.i & 0x1F]= s; ///(n-m);
+      rs.n+= n;
+      rs.i++;
+    }
   }
 #endif
 } // receive
 
 void dumpRS (Stream& s)
 {
-  s.print("RS:");
-  s.print("mm[]:"); s.print(rs.mm[0]); s.print(','); s.println(rs.mm[1]);
-  s.print("n[]:"); s.print(rs.n[0]); s.print(','); s.print(rs.n[1]); s.print(','); s.print(rs.n[2]); s.print(','); s.println(rs.n[3]);
-  rs.mm[0]= -1; rs.mm[1]= 0;
-  rs.n[0]= rs.n[1]= rs.n[2]= rs.n[3]= 0;
+  s.print("RS:"); s.print("["); s.print(rs.n); s.print("]=");
+  int8_t n= min(BATCH, rs.n);
+  for (int8_t i=0; i<n; i++)
+  {
+    s.print(rs.s[i]); s.print(',');
+  }
+  s.println();
+  rs.i= rs.n= 0;
 } // dumpRS
 
 void setup (void)
@@ -138,7 +125,7 @@ void setup (void)
   gClock.start();
 
 #ifdef DA_ANALOGUE_HPP
-  gADC.init(); gADC.startAuto();
+  gADC.init(); gADC.set(1); gADC.startAuto();
 #else
   pinMode(DET_PIN, INPUT);
 #endif
@@ -148,7 +135,7 @@ void setup (void)
   DEBUG.print(" Morse " __DATE__ " ");
   DEBUG.println(__TIME__);
   
-  gS.info(); //DEBUG);
+  gS.info(DEBUG);
   gS.send("<SOS> What hath God wrought? <AR>");
   gClock.intervalStart();
 #ifndef DA_ANALOGUE_HPP
@@ -173,13 +160,13 @@ void loop (void)
         char s[12];
         gClock.getStrHMS(s,sizeof(s)-1);
         DEBUG.print(s); DEBUG.print(' ');
-        dumpRS(DEBUG);
         gS.resend(); 
       }
     }
+    else if (gClock.intervalDiff() == -2500) { dumpRS(DEBUG); }
     if (gS.ready() && gMorseDT.update(ev))
     {
-      if (gS.nextPulse()) // DEBUG))
+      if (gS.nextPulse(DEBUG))
       {
         digitalWrite(SIG_PIN, gS.pulseState());
         gMorseDT.add(gS.t);
