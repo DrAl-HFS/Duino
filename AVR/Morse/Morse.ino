@@ -37,7 +37,7 @@ public:
     //TCCR0B= 0x03; // 16MHz/64 = 256kHz - It seems Arduino boot relies on this value
     // 0x0A = 16/8= 2MHz  OCR0A= 9  flip 5us -> 10us period -> 100kHz
     TCCR0B= 0x0B; 
-    OCR0A=  0; // 256kHz / (1+n)
+    OCR0A=  1; // 256kHz / (1+n) -> 128kHz
   }
 }; // CSqWGen
 
