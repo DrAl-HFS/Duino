@@ -11,12 +11,9 @@
 
 // TODO : factor hardware handling out from higher level features (HAL model)
 
-// EC11 Rotary Encoder : DFRobot module SEN0235
-// Appears to have 3 resistors + 1 capacitor (HW debounced switch?)
-// Inputs on D2-D4 (Arduino pins #2,3,4)
-// Quadrature (terminals labelled "A" & "B") -> D3,D2
-// Switch (normally closed, terminal "C") -> D4
-class CRotEnc
+// EC11 Rotary Encoder base class provides processing only
+// hardware input moved to derived class for better reusability
+class CRotEncBase
 {
 protected:
    uint8_t rawBS;  // button: press=1, release=0, 8samples @ 1kHz -> 8ms debounce (seems like plenty)
@@ -71,8 +68,22 @@ public:
    uint8_t bCount; // bit 0 = state, saturating count in bits 1:7
    uint8_t qCount; // quadrature count, unsigned wrap 255<->0 (signed wrap +127 <-> -128)
    
-   CRotEnc (uint8_t c=0x80) { qCount=c; } // : qCount{c} start midscale
+   CRotEncBase (uint8_t c) { qCount=c; } // : qCount{c} start midscale
   
+   bool buttonState (void) { return(bCount & 0x1); }
+   bool buttonTime (void) { return(bCount >> 1); }
+}; // CRotEncBase
+
+// DFRobot module SEN0235
+// Appears to have 3 resistors + 1 capacitor (HW debounced switch?)
+// Inputs on D2-D4 (Arduino pins #2,3,4)
+// Quadrature (terminals labelled "A" & "B") -> D3,D2
+// Switch (normally closed, terminal "C") -> D4
+class CRotEncDFR : public CRotEncBase
+{
+public:
+   CRotEncDFR (uint8_t c=0x80) : CRotEncBase(c) { ; }
+   
    void init (void)
    {  // PortD: 2,3,4
       DDRD&= 0xE3;  // 0 for inputs
@@ -85,15 +96,12 @@ public:
    uint8_t update (void)
    { 
       uint8_t r= PIND;  // invert NC button so 1 means pressed
-      r= updateBS(0 == (r & 0x10)) | updateQS(r & 0x0C);
+      r= CRotEncBase::updateBS(0 == (r & 0x10)) | CRotEncBase::updateQS(r & 0x0C);
       return(r); // return change mask
    } // update
-   
-   bool buttonState (void) { return(bCount & 0x1); }
-   bool buttonTime (void) { return(bCount >> 1); }
-}; // CRotEnc
+}; // CRotEncDFR
 
-class CRotEncDbg : public CRotEnc
+class CRotEncDbg : public CRotEncDFR
 {
 public :
    uint8_t lbc;
@@ -102,7 +110,7 @@ public :
    
    uint8_t update (void) // test button timing feature
    {
-      uint8_t r= CRotEnc::update();
+      uint8_t r= CRotEncDFR::update();
       if ((bCount & 0x1) && (bCount != lbc)) { lbc= bCount; r|= 0x4; }
       return(r);
    } // update
@@ -114,6 +122,29 @@ public :
       Serial.print(" C:"); Serial.println(qCount); 
    } // dump
 }; // CRotEncDbg
+
+// Bourns EC11 "raw" with minimal conditioning circuitry
+class CRotEncBEC11 : public CRotEncBase
+{
+public:
+   CRotEncBEC11 (uint8_t c=0x80) : CRotEncBase(c) { ; }
+   
+   void init (void)
+   {  // PortD: 2,3,4
+      DDRD&= 0xE3;  // 0 for inputs
+      PORTD&= 0xE3; // 0 for no pull-up. quadrature pins pull-up |= 0x0C;
+      //for (int8_t i=2; i<=4; i++) { pinMode(i, INPUT); }
+      update();
+      //uint8_t r= 0; for (int8_t i=2; i<=4; i++) { r= (r << 1) | digitalRead(i); }
+   } // init
+
+   uint8_t update (void)
+   { 
+      uint8_t r= PIND;
+      r= CRotEncBase::updateBS(r & 0x10) | CRotEncBase::updateQS(r & 0x0C);
+      return(r); // return change mask
+   } // update
+}; // CRotEncBEC11
 
 #endif // DA_ROT_ENC_HPP
 
