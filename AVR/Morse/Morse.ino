@@ -17,9 +17,29 @@
 #include "Common/Morse/CMorse.hpp" // DEBUG accessibility problems...
 #endif
 
+
 #define SIG_PIN 17  // Uno ADC3 / PC3
 #define DET_PIN 14  // Uno ADC0 / PC0
+#define SQW_PIN 6   // Uno OC0A / PD6
 //define TONE_PIN 3 // // NB tone conflicts with Clock (Timer2)
+
+
+class CSqWGen
+{
+public:
+  CSqWGen (void) { ; }
+  
+  void init (void) // Uno Timer0 (beware ARDUINO API conflict)
+  {
+    DDRD|= 1<<6; // OC0A 
+    //pinMode(SQW_PIN, OUTPUT);
+    TCCR0A= 0x43; // Fast PWM -> OC0A
+    //TCCR0B= 0x03; // 16MHz/64 = 256kHz - It seems Arduino boot relies on this value
+    // 0x0A = 16/8= 2MHz  OCR0A= 9  flip 5us -> 10us period -> 100kHz
+    TCCR0B= 0x0B; 
+    OCR0A=  0; // 256kHz / (1+n)
+  }
+}; // CSqWGen
 
 /***/
 
@@ -30,9 +50,10 @@ CClock gClock(5000); // 5.0 sec interval timer
 CMorseDebug gS;
 CDownTimer gMorseDT;
 //CDownTimer gStreamDT;
+CSqWGen gSqW;
 
 CAnalogue gADC;
-ISR(ADC_vect) { gADC.event(); }
+ISR(ADC_vect) { gADC.event(); gADC.start(); } // deferred restart reduces rate slightly
 
 
 /***/
@@ -66,47 +87,48 @@ char procCmd (Stream& s)
 } // procCmd
 
 #define BATCH 32
-struct ReadState { uint16_t s[BATCH]; uint16_t i, n; };
+struct ReadState { int16_t s[BATCH]; uint8_t n[BATCH], i; uint16_t tn; };
 
 ReadState rs;
 void receive (void)
 {
-#ifdef DA_ANALOGUE_HPP
   if (gADC.avail())
   {
-    uint16_t v, s=0;
+const int16_t calOffs= 210;
+    uint16_t v;
+    int16_t s=0;
     int8_t r;
     int8_t n=0, m=0;
     do
     {
       r= gADC.get(v);
-      if (0x1 == r)// channel1, sensitivity ~1.07mV (1.1V ref vs 10bits)
+      if (0x1 == r)// channel1, sensitivity ~1.07mV (A0/1.1V ref)
       {
-        s+= v;
+        s+= (v-calOffs);
         n++;
         m+= (v <= 0);
       }
     } while ((r >= 0) && (n < 10));
     if (n > m)
     {
-      rs.s[rs.i & 0x1F]= s; ///(n-m);
-      rs.n+= n;
-      rs.i++;
+      rs.s[rs.i]= s;
+      rs.n[rs.i]= n;
+      rs.tn+= n;
+      rs.i++; rs.i&= 0x1F;
     }
   }
-#endif
 } // receive
 
 void dumpRS (Stream& s)
 {
-  s.print("RS:"); s.print("["); s.print(rs.n); s.print("]=");
-  int8_t n= min(BATCH, rs.n);
+  s.print("RS:"); s.print("["); s.print(rs.tn); s.print("]=");
+  int8_t n= min(BATCH, rs.tn);
   for (int8_t i=0; i<n; i++)
   {
     s.print(rs.s[i]); s.print(',');
   }
   s.println();
-  rs.i= rs.n= 0;
+  rs.i= rs.tn= 0;
 } // dumpRS
 
 void setup (void)
@@ -121,11 +143,13 @@ void setup (void)
   pinMode(SIG_PIN, OUTPUT);
   digitalWrite(SIG_PIN, 0);
 
+  gSqW.init();
+  
   gClock.setA(__TIME__,+7500); // Build time +7.5sec
   gClock.start();
 
 #ifdef DA_ANALOGUE_HPP
-  gADC.init(); gADC.set(1); gADC.startAuto();
+  gADC.init(); gADC.set(1); gADC.start(); //Auto();
 #else
   pinMode(DET_PIN, INPUT);
 #endif
@@ -134,6 +158,8 @@ void setup (void)
   DEBUG.print(sid);
   DEBUG.print(" Morse " __DATE__ " ");
   DEBUG.println(__TIME__);
+  
+  DEBUG.print("T0:"); DEBUG.print(TCCR0A,HEX); DEBUG.print(','); DEBUG.print(TCCR0B,HEX); DEBUG.print(','); DEBUG.println(OCR0A,HEX); 
   
   gS.info(DEBUG);
   gS.send("<SOS> What hath God wrought? <AR>");
