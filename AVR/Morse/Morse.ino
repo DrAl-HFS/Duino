@@ -7,6 +7,7 @@
 #include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Config.hpp"
+#include "Common/AVR/DA_RotEnc.hpp"
 
 
 /***/
@@ -55,6 +56,7 @@ CSqWGen gSqW;
 CAnalogue gADC;
 ISR(ADC_vect) { gADC.event(); gADC.start(); } // deferred restart reduces rate slightly
 
+CRotEncDualBEC11 gRotEnc;
 
 /***/
 
@@ -153,6 +155,7 @@ void setup (void)
 #else
   pinMode(DET_PIN, INPUT);
 #endif
+  gRotEnc.init();
   
   interrupts();
   DEBUG.print(sid);
@@ -179,6 +182,7 @@ void loop (void)
   {
     //if (lastEV != ev) { lastEV= ev; DEBUG.print("ev"); DEBUG.print(ev); DEBUG.print(" t"); DEBUG.println(gClock.tick); }
     receive(); // 1kHz
+    if (gRotEnc.update() & 0xF0) { gRotEnc.dump(DEBUG); }
     if (gClock.intervalUpdate())
     {
       if (gS.complete())
