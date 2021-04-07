@@ -182,7 +182,7 @@ void loop (void)
   {
     //if (lastEV != ev) { lastEV= ev; DEBUG.print("ev"); DEBUG.print(ev); DEBUG.print(" t"); DEBUG.println(gClock.tick); }
     receive(); // 1kHz
-    if (gRotEnc.update() & 0xF0) { gRotEnc.dump(DEBUG); }
+    if (gRotEnc.update() & 0x3333) { gRotEnc.dump(DEBUG); }
     if (gClock.intervalUpdate())
     {
       if (gS.complete())
