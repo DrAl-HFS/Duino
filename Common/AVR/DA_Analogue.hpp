@@ -118,11 +118,15 @@ public:
 
    int8_t init (uint8_t m)
    {
-#ifdef ARDUINO_AVR_MEGA2560 // 640, 1280 ???
+#ifdef ARDUINO_AVR_MEGA2560 // 640, 1280 ??? 
       // Use timer 3 (provides triple compare channels)
-      pinMode(5, OUTPUT); // OC3A
+#if 1
+      pinMode(5, OUTPUT); // OC3A 
       pinMode(2, OUTPUT); // OC3B
       pinMode(3, OUTPUT); // OC3C
+#else
+      DDRE|= 0x38; // PORTE 3,4,5
+#endif
       //  - wgm=0101 - fast 8b PWM
       //  - com=10 - f8pwm, com=00 - ignore
       //  - cs=001 - clk/1 (16MHz)

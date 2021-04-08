@@ -6,6 +6,8 @@
 #ifndef DA_ROT_ENC_HPP
 #define DA_ROT_ENC_HPP
 
+/*** TODO: factor out hardware agnostic code (base classes) ***/
+
 // Scaling from system 1ms tick to 50Hz UI events
 #define UI_EVENT_RATE_TICKS 20
 
@@ -133,6 +135,8 @@ public:
    } // dump
 }; // CRotEncUIDbg
 
+/***  ***/
+
 // DFRobot module SEN0235
 // Appears to have 3 resistors + 1 capacitor (switch HW debounced)
 // Inputs on D2-D4 (Arduino pins #2,3,4)
@@ -183,26 +187,37 @@ class CRotEncDualBEC11
 {
 public:
    CRotEncUIDbg e0,e1;
+   uint8_t r;
    
    CRotEncDualBEC11 (uint8_t c=0x80) : e0{c},e1{c} { ; }
    
    void init (void)
-   {  // PortD: 2-7
+   {
+#ifdef ARDUINO_AVR_MEGA2560 // choose port .?. PC2 #35 .. PC7 #30
+      DDRC&= 0x03;  // 0 for inputs
+      PORTC|= 0xFC; // pull-up for raw (switched from floating to Gnd) inputs.
+      //SFIOR|&= ~PUD; ???
+#else // PortD: 2-7
       DDRD&= 0x03;  // 0 for inputs
       PORTD|= 0xFC; // pull-up for raw (switched from floating to Gnd) inputs.
+#endif
       update();
    } // init
 
    uint16_t update (void)
    { 
-      const uint8_t r= PIND; // invert buttons (closure grounds pull-up)
-      UU16 m;
+#ifdef ARDUINO_AVR_MEGA2560   
+      r= PINC;
+#else
+      const uint8_t r= PIND; 
+#endif
+      UU16 m;  // invert buttons (closure grounds pull-up)
       m.u8[0]= e0.updateBS(0 == (r & 0x10)) | e0.updateQS(r);
       m.u8[1]= e1.updateBS(0 == (r & 0x80)) | e1.updateQS(r>>3);
-      return(m.u16[0]); // merge change masks
+      return(r); //m.u16[0]); // merge change masks
    } // update
    
-    void dump (Stream& s) const { s.print("E0:"); e0.dump(s); s.print("E1:"); e1.dump(s); }
+    void dump (Stream& s) const { s.print('r'); s.print(r,HEX); s.print(" E0:"); e0.dump(s); s.print("E1:"); e1.dump(s); }
 }; // CRotEncDualBEC11
 
 #endif // DA_ROT_ENC_HPP
