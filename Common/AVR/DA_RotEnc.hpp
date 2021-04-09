@@ -1,12 +1,12 @@
 // Duino/Common/AVR/DA_RotEnc.hpp - handle AVR IO for EC11 Rotary Encoder with Button
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: AGPL3
-// (c) Project Contributors Feb - Mar 2021
+// (c) Project Contributors Feb - April 2021
 
 #ifndef DA_ROT_ENC_HPP
 #define DA_ROT_ENC_HPP
 
-#include "../RotEnc.hpp"
+#include "../RotEnc.hpp" // Generic classes level up, ugly, fix?
 
 // DFRobot module SEN0235
 // Appears to have 3 resistors + 1 capacitor (switch HW debounced)
@@ -36,9 +36,9 @@ public:
 }; // CRotEncDFR
 
 
-#ifndef MBD_DEF_H
-typedef union { uint8_t u8[2]; uint16_t u16[1]; } UU16;
-#endif
+//#ifndef MBD_DEF_H
+//typedef union { uint8_t u8[2]; uint16_t u16[1]; } UU16;
+//#endif
 
 // Bourns EC11 "raw" with minimal conditioning circuitry (load resistor ~1k on Gnd return path)
 class CRotEncDualBEC11 

@@ -6,18 +6,22 @@
 #ifndef ROT_ENC_HPP
 #define ROT_ENC_HPP
 
+#include "MBD/mbdDef.h"
+
 // Scaling from system 1ms tick to 50Hz UI events
 #define UI_EVENT_RATE_TICKS 20
 
 #define ROTENC_DEBOUNCE_MASK 0xFF // all 8bits
 
+// Button events on low nybble
 #define ROTENC_EVENT_NONE    0x00
 #define ROTENC_BTN_CHANGE    0x01 // unvalidated change
-#define ROTENC_BTN_RELEASE   0x02 //
-#define ROTENC_BTN_PRESS     0x03 //
+#define ROTENC_BTN_RELEASE   0x02
+#define ROTENC_BTN_PRESS     0x03
 #define ROTENC_BTN_COUNT     0x04 // hold count increased
-#define ROTENC_BTN_SAT       0x08 // hold count saturated ~2.5sec
+#define ROTENC_BTN_SAT       0x08 // hold count saturated ~5sec @ 50Hz
 #define ROTENC_BTN_X0        0x0C // unused extension
+// Rotation events in high nybble
 #define ROTENC_ROT_CHANGE    0x10 // unvalidated change
 #define ROTENC_ROT_EVENT_CCW 0x20
 #define ROTENC_ROT_EVENT_CW  0x30
@@ -106,6 +110,7 @@ public:
       return(m);
    } // updateBS
    
+   // TODO : monitor count rate for adaptive control
    uint8_t updateQS (uint8_t qm)
    {
       uint8_t m= CRotEncBase::updateQS(qm);
