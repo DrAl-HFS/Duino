@@ -24,6 +24,7 @@
 //#define AVR_CLOCK_TRIM 64
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Analogue.hpp"
+#include "Common/Wave8.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
 //include "Common/AVR/DA_SPIMHW.hpp"
 #include "Common/AVR/DA_Config.hpp"
@@ -161,6 +162,7 @@ int8_t sysLog (Stream& s, uint8_t events)
 } // sysLog
 
 //void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
+CSampleCtrl gDS(110*0x100);
 
 void setup (void)
 {
@@ -187,6 +189,8 @@ void setup (void)
   interrupts();
   gClock.intervalStart();
   sysLog(DEBUG,0);
+  DEBUG.print("gDS.r=");
+  DEBUG.println(gDS.rQ8,HEX);
 
 #ifdef DA_HACKRF24
   HackRF24 hack; hack.test(DEBUG);
@@ -210,12 +214,12 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
-uint8_t gLastEV=0, gAV=0x01;
+uint8_t gLastCUD=0, gAV=0x01;
 
 void loop (void)
 {
-  uint8_t ev= gClock.update();
-  if (ev > AVR_MILLI_TICKS)
+  uint8_t ev=0, cud= gClock.update();
+  if (cud > AVR_MILLI_TICKS)
   { // <=1KHz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
@@ -235,7 +239,7 @@ void loop (void)
         }
       }
     }
-    if (ev & 0xF0)
+    if (ev)
     {
       sysLog(DEBUG,ev);
       if (ev & 0x40)
@@ -248,12 +252,13 @@ void loop (void)
     pulseHack();
   }
 #ifdef ARDUINO_AVR_MEGA2560
-  if (ev != gLastEV)
+  if (cud != gLastCUD)
   { // synthesise analogue voltage ramp
-    gDAC.set(gSin.sampleU8(gAV), triangle(gAV), gAV<<2);
+    gDS.step();
+    gDAC.set(gSin.filterSampleU8(gDS.iQ8), triangle(gAV), gAV<<2);
     //analogWrite(PIN_DA0,gAV); // pin2 = timer3 PWM0
     gAV++;
-    gLastEV= ev;
+    gLastCUD= cud;
   }
   //gAV++; 
 #else

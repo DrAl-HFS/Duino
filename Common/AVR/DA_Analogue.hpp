@@ -151,40 +151,5 @@ public:
    //uint16_t get (void) { return(TCNT3); }
 }; // CFastPulseDAC
 
-
-/*** TODO: displace... ***/
-
-// Quarter sine table: 32 * 4 = 128 sample values generated
-static const int8_t qSinQ7M5[32]=
-{
-	0x00, 0x06, 0x0C, 0x13, 0x19, 0x1F, 0x26, 0x2C,
-	0x32, 0x37, 0x3D, 0x43, 0x48, 0x4D, 0x52, 0x57,
-	0x5C, 0x60, 0x64, 0x68, 0x6B, 0x6F, 0x72, 0x74,
-	0x77, 0x79, 0x7A, 0x7C, 0x7D, 0x7E, 0x7E, 0x7F
-};
-
-class CMiniLUT8
-{
-public:
-   CMiniLUT8 (void) { ; }
-
-   int8_t sampleMF (const uint8_t i)
-   {
-      int8_t j= i & 0x1F;
-      if (i & 0x20) { j= 0x1F - j; } // mirror index
-      j= qSinQ7M5[j];
-      if (i & 0x40) { j= -j; } // flip sign
-      return(j);
-   }
-   uint8_t sampleU8 (uint8_t i) { return sampleMF(i)+0x7F; }
-}; // CMiniLUT8
-
-uint8_t triangle (const uint8_t i)
-{
-   int8_t j= i & 0x3F;
-   if (i & 0x40) { j= 0x3F - j; } // mirror index
-   return(j<<2);
-} // triangle
-
 #endif //  DA_ANALOGUE_HPP
 
