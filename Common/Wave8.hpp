@@ -8,8 +8,34 @@
 
 #include "MBD/mbdDef.h"
 
+//#define PENTATONIC_ROOT 1.1487	// 5th root of 2
+//#define HEPTATONIC_ROOT 1.1041	// 7th root of 2
+#define DODECATONIC_ROOT 1.059	// 12th root of 2 - basis of the even tempered scale
+#define DDT0 1 // fundamental
+#define DDT1 DODECATONIC_ROOT
+#define DDT2 DDT1*DODECATONIC_ROOT
+#define DDT3 DDT2*DODECATONIC_ROOT
+#define DDT4 DDT3*DODECATONIC_ROOT
+#define DDT5 DDT4*DODECATONIC_ROOT
+#define DDT6 DDT5*DODECATONIC_ROOT
+#define DDT7 DDT6*DODECATONIC_ROOT
+#define DDT8 DDT7*DODECATONIC_ROOT
+#define DDT9 DDT8*DODECATONIC_ROOT
+#define DDT10 DDT9*DODECATONIC_ROOT
+#define DDT11 DDT10*DODECATONIC_ROOT
+#define DDT12 DDT11*DODECATONIC_ROOT
+#define DDT13 DDT12*DODECATONIC_ROOT
+#define DDT14 DDT13*DODECATONIC_ROOT
+//#define DDT12 2 // octave
+
 #define DAC_RATE			10000	// 10kHz
 #define WAVE_SAMPLES	128
+
+#define FM 110*0x100
+static const U16 evenTempScale[]=
+{ FM, FM*DDT1, FM*DDT2, FM*DDT3, FM*DDT4, FM*DDT5, FM*DDT6, 
+	FM*DDT7, FM*DDT8, FM*DDT9, FM*DDT10, FM*DDT11, FM*DDT12, 
+	FM*DDT13, FM*DDT14 };
 
 // Quarter sine table: 32 * 4 = 128 sample values generated
 static const int8_t qSinQ7M5[32]=
@@ -68,8 +94,9 @@ public:
 	UU16 iQ8;
 	uint16_t rQ8;
 	
-	CSampleCtrl (uint16_t r= 0x100) { rQ8= ((uint32_t)r * WAVE_SAMPLES) / DAC_RATE; }
+	CSampleCtrl (uint32_t r= 0x100) { set(r); }
 
+	void set (uint32_t r) { rQ8= (r * WAVE_SAMPLES) / DAC_RATE; }
 	void step (void) { iQ8.u16+= rQ8; }
 	
 	//uint8_t get (uint8_t& r) { r= i.u8[0]; return(i.u8[1]); } 

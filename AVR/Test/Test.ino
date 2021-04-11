@@ -28,6 +28,7 @@
 #include "Common/AVR/DA_StrmCmd.hpp"
 //include "Common/AVR/DA_SPIMHW.hpp"
 #include "Common/AVR/DA_Config.hpp"
+#include "Common/AVR/DA_RotEnc.hpp"
 
 
 #ifdef DA_SPIMHW_HPP
@@ -70,7 +71,7 @@ uint8_t gM= SPI_MODE3;
 #endif // DA_SPIMHW_HPP
 
 
-CClock gClock(3000);
+CClock gClock(1000);
 
 #ifdef AVR_CLOCK_TIMER
 
@@ -162,7 +163,7 @@ int8_t sysLog (Stream& s, uint8_t events)
 } // sysLog
 
 //void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
-CSampleCtrl gDS(110*0x100);
+CSampleCtrl gDS;
 
 void setup (void)
 {
@@ -189,6 +190,7 @@ void setup (void)
   interrupts();
   gClock.intervalStart();
   sysLog(DEBUG,0);
+  gDS.set(evenTempScale[0]);
   DEBUG.print("gDS.r=");
   DEBUG.println(gDS.rQ8,HEX);
 
@@ -214,16 +216,20 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
-uint8_t gLastCUD=0, gAV=0x01;
+uint8_t gLastCUD=0, gAV=0x01, gIS=0, gDIS= 2, gLastIS=0;
 
 void loop (void)
 {
   uint8_t ev=0, cud= gClock.update();
-  if (cud > AVR_MILLI_TICKS)
+  if (cud > 0) //AVR_MILLI_TICKS)
   { // <=1KHz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
-    if (gClock.intervalUpdate()) { ev|= 0x80; } // 
+    if (gClock.intervalUpdate())
+    { 
+      ev|= 0x80; gIS+= gDIS;
+      if (gIS > 14) { gIS= 0; gDIS= 16 - gDIS; }
+    }
     if (gStreamCmd.read(cmd,DEBUG))
     {
       ev|= 0x40;
@@ -254,6 +260,14 @@ void loop (void)
 #ifdef ARDUINO_AVR_MEGA2560
   if (cud != gLastCUD)
   { // synthesise analogue voltage ramp
+    if (gIS != gLastIS)
+    { // set tone
+      uint16_t fq8= evenTempScale[gIS];
+      gDS.set(fq8);
+      gLastIS= gIS;
+      DEBUG.print("f="); DEBUG.print(fq8/0x100);
+      DEBUG.print(" gDS.r="); DEBUG.println(gDS.rQ8,HEX);
+    }
     gDS.step();
     gDAC.set(gSin.filterSampleU8(gDS.iQ8), triangle(gAV), gAV<<2);
     //analogWrite(PIN_DA0,gAV); // pin2 = timer3 PWM0

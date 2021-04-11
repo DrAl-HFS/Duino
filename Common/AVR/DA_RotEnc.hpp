@@ -54,7 +54,7 @@ public:
 #ifdef ARDUINO_AVR_MEGA2560 // choose port .?. PC2 #35 .. PC7 #30
       DDRC&= 0x03;  // 0 for inputs
       PORTC|= 0xFC; // pull-up for raw (switched from floating to Gnd) inputs.
-      //SFIOR|&= ~PUD; ???
+      MCUCR&= ~0xEF; // PUD->0
 #else // PortD: 2-7
       DDRD&= 0x03;  // 0 for inputs
       PORTD|= 0xFC; // pull-up for raw (switched from floating to Gnd) inputs.
