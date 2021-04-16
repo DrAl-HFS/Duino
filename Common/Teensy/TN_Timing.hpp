@@ -1,10 +1,14 @@
-// Duino/Common/RT/RT_Timing.hpp - Teensy timing utils
+// Duino/Common/Teensy/TN_Timing.hpp - Teensy timing utils
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: AGPL3
 // (c) Project Contributors Apr 2021
 
 #ifndef TN_TIMING_HPP
 #define TN_TIMING_HPP
+
+// Possibilities...
+//#include "TeensyTimerTool.h" ???
+//#include "TimerOne.h"
 
 typedef void (*VFPtr)(void);
 

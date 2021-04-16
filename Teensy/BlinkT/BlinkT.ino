@@ -5,8 +5,6 @@
 // (c) Project Contributors Jan - Apr 2021
 
 #include "Common/Teensy/TN_Timing.hpp"
-//#include "TeensyTimerTool.h" ???
-//#include "TimerOne.h"
 
 #define DEBUG       Serial
 #define DEBUG_BAUD  115200

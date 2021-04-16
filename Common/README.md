@@ -11,6 +11,9 @@ soft link to the relevant folder on disk is used to make the MBD folder appear w
 
 
 ## Ungrouped modules
+
 M0_Util	- Hacks for ARM Cortex MCU with limited ALU (e.g. M0+)
+
 RotEnc	- Rotary Encoder "driver" code suitable for user control input (polled ~1kHz).
+
 Wave8	- 8bit waveform synthesis hacks.
