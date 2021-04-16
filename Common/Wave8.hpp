@@ -10,6 +10,7 @@
 
 //#define PENTATONIC_ROOT 1.1487	// 5th root of 2
 //#define HEPTATONIC_ROOT 1.1041	// 7th root of 2
+// Chromatic (?) scale of 12 semitones
 #define DODECATONIC_ROOT 1.059	// 12th root of 2 - basis of the even tempered scale
 #define DDT0 1 // fundamental
 #define DDT1 DODECATONIC_ROOT
@@ -32,10 +33,13 @@
 #define WAVE_SAMPLES	128
 
 #define FM 110*0x100
-static const U16 evenTempScale[]=
+static const uint16_t evenTempScale[]=
 { FM, FM*DDT1, FM*DDT2, FM*DDT3, FM*DDT4, FM*DDT5, FM*DDT6, 
 	FM*DDT7, FM*DDT8, FM*DDT9, FM*DDT10, FM*DDT11, FM*DDT12, 
 	FM*DDT13, FM*DDT14 };
+
+// scale steps
+static const uint8_t majorSS[]={2,2,1,2,2,2,1,2};
 
 // Quarter sine table: 32 * 4 = 128 sample values generated
 static const int8_t qSinQ7M5[32]=

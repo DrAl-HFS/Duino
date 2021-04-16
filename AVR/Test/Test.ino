@@ -216,7 +216,7 @@ static uint16_t gHackCount= 0;
   }
 } // pulseHack
 
-uint8_t gLastCUD=0, gAV=0x01, gIS=0, gDIS= 2, gLastIS=0;
+uint8_t gLastCUD=0, gAV=0x01, gSI=0, gIS=0, gDIS= 2, gLastIS=0;
 
 void loop (void)
 {
@@ -227,8 +227,11 @@ void loop (void)
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
     if (gClock.intervalUpdate())
     { 
-      ev|= 0x80; gIS+= gDIS;
-      if (gIS > 14) { gIS= 0; gDIS= 16 - gDIS; }
+      ev|= 0x80;
+      gIS+= majorSS[gSI];
+      if (++gSI > 7) { gSI= 0; gIS= 0; }; 
+      //gIS+= gDIS;
+      //if (gIS > 14) { gIS= 0; gDIS= 16 - gDIS; }
     }
     if (gStreamCmd.read(cmd,DEBUG))
     {

@@ -84,8 +84,15 @@ char procCmd (Stream& s)
   return(0);
 } // procCmd
 
-#define BATCH 32
-struct ReadState { int16_t s[BATCH]; uint8_t n[BATCH], i; uint16_t tn; };
+struct ReadState { int8_t s[32], mm[2], t; uint8_t iS, iW; uint16_t tn; uint32_t w[8]; };
+
+int16_t acf (int8_t w0[], int8_t w1[], int8_t n)
+{
+  //if (n <= 0) { return(0); }
+  int16_t s= w0[0] * w1[0];
+  for (int8_t i=1; i<n; i++) { s+= w0[i] * w1[i]; }
+  return(s);
+} // acf
 
 ReadState rs;
 void receive (void)
@@ -94,39 +101,43 @@ void receive (void)
   {
 const int16_t calOffs= 210;
     uint16_t v;
-    int16_t s=0;
-    int8_t r;
-    int8_t n=0, m=0;
+    int8_t w[10], r, n=0;
     do
     {
       r= gADC.get(v);
       if (0x1 == r)// channel1, sensitivity ~1.07mV (A0/1.1V ref)
       {
-        s+= (v-calOffs);
+        w[n]= (v-calOffs);
         n++;
-        m+= (v <= 0);
       }
     } while ((r >= 0) && (n < 10));
-    if (n > m)
+    if (n >= 8)
     {
-      rs.s[rs.i]= s;
-      rs.n[rs.i]= n;
+      rs.s[rs.iS]= acf(w,w+4,4) / 4;
+      rs.mm[0]= min(rs.mm[0], rs.s[rs.iS]);
+      rs.mm[1]= max(rs.mm[1], rs.s[rs.iS]);
       rs.tn+= n;
-      rs.i++; rs.i&= 0x1F;
+      if (++(rs.iS) >= 32)
+      {
+        int8_t t= (rs.mm[0] + rs.mm[1]) / 2;
+        rs.t= max(rs.t, t);
+        uint32_t w= 0;
+        for (int8_t i=0; i<32; i++) { w= (w << 1) | (rs.s[i] > rs.t); }
+        rs.iW= (rs.iW + 1) & 0x7;
+        rs.w[rs.iW]= w;
+        rs.iS&= 0x1F;
+      }
     }
   }
 } // receive
 
 void dumpRS (Stream& s)
 {
-  s.print("RS:"); s.print("["); s.print(rs.tn); s.print("]=");
-  int8_t n= min(BATCH, rs.tn);
-  for (int8_t i=0; i<n; i++)
-  {
-    s.print(rs.s[i]); s.print(',');
-  }
-  s.println();
-  rs.i= rs.tn= 0;
+  s.print("RS:"); s.print("["); s.print(rs.tn); s.print("] mm={"); 
+  s.print(rs.mm[0]); s.print(','); s.print(rs.mm[1]); s.print("} ");
+  for (int8_t i=0; i<8; i++) { s.print(rs.w[i],HEX); }
+  rs.iS= rs.iW= rs.tn= 0;
+  rs.mm[0]= 0x7F; rs.mm[1]= 0x80;
 } // dumpRS
 
 void setup (void)
@@ -187,7 +198,7 @@ void loop (void)
         gS.resend(); 
       }
     }
-    else if (gClock.intervalDiff() == -2500) { dumpRS(DEBUG); }
+    //else if (gClock.intervalDiff() == -500) { dumpRS(DEBUG); }
     if (gS.ready() && gMorseDT.update(ev))
     {
       if (gS.nextPulse(DEBUG))
