@@ -270,16 +270,17 @@ public:
 class CMorseTime : public CMorseSSS
 {
 public:
-   uint8_t msPulse, q4FGS; // 50~100 typically
+   uint8_t msPulse; // 50~100 typically
+   uint8_t q4FGS; // Gap stretch ratio as 4.4 fixed point fraction
    uint16_t t;
 
-   CMorseTime (uint8_t np, uint8_t tu)
+   CMorseTime (uint8_t nPerUnit, uint8_t timeUnit)
    {
-      if (tu > MORSE_FARNSWORTH_OFF) { q4FGS= tu; } else { q4FGS= 0; }
-      switch(tu)
+      if (timeUnit > MORSE_FARNSWORTH_OFF) { q4FGS= timeUnit; } else { q4FGS= 0; }
+      switch(timeUnit)
       {
-         default : msPulse= 60000 / (np * MORSE_CANONICAL_WORD); break; // wpm
-         case 0 : msPulse= 500 / np; break; // dps
+         default : msPulse= 60000 / (nPerUnit * MORSE_CANONICAL_WORD); break; // wpm
+         case 0 : msPulse= 500 / nPerUnit; break; // dps
       }
    }
 
@@ -314,6 +315,8 @@ public:
    
 }; // CMorseTime
 
+//#include "../SerMux.hpp" // host receiver still to do...
+
 class CMorseDebug : public CMorseTime
 {
 public :
@@ -323,7 +326,12 @@ public :
    {
       bool r= CMorseTime::nextPulse();
       static const char dbg[8]={ '\n', 0, '|', ' ' , '0', '.', '-', '3' };
-      log.write( dbg[tc&0x7] ); log.flush();
+#ifdef SERMUX_HPP
+      CSerMux m; m.send(log, 0x30, dbg+(tc&0x7),1);
+#else
+      log.write( dbg[tc&0x7] );
+#endif
+      log.flush();
       //if (dbgFlag & 0x0C) { log.print("f:"); log.println(dbgFlag,HEX); }
       return(r);
    } // nextPulse

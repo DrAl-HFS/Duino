@@ -1,6 +1,6 @@
 // Duino/AVR/Morse/Morse.ino - Morse code generation
 // https://github.com/DrAl-HFS/Duino.git
-// Licence: GPL V3A
+// Licence: AGPL3
 // (c) Project Contributors Feb - Mar 2021
 
 #include "Common/Morse/CMorse.hpp"
@@ -191,10 +191,8 @@ void loop (void)
     if (gClock.intervalUpdate())
     {
       if (gS.complete())
-      { 
-        char s[12];
-        gClock.getStrHMS(s,sizeof(s)-1);
-        DEBUG.print(s); DEBUG.print(' ');
+      {
+        gClock.printHMS(DEBUG,' ');
         gS.resend(); 
       }
     }
