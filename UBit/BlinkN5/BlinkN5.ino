@@ -11,7 +11,7 @@ CMapLED gMap;
 CUBitButtons gB;
 
 uint8_t iR=0, iC=0;
-uint8_t mode=0; 
+uint8_t mode=0x00; 
 
 void setup (void)
 { 
@@ -25,10 +25,10 @@ void setup (void)
 
 void loop (void)
 {
-  // uint8_t sm= input();
   gB.update();
   uint8_t ev= gB.a.getPress() | (gB.b.getPress() << 1);
-  if (gB.getTimeAB(1) == 10) { mode^= 0x80; ev|= 0x80; }
+  if (mode & 0x40) { if (gB.getTimeAB(0) >= 2) { mode&= ~0x40; } } // unlock
+  else if (gB.getTimeAB(1) >= 10) { mode^= 0x80; mode|= 0x40; ev|= 0x80; } // flip & lock
   if (mode & 0x80)
   { // continuous
     mode^= ev & 0x3;
