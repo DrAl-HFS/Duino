@@ -1,7 +1,7 @@
 // Duino/Common/AVR/DA_Timing.hpp - Arduino-AVR specific class definitions for timer / clock
 // https://github.com/DrAl-HFS/Duino.git
-// Licence: GPL V3A
-// (c) Project Contributors Nov 2020 - Feb 2021
+// Licence: AGPL3
+// (c) Project Contributors Nov 2020 - Apr 2021
 
 #ifndef DA_TIMING_HPP
 #define DA_TIMING_HPP
@@ -325,7 +325,16 @@ public:
       if (n > 0) { n+= getStrS(str+n, max-n, 1, end); }
       return(n);
    } // getStrHMS
-
+   int8_t printHMS (Stream& s, const char end=0x0)
+   {
+      char hms[10];
+      int8_t i= getStrHMS(hms,sizeof(hms)-1);
+      //if (i < sizeof(hms))
+      hms[i++]= end;
+      if (0x00 != end) { hms[i++]= 0x00; }
+      s.print(hms); 
+      return(i);
+   }
 }; // CClock
 
 #endif // DA_TIMING_HPP
