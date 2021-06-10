@@ -1,16 +1,17 @@
-// Duino/Common/N5/N5_Timing.hpp - nRF5* (Micro:Bit V1 nRF51822) timing utilities
+// Duino/Common/N5/N5_Timing.hpp - nRF5* (Micro:Bit V1 & V2 nRF51822/52833) timing utilities
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Jan 2021
+// (c) Project Contributors Jan - June 2021
 
 #ifndef N5_TIMING
 #define N5_TIMING
 
 #include "N5_Util.hpp"
+#include "../M0_Util.hpp" // Aaargh!
 
 #define TIMER_ROLLING
 //define TIMER_CC_IDX 3
-#define TIMER_CC_STEP (16000)   // 1ms @ 16MHz
+#define TIMER_CC_STEP (16000)   // 1ms @ 16MHz (HFCLK not core clk)
 #define RTC_PRESCALE_MAX ((1<<12)-1)
 
 
@@ -19,13 +20,13 @@ class CTimerN5
 protected:
    uint32_t tickCount; // 49.7 days wrap-around at 1ms tick
 
-   void setup (NRF_TIMER_Type *pT=NRF_TIMER2)
+   void setup (NRF_TIMER_Type *pT=NRF_TIMER2, uint32_t tickCount=TIMER_CC_STEP)
    {
       pT->MODE = TIMER_MODE_MODE_Timer;
-      pT->PRESCALER= 0;   // 16MHz 62.5nSec tick
+      pT->PRESCALER= 0;   // HFCLK 16MHz 62.5nSec tick
       pT->TASKS_CLEAR= 1; // clean reset
       pT->BITMODE= TIMER_BITMODE_BITMODE_32Bit; // wrap at 256 sec
-      pT->CC[3]= TIMER_CC_STEP-1;   // 1ms
+      pT->CC[3]= tickCount-1;   // 1ms
 
       // CC[3] auto clear yields periodic 0..9999 
 #ifndef TIMER_ROLLING
@@ -44,6 +45,15 @@ public:
 #endif
       tickCount++; 
    }
+   
+   uint32_t getTick (void) { return(tickCount); }
+   uint32_t getTickHW (int8_t i=0, NRF_TIMER_Type *pT=NRF_TIMER2)
+   {
+      if (tickCapture(i,pT) >= 0) { return(pT->CC[i]); }
+      //else
+      return(0);
+   } // getTickHW
+   
    void tickOvfloEvent (NRF_TIMER_Type *pT=NRF_TIMER2) { ; }
    
    int8_t tickCapture (int8_t i, NRF_TIMER_Type *pT=NRF_TIMER2) // { return(pT->COUNTER); } ???
@@ -57,7 +67,7 @@ public:
    {
       uint32_t r= 0;
       if ((i1 < 3) && (i2 < 3))
-      {  // overflow wap check
+      {  // overflow wrap check
          if (pT->CC[i2] >= pT->CC[i1]) { r= pT->CC[i2] - pT->CC[i1]; }
          else { r= pT->CC[i2] + 1 + (0xFFFFFFFF - pT->CC[i1]); } // form 32b complement 
       }
@@ -112,7 +122,6 @@ public:
       return(false);
    }
 }; // CTimerInterval
-
 
 
 class CClock : public CTimerN5, CRTClockN5, CTimerInterval
@@ -178,13 +187,13 @@ public:
    } // printMilliSec
 // ...not really class members
 
-   void print (Stream& s) const
+   void print (Stream& s, const char end=0x00) const
    {
       uint32_t sec;
       uint16_t ms= divmod32(sec, CTimerN5::tickCount, 1000);
       printSecHMS(s,sec);
       printMilliSec(s,ms);
-
+      if (end > 0) { Serial.print(end); }
       // snprintf adds 16KB code! Hence BCD->char used instead.
       // snprintf(ch,sizeof(ch)-1,"%02u:%02u:%02u.%03u", hms[0], hms[1], hms[2], ms);
 #if 0
