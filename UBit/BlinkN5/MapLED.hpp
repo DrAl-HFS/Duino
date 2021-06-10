@@ -26,8 +26,9 @@ static const uint8_t m55[5][5]=
 };
 #endif // TARGET_UBITV1
 
-#ifdef TARGET_UBITV2 // Just an (incorrect) copy of V1 for now...
+#ifdef TARGET_UBITV2 // Partly (?) corrected - but not as expected...
 // https://microbit-micropython.readthedocs.io/en/v2-docs/pin.html
+// http://www.ulisp.com/show?3CXJ
 static const uint8_t row[5]={21,22,23,24,25}; // Active high (source)
 static const uint8_t col[5]={4,7,3,6,10}; // Active low (sink)
 /*
@@ -42,34 +43,27 @@ static const uint8_t m55[5][5]=
 * */
 #endif // TARGET_UBITV1
 
-// UBit V2 defs ???
-
 class CMapLED // row-col multiplex 3*9 physical <-> 5*5 logical (+2???)
 {
 public:
    CMapLED (void) {;}
    
-   void init (int state=-1)
+   void init (uint32_t state=0x001F)
    {
-      for (int i=0; i<sizeof(row); i++) { pinMode(row[i], OUTPUT); }
-      for (int i=0; i<sizeof(col); i++) { pinMode(col[i], OUTPUT); }
-      if (state >= 0)
-      {
-         setRow(1);
-         setCol(state^1);
-      }
-   }
+      uint8_t mr= state & 0x1F;
+      uint16_t mc= state >> 8;
+      for (int i=0; i<sizeof(row); i++) { pinMode(row[i], OUTPUT); digitalWrite(row[i], mr & 0x1); mr>>= 1; }
+      for (int i=0; i<sizeof(col); i++) { pinMode(col[i], OUTPUT); digitalWrite(col[i], mc & 0x1); mc>>= 1; }
+   } // init
 
-   void setRow (int v)
+   void setRow (uint8_t mr)
    {
-     v= (0 != v);
-     for (int i=0; i<sizeof(row); i++) { digitalWrite(row[i], v); }
+     for (int i=0; i<sizeof(row); i++) { digitalWrite(row[i], mr & 0x1); mr>>= 1; }
    } // setRow
 
-   void setCol (int v)
+   void setCol (uint16_t mc)
    {
-     v= (0 != v);
-     for (int i=0; i<sizeof(col); i++) { digitalWrite(col[i], v); }
+     for (int i=0; i<sizeof(col); i++) { digitalWrite(col[i], mc & 0x1); mc>>= 1; }
    } // setCol
    
    uint8_t getRCI (uint8_t iR, uint8_t iC)
@@ -79,7 +73,8 @@ public:
 #else
       return m55[iR][iC];
 #endif
-  }
+   } // getRCI
+
    void rowSwitch (uint8_t r0, uint8_t r1)
    {
       if (r0 != r1)
@@ -87,7 +82,8 @@ public:
          digitalWrite(row[r0], LOW);
          digitalWrite(row[r1], HIGH);
       }
-   }
+   } // rowSwitch
+   
    void colSwitch (uint8_t c0, uint8_t c1)
    {
       if (c0 != c1)
@@ -95,7 +91,8 @@ public:
          digitalWrite(col[c0], HIGH);
          digitalWrite(col[c1], LOW);
       }
-   }
+   } // colSwitch
+   
 }; // CMapLED
 
 #endif // MAP_LED_HPP

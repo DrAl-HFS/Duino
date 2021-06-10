@@ -66,6 +66,10 @@ public:
       a.update(digitalRead(PIN_BTN_A));
       b.update(digitalRead(PIN_BTN_B));
    }
+   uint8_t getState (void) { return(a.getState() | (b.getState()<<1)); }
+   uint8_t getPress (void) { return(a.getPress() | (b.getPress()<<1)); }
+   uint8_t getRelease (void) { return(a.getRelease() | (b.getRelease()<<1)); }
+
    uint8_t getTimeAB (const bool state)
    {
       return min(a.getTime(state), b.getTime(state));
