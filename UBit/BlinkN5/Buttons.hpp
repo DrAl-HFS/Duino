@@ -16,7 +16,7 @@ private:
    uint8_t  ts;   // ticks (update intervals) in current state
    
 public:
-   CButton (void) { ; }
+   CButton (void) : bse{0}, ts{0} { ; }
    bool getChange (const bool state) { return((bse & 0x1) ^ state); }
    bool getState (void) { return(bse & 0x1); }
    bool getPress (void) { return(bse & 0x80); }

@@ -1,7 +1,7 @@
 // Duino/UBit/blink/MapLED.hpp - Micro:Bit LED map
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Jan 2021
+// (c) Project Contributors Jan - June 2021
 
 #ifndef MAP_LED_HPP
 #define MAP_LED_HPP
@@ -11,8 +11,8 @@
 // This should be encapsulated (in class) but seems to be an old gcc version
 // lacking proper C11 support...
 
-#ifdef TARGET_UBITV1
-// Arduino pin numbers
+// Arduinish pin numbers
+#ifdef TARGET_UBITV1 // 3 x 9 matrix (?) mapped to 5 x 5
 static const uint8_t row[3]={26,27,28}; // Active high (source)
 static const uint8_t col[9]={3,4,10,23,24,25,9,7,6}; // Active low (sink)
 // 5 * 5 matrix mapping using bytes as nybble pairs (tuples) in row:col index order
@@ -26,7 +26,7 @@ static const uint8_t m55[5][5]=
 };
 #endif // TARGET_UBITV1
 
-#ifdef TARGET_UBITV2 // Partly (?) corrected - but not as expected...
+#ifdef TARGET_UBITV2 // 5 x 5 matrix, no need for map
 // https://microbit-micropython.readthedocs.io/en/v2-docs/pin.html
 // http://www.ulisp.com/show?3CXJ
 static const uint8_t row[5]={21,22,23,24,25}; // Active high (source)
@@ -40,8 +40,11 @@ static const uint8_t m55[5][5]=
   { 0x30, 0x31, 0x32, 0x33, 0x34, },
   { 0x40, 0x41, 0x42, 0x43, 0x44 }
 };
-* */
-#endif // TARGET_UBITV1
+*/
+#ifndef MIC_LED_PIN
+#define MIC_LED_PIN 28
+#endif
+#endif // TARGET_UBITV2
 
 class CMapLED // row-col multiplex 3*9 physical <-> 5*5 logical (+2???)
 {
@@ -54,6 +57,9 @@ public:
       uint16_t mc= state >> 8;
       for (int i=0; i<sizeof(row); i++) { pinMode(row[i], OUTPUT); digitalWrite(row[i], mr & 0x1); mr>>= 1; }
       for (int i=0; i<sizeof(col); i++) { pinMode(col[i], OUTPUT); digitalWrite(col[i], mc & 0x1); mc>>= 1; }
+      #ifdef MIC_LED_PIN
+      pinMode(MIC_LED_PIN, OUTPUT);
+      #endif
    } // init
 
    void setRow (uint8_t mr)
