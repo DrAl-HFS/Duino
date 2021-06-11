@@ -9,9 +9,9 @@
 //SDK v15 #define NRF_ESB_LEGACY
 
 #include "N5_RF.hpp"
-#include "Common/M0_Util.hpp"
 #include "Common/N5/N5_HWID.hpp"
-#include "Common/N5/N5_Timing.hpp"
+#include "Common/N5/N5_ClockInstance.hpp" // changed from N5_Timing
+//#include "Common/M0_Util.hpp"
 
 #define PIN_BTN_A 5
 #define PIN_BTN_B 11
@@ -23,15 +23,8 @@
 
 /*** GLOBALS ***/
 
+/*
 CClock gClock;
-CRFScan gScan(N5_CHAN_BASE,N5_CHAN_COUNT,N5_CHAN_STEP);
-
-RH_NRF51 gRF;
-
-int gLogIvl= 100;
-
-
-/*** ISR ***/
 
 // NB - 'duino "magic" name linking requires undecorated symbol
 extern "C" {
@@ -58,6 +51,16 @@ void RTC0_IRQHandler (void)
 } // RTC0_IRQHandler
 
 } // extern "C"
+*/
+CRFScan gScan(N5_CHAN_BASE,N5_CHAN_COUNT,N5_CHAN_STEP);
+
+RH_NRF51 gRF;
+
+int gLogIvl= 100;
+
+
+/*** ISR ***/
+
 
 /***/
 
