@@ -55,6 +55,7 @@ void setup (void)
   nrf5DumpHWID(Serial);
 
   gSpkr.init();
+  //analogWrite(SPKR_PIN, 0x100);
 
   gMap.init(0); // set all LEDs off ?
   
@@ -114,10 +115,10 @@ void loop (void)
     else
     {
       digitalWrite(MIC_LED_PIN, 1);
-      gSpkr.tone();
+      gSpkr.click();
       cycle= 0;
       gClock.print(Serial,'\n');
     }  
   }
-  //gSpkr.update(gClock.getTickHW());
+  gSpkr.update(gClock.getTick());
 } // loop
