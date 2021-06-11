@@ -1,4 +1,4 @@
-// Duino/UBit/BlinkN5/blink.ino - Micro:Bit V1 (nrf51822) LED matrix blink control test
+// Duino/UBit/BlinkN5/blink.ino - Micro:Bit LED matrix blink control test
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 20 - June 21
@@ -8,8 +8,9 @@
 #include "Common/N5/N5_ClockInstance.hpp"
 #include "MapLED.hpp"
 #include "Buttons.hpp"
+#ifdef TARGET_UBITV2
 #include "Audio.hpp"
-
+#endif
 
 // Extend with virtual "double-press" button using timed lockout
 class BlinkInput : public CUBitButtons
@@ -47,7 +48,7 @@ CMapLED gMap;
 BlinkInput gBI;
 
 uint8_t iR=0, iC=0;
-uint8_t mode=0x03, cycle= 0; 
+uint8_t mode=0x03, cycleA= 0, cycleB= 0; 
 
 void setup (void)
 { 
@@ -111,12 +112,18 @@ void loop (void)
       gMap.rowSwitch(t0 >> 4, t1 >> 4);
       gMap.colSwitch(t0 & 0x0F, t1 & 0x0F);
     }
-    if (++cycle < 20) { digitalWrite(MIC_LED_PIN, 0); }
+    if (++cycleA < 20) { digitalWrite(MIC_LED_PIN, 0); }
     else
     {
+      cycleA= 0;
       digitalWrite(MIC_LED_PIN, 1);
-      gSpkr.click();
-      cycle= 0;
+      switch(cycleB)
+      {
+        case 0 : gSpkr.click(); break;
+        case 1 : gSpkr.tone(); break;
+        case 2 : gSpkr.pulse(128);  break;
+      }
+      if (++cycleB > 2) { cycleB= 0; }
       gClock.print(Serial,'\n');
     }  
   }
