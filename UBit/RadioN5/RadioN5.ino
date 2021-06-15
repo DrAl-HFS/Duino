@@ -8,10 +8,9 @@
 // github.com/NordicPlayground/nrf51-micro-esb/Common/micro_esb.c
 //SDK v15 #define NRF_ESB_LEGACY
 
-#include "N5_RF.hpp"
 #include "Common/N5/N5_HWID.hpp"
 #include "Common/N5/N5_ClockInstance.hpp" // changed from N5_Timing
-//#include "Common/M0_Util.hpp"
+#include "N5_RF.hpp"
 
 #define PIN_BTN_A 5
 #define PIN_BTN_B 11
@@ -23,43 +22,11 @@
 
 /*** GLOBALS ***/
 
-/*
-CClock gClock;
-
-// NB - 'duino "magic" name linking requires undecorated symbol
-extern "C" {
-
-void TIMER2_IRQHandler (void)
-{
-  NRF_TIMER_Type *pT=NRF_TIMER2;
-	if (0 != pT->EVENTS_COMPARE[3])
-  {
-		pT->EVENTS_COMPARE[3]= 0; // Clear event (SHORTS resets count)
-    while (0 != pT->EVENTS_COMPARE[3]); // spin sync
-    gClock.tickEvent();
-  }
-} // TIMER2_IRQHandler
-
-void RTC0_IRQHandler (void)
-{
-	if (0 != NRF_RTC0->EVENTS_OVRFLW)
-  {
-    NRF_RTC0->EVENTS_OVRFLW= 0; // clear & spin sync
-    while (0 != NRF_RTC0->EVENTS_OVRFLW);
-    gClock.rtcOvfloEvent(); // update offset
-  }
-} // RTC0_IRQHandler
-
-} // extern "C"
-*/
 CRFScan gScan(N5_CHAN_BASE,N5_CHAN_COUNT,N5_CHAN_STEP);
 
 RH_NRF51 gRF;
 
 int gLogIvl= 100;
-
-
-/*** ISR ***/
 
 
 /***/

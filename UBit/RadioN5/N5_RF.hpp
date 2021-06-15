@@ -8,9 +8,11 @@
 
 #include "Common/N5/N5_Util.hpp"
 
-#ifdef TARGET_NRF51
+//#ifdef TARGET_NRF52
+//#define NRF52   doesn't propagate to required build point
+//#endif
+//#include <RadioHead.h>
 #include <RH_NRF51.h>
-#endif
 
 
 /***/
