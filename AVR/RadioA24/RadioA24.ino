@@ -36,7 +36,7 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 #ifdef DA_ANALOGUE_HPP
 
-CAnalogue gADC;
+CAnalogueDbg gADC;
 
 ISR(ADC_vect) { gADC.event(); }
 

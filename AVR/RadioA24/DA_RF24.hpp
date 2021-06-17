@@ -29,6 +29,25 @@ protected:
 public:
    TestRF24 (uint8_t pinCE=PIN_CE) : RH_NRF24(pinCE,SS) {;}
    
+   bool setNetworkAddress (Stream& log, const uint8_t* a, const uint8_t l)
+   {
+      bool r= RH_NRF24::setNetworkAddress(a, l);
+      if (r)
+      {
+         const char ch[2]={':','\n'};
+         log.print("Bound address:");
+         for (int8_t i=0; i<l; i++) { log.print(a[i],HEX); log.print(ch[i>=(l-1)]); }
+      }
+      return(r);
+   } // setNetworkAddress
+
+   bool setChannel (Stream& log, const uint8_t c)
+   {
+      bool r= RH_NRF24::setChannel(c);
+      if (r) { log.print("chan"); log.println(c); }
+      return(r);
+   } // setChannel
+
    uint8_t init (Stream& log, const char idsz[])
    {
       //RHMode x= RHModeInitialising;
@@ -39,7 +58,7 @@ public:
       if (RH_NRF24::init())
       {
          rm= 0x1;
-         if (setNetworkAddress(addr,sizeof(addr))) { rm|= 0x2; }
+         if (setNetworkAddress(log, addr, sizeof(addr))) { rm|= 0x2; }
       }
       if (idsz)
       {
@@ -51,7 +70,7 @@ public:
          v^= (v << 1);
       }
       // Defaults after init are 2.402 GHz (channel 2), 2Mbps, 0dBm
-      rm|= (setChannel(45) > 0) << 1;
+      rm|= (setChannel(log,7) > 0) << 1;
       //rm|= (setRF(RH_NRF24::DataRate2Mbps, RH_NRF24::TransmitPower0dBm) > 0) << 2;
       if (log.available() >= 0) // junk
       {
