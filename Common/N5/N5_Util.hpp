@@ -32,7 +32,4 @@
 #endif
 #endif // _MICROBIT_V2_
 
-/***/
-
-
 #endif // N5_UTIL
