@@ -116,14 +116,14 @@ void loop (void)
     else
     {
       cycleA= 0;
-      digitalWrite(MIC_LED_PIN, 1);
-      switch(cycleB)
+      digitalWrite(MIC_LED_PIN, 1); gSpkr.clear();
+      if (++cycleB >= 60) { gSpkr.pulse(128); cycleB-= 60; }
+      else switch(cycleB & 0x1)
       {
-        case 0 : gSpkr.click(); break;
-        case 1 : gSpkr.tone(); break;
-        case 2 : gSpkr.pulse(128);  break;
+        case 0 : gSpkr.click(); break; // tick
+        case 1 : gSpkr.tone(); break; // tock
       }
-      if (++cycleB > 2) { cycleB= 0; }
+
       gClock.print(Serial,'\n');
     }  
   }
