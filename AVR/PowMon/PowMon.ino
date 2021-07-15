@@ -83,7 +83,7 @@ static uint8_t nLog=0;
       else if (l < 0) { n+= gADC.dump(str+n, m-n); }
     } while ((r >= 0) && (n < 32));
     if (x & 0x01) { gADC.flush(); }
-    if (0 == (++nLog & 0xF)) { gADC.next(); }
+    if (0 == (++nLog & 0x0)) { gADC.next(); }
     //if (l >= 0) { gADC.set(l); }
   }
 #endif
@@ -98,7 +98,7 @@ void setup (void)
   //setID("Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
-  gADC.init(1); gADC.start();
+  gADC.init(0); gADC.start();
   pinMode(PIN_PULSE, OUTPUT);
   pinMode(PIN_DA0, OUTPUT);
 
@@ -142,9 +142,12 @@ void loop (void)
   if (gClock.update() > 0)
   { // ~100Hz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
-    if (gClock.intervalDiff() >= -AVR_HW_MS_TICK)
-    { gADC.startAuto(); set_sleep_mode(SLEEP_MODE_ADC); } 
-    else { gADC.stop(); set_sleep_mode(SLEEP_MODE_IDLE); }
+    int16_t cid= gClock.intervalDiff();
+    if (cid >= -AVR_HW_MS_TICK)
+    {
+      if (cid >= 0) { gADC.stop(); set_sleep_mode(SLEEP_MODE_IDLE); }
+      else { gADC.startAuto(); set_sleep_mode(SLEEP_MODE_ADC); } 
+    }
     if (gClock.intervalUpdate())
     { 
       ev|= 0x80;
