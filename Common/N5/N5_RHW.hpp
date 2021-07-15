@@ -165,34 +165,56 @@ public:
    }
 }; // RadioStateN5
 
+struct ChanRange
+{
+   int8_t r0, dr, n;
+   
+   ChanRange (int8_t c0, int8_t c1, int8_t s=1)
+   {
+      r0= c0;
+      dr= c1 - c0;
+      if (0 != s) { n= dr / s; } else { n= dr; }
+      n= abs(n);
+      n+= (0 == n);
+      if (1 != n) { dr/= n; }
+   }
+}; // ChanRange
+
 class RadioUtilN5 : public RadioStateN5
 {
 protected:
-   int8_t rssiChan;
    
 public: 
    RadioUtilN5 () { ; }
    
-   int8_t getRSSI (int8_t chan=-1, NRF_RADIO_Type *pR=NRF_RADIO)
-   {  // typically <2us
-      int8_t saveChan=-1;
-      if ((chan >= 0) && (chan <= 100) && (chan != pR->FREQUENCY))
-      {
-         saveChan= pR->FREQUENCY;
-         pR->FREQUENCY= chan;
-      }
+   int8_t getRSSI (NRF_RADIO_Type *pR=NRF_RADIO)
+   {
       pR->TASKS_RSSISTART= 1;
       while (0 == pR->EVENTS_RSSIEND); // spin
-      rssiChan= pR->FREQUENCY;
-      if (saveChan >= 0) { pR->FREQUENCY= saveChan; }
-      return(-(pR->RSSISAMPLE)); // -> -dB
+      return(-(pR->RSSISAMPLE)); // -> -dBm
    } // getRSSI
    
-   int8_t dumpRSSI (Stream& s, int8_t chan=-1)
+   int8_t dumpRSSI (Stream& s, const signed char end='\n', NRF_RADIO_Type *pR=NRF_RADIO)
    {
-      int8_t r= getRSSI(chan);
-      s.print("rssi C"); s.print(rssiChan); s.print("= "); s.println(r);
+      const int8_t c= pR->FREQUENCY, r= getRSSI(pR);
+      s.print("C"); s.print(c); s.print('='); s.print(r); s.print(end);
+      return(r);
    }
+
+   int8_t dumpRSSI (Stream& s, const ChanRange& c, NRF_RADIO_Type *pR=NRF_RADIO)
+   {
+      int8_t r, x= c.r0, saveChan= pR->FREQUENCY;
+      for (int8_t i=0; i<c.n; i++)
+      {
+         pR->FREQUENCY= x; //delay(1);
+         r= dumpRSSI(s,',',pR);
+         x+= c.dr;
+      }
+      s.println();
+      pR->FREQUENCY= saveChan;
+      return(r);
+   } // dumpRSSI
+      
 }; // RadioUtilN5
 
 #endif // N5_RHW_HPP

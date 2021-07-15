@@ -47,7 +47,7 @@ void setup (void)
   //gClock.begin();
   gT.start(tickFunc);
   gT.dbgPrint(DEBUG);
-  gS.send("SOS <SOS>"); // "What hath God wrought?");
+  gS.send("SOS <SOS>" "What hath God wrought?");
   gDT= 1000;
   gClock.print(DEBUG,0x82);
 } // setup
@@ -57,7 +57,7 @@ void loop (void)
   if (gT.diff() >= gDT)
   {
     gT.retire(gDT); // chop or stretch ?...
-    if (gS.nextPulse())
+    if (gS.nextPulse(DEBUG))
     {
       uint8_t v= gS.pulseState();
       digitalWrite(LED, v);

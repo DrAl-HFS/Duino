@@ -105,7 +105,7 @@ public:
       if (d >= 0)
       {
          CHardPWMN5::setup();
-         d= -1;
+         d= -1;   // no stop ?
       }
       CHardPWMN5::play(w,0x40);
    } // tone
@@ -120,6 +120,7 @@ public:
       }
    } // update
    
+   void clear (void) { d= 0; }
 }; // CSpeaker
 
 #endif // AUDIO_HPP
