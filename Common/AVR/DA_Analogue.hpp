@@ -14,6 +14,21 @@
 
 /***/
 
+int8_t convTherm (uint16_t t)
+{
+#if 1
+   // Device signature calibration: TSOFFSET=FF, TSGAIN=4F ???
+   // Looks like available docs are totally wrong on this.
+   //tC= (tC * 128) / 0x4F;
+   int tC= (int)t - ((int)273+80);
+   tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
+   tC+= 25;
+#else
+   tC= 25+(((int)t-((int)273+80))*13)/16;
+#endif
+   return(tC);
+} // convTherm
+
 // Collect multiplexed
 #define ANLG_MUX_SH (2)
 #define ANLG_MUX_MAX (1<<ANLG_MUX_SH)
@@ -34,26 +49,28 @@ protected:
 public:
    CAnalogue (void)
    {
-      vmux[0]= 0x40; // A0 / Vcc
-      vmux[1]= 0xC0; // A0 / 1.1Vref
-      // vmux[]= 0x4E; // Vcc / 1.1Vref (sanity check)
-      vmux[2]= 0xCF; // Gnd / 1.1Vref (sanity check)
+      vmux[0]= 0xC0; // A0 / 1.1Vref
+      vmux[1]= 0xC1; // A1 / 1.1Vref
+      vmux[2]= 0xC2; // A2 / 1.1Vref
       vmux[3]= 0xC8; // thermistor (A8) / 1.1Vref ~0x0161
    } // CTOR
 
    // deferred start essential to prevent overwrite by Arduino setup
    // (assume memclear, static construction, then handoff to "app" level)
-   void init (void)
+   void init (uint8_t id=0)
    {
-      nE= nR= 0; id= 0;
-      ADMUX=  vmux[id];
+      nE= nR= 0;
+      set(id);
       ADCSRA= (1<<ADEN) | (1<<ADIE) | 0x07; // ADC enable, Interrupt enable, clock prescaler 128 -> 125kHz sampling clock
       // 1<<ADATE; auto trigger enable
       ADCSRB= 0x00; // Free run (when auto-trigger)
-      DIDR0= 0x01; // Disable digital input buffer on A0 ; A5-A0 -> 0x3F
+      PORTC&= 0xF0;
+      DDRC&= 0xF0;
+      DIDR0= 0x0F; // Disable digital input buffer on A0-A3 ; A5-A4 -> 0x3F
    } // start
 
    void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }
+   void next (void) { set(id+1); }
    void start (void) { ADCSRA|= 1<<ADSC; }
    void stop (void) { ADCSRA&= ~(1<<ADSC); }
    void startAuto (void) { ADCSRA|= (1<<ADSC) | (1<<ADATE); }

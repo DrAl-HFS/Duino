@@ -13,19 +13,25 @@
 
 // 25 / 128 = 0.195, *4us = 0.78125us = 0.078% (-ve faster, +ve slower)
 
-// Timer0 dedicated to 'Duino infrastructure
+// Timer0 dedicated to 'Duino infrastructure - delay() etc.
 // Timer1 (16bit) used for pulse counting or fast poll (debug)
 #define AVR_CLOCK_TIMER 2
 
-#ifndef AVR_MILLI_TICKS
-#define AVR_MILLI_TICKS 1
+// Allow for hacky upscaling of interrupt frequency
+#ifndef AVR_HW_TICKS_MS
+#define AVR_HW_TICKS_MS 1 // standard scaling
 #endif
 
-// NB: Timer0 used for delay() etc.
-#if (0 == AVR_CLOCK_TIMER) || (2 == AVR_CLOCK_TIMER)
-#define AVR_CLOCK_IVL (250 / AVR_MILLI_TICKS)
+#ifdef AVR_INTR_SLOW
+#define AVR_INTR_COUNT 156 // 16MHz / 1024 -> 9.984ms
+#define AVR_HW_MS_TICK 10 // (approx)
 #else
-#define AVR_CLOCK_IVL (2000 / AVR_MILLI_TICKS)
+#define AVR_INTR_COUNT 250 // 16MHz / 64 -> 1ms
+#define AVR_HW_MS_TICK 1
+#endif
+
+#if (2 == AVR_CLOCK_TIMER)
+#define AVR_CLOCK_IVL (AVR_INTR_COUNT / AVR_HW_TICKS_MS)
 #endif // AVR_CLOCK_TIMER
 
 
@@ -65,7 +71,11 @@ public:
       TCNT2=  0;
       OCR2A=  ivl - 1; // set compare interval
       TCCR2A= 1 << WGM21; // CTC 22:21:20=010
+#ifdef AVR_INTR_SLOW
+      TCCR2B= (1 << CS22)|(1 << CS21)|(1 << CS20); // 1/1024 prescaler @ 16MHz -> 15625 ticks/sec
+#else
       TCCR2B= (1 << CS22);   // 1/64 prescaler @ 16MHz -> 250k ticks/sec, 4us per ms granularity (0.4%)
+#endif
       TIMSK2= (1 << OCIE2A); // Compare A Interrupt Enable
 #endif // (2 == AVR_CLOCK_TIMER)
    } // init
@@ -248,12 +258,12 @@ public:
    uint8_t update (void)
    {
       uint8_t d= diff();
-      if (d >= AVR_MILLI_TICKS)
+      if (d >= AVR_HW_TICKS_MS)
       {
-         uint8_t m= d / AVR_MILLI_TICKS;
-         tick+= m;
+         uint8_t m= d / AVR_HW_TICKS_MS;
+         tick+= m * AVR_HW_MS_TICK;
          tickTock();
-         retire(m * AVR_MILLI_TICKS);
+         retire(m * AVR_HW_TICKS_MS);
       }
       return(d);
    } // update
