@@ -20,10 +20,12 @@
 /***/
 
 #include "Common/AVR/DA_Timing.hpp"
-#include "Common/AVR/DA_Analogue.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
 #include "Common/AVR/DA_Config.hpp"
+#include "Charge.hpp"
 
+
+CCharge gCharge;
 
 CClock gClock(1000);
 
@@ -33,8 +35,8 @@ CClock gClock(1000);
 SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 #endif // AVR_CLOCK_TIMER
 
-CAnalogueDbg gADC;
-ISR(ADC_vect) { gADC.event(); }
+//CAnalogueDbg gADC;
+ISR(ADC_vect) { gCharge.event(); }
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
@@ -61,7 +63,13 @@ static uint8_t nLog=0;
   n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
 #endif
   str[n]= 0;
-#ifdef DA_ANALOGUE_HPP
+#if 1
+  n+= snprintf(str+n, m-n, " T=%dC", gCharge.sysTC);
+  for (int8_t i=0; i <= INST_PNLV; i++)
+  {
+    n+= snprintf(str+n, m-n, ",%dmV", gCharge.mV[i]);
+  }
+#else //def DA_ANALOGUE_HPP
   //s.print("DACt=");
   //s.println(gDAC.get());
   l= gADC.avail();
@@ -77,7 +85,11 @@ static uint8_t nLog=0;
       if (r >= 0)
       {
         l= r+1;
-        if (r < 3) { n+= snprintf(str+n, m-n, " A%d=%u", r, t); }
+        if (r < 3)
+        {
+          uint16_t mV= raw2mV(t); // (t + ((t*5)>>5) + 2)*10; // * 1.159 * 10
+          n+= snprintf(str+n, m-n, " A%d=%u,(%umV)", r, t, mV);
+        }
         else { n+= snprintf(str+n, m-n, " T%d=%dC", r, convTherm(t)); }
       }
       else if (l < 0) { n+= gADC.dump(str+n, m-n); }
@@ -98,7 +110,7 @@ void setup (void)
   //setID("Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
-  gADC.init(0); gADC.start();
+  gCharge.init(0); gCharge.start();
   pinMode(PIN_PULSE, OUTPUT);
   pinMode(PIN_DA0, OUTPUT);
 
@@ -141,17 +153,16 @@ void loop (void)
   uint8_t ev=0;
   if (gClock.update() > 0)
   { // ~100Hz update rate
-    // Pre-collect multiple ADC samples, for pending sysLog()
-    int16_t cid= gClock.intervalDiff();
-    if (cid >= -AVR_HW_MS_TICK)
+#if 0
+    static uint8_t cycN= 0;
+    ++cycN;
+    switch (cycN & 0xF)
     {
-      if (cid >= 0) { gADC.stop(); set_sleep_mode(SLEEP_MODE_IDLE); }
-      else { gADC.startAuto(); set_sleep_mode(SLEEP_MODE_ADC); } 
+      case 0 : gCharge.next(); gCharge.startAuto(); set_sleep_mode(SLEEP_MODE_ADC); break;
+      case 1 : gCharge.stopAuto(); set_sleep_mode(SLEEP_MODE_IDLE); break;
     }
-    if (gClock.intervalUpdate())
-    { 
-      ev|= 0x80;
-    }
+#endif
+    if (gClock.intervalUpdate()) { ev|= 0x80; }
     if (gStreamCmd.read(cmd,DEBUG))
     {
       ev|= 0x40;
@@ -178,6 +189,7 @@ void loop (void)
       gClock.intervalStart();
     }
     pulseHack();
+    gCharge.update();
   }
 
   digitalWrite(PIN_DA0, (gClock.tick & 0x0400) > 0);
