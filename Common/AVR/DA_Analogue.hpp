@@ -14,19 +14,25 @@
 
 /***/
 
+int8_t convT1 (int32_t t)
+{
+   return(((t-353) * 0x4F) >> 7);
+   //return(((t-352) * 13) >> 4);
+} // convT1
+
 int8_t convTherm (uint16_t t)
 {
-#if 1
+   return(25 + convT1(t));
+#if 0
+   int32_t tC= (int)t - 0x160;
+   tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
+   tC+= 25;
    // Device signature calibration: TSOFFSET=FF, TSGAIN=4F ???
    // Looks like available docs are totally wrong on this.
    //tC= (tC * 128) / 0x4F;
-   int tC= (int)t - ((int)273+80);
-   tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
-   tC+= 25;
-#else
-   tC= 25+(((int)t-((int)273+80))*13)/16;
-#endif
+    //tC= 25+(((int)t-((int)273+80))*13)/16;
    return(tC);
+#endif
 } // convTherm
 
 // Collect multiplexed
@@ -67,11 +73,27 @@ public:
       PORTC&= 0xF0;
       DDRC&= 0xF0;
       DIDR0= 0x0F; // Disable digital input buffer on A0-A3 ; A5-A4 -> 0x3F
-   } // start
+   } // init
 
    void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }
+   uint16_t readImmed (void)
+   {
+      ADCSRA= (1<<ADEN) | (1<<ADSC) | (ADCSRA & 0x7);
+      while (ADCSRA & (1<<ADSC)); // spin
+      return(ADCW);
+   }
+   uint16_t readImmedQuiet (void)
+   {
+      ADCSRA= (1<<ADEN) | (1<<ADIE) | (1<<ADSC) | (ADCSRA & 0x7);
+      //set_sleep_mode(SLEEP_MODE_ADC);
+      do
+      {
+         sleep_cpu();
+      } while (ADCSRA & (1<<ADSC)); // spin
+      return(ADCW);
+   }
    void next (void) { set(id+1); }
-   void start (void) { ADCSRA|= 1<<ADSC; }
+   void start (void) { ADCSRA|= (1<<ADSC); }
    void stop (void) { ADCSRA&= ~(1<<ADSC); }
    void startAuto (void) { ADCSRA|= (1<<ADSC) | (1<<ADATE); }
    void stopAuto (void) { ADCSRA&= ~((1<<ADSC) | (1<<ADATE)); }
@@ -87,7 +109,8 @@ public:
    void event (void) // ISR
    {
       uint8_t i= nE & ANLG_VQ_MSK;
-      v[i]= ADCL | (ADCH << 8) | (id << 12);
+      //v[i]= ADCL | (ADCH << 8) | (id << 12);
+      v[i]= ADCW | (id << 12);
       ++nE;
    } // event
 
