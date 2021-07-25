@@ -14,7 +14,7 @@
 // Measured value seems stable around 440 (+2%), so use scale 5100/440 = 11.59
 // 4b fraction gives tolerable scale accuracy: 185/16 = 11.5625 (0.3% under)
 uint16_t raw2mV (uint32_t raw)
-{  
+{
    return((raw * 185) >> 4); // <= 24b intermed. prec.
    //return((raw * 2967) >> 8); // <= 28b
 } // raw2mV
@@ -22,63 +22,109 @@ uint16_t raw2mV (uint32_t raw)
 #define INST_SYSV 0
 #define INST_BATV 1
 #define INST_PNLV 2
-#define INST_TC		3
+#define INST_TC   3
 #define RD_AVG 3
+
+struct PwrState
+{
+   uint16_t mVbat, mVpnl;
+   int16_t diff (void) { return(mVpnl - mVbat); }
+};
+
 // Instrumentation using ADC
 class CInstrmnt : public CAnalogue
 {
 public:
-	 uint16_t mV[3];
-	 uint8_t sysTC;
-	 
-	 CInstrmnt (void) { ; }
-	 
-	 void update ()
-	 {
-		  uint16_t s;
-		  set_sleep_mode(SLEEP_MODE_ADC);
-		  CAnalogue::set(INST_BATV); readImmedQuiet(); s= 0;
-		  for (int8_t i=0; i<RD_AVG; i++) { s+= readImmedQuiet(); }
-		  mV[INST_BATV]= raw2mV(s/RD_AVG);
-		  CAnalogue::set(INST_PNLV); readImmedQuiet(); s= 0;
-		  for (int8_t i=0; i<RD_AVG; i++) { s+= readImmedQuiet(); }
-		  mV[INST_PNLV]= raw2mV(s/RD_AVG);
-		  CAnalogue::set(INST_SYSV); s= readImmedQuiet(); 
-		  mV[INST_SYSV]= raw2mV(s);
-		  CAnalogue::set(INST_TC); s= readImmedQuiet();
-		  sysTC= convTherm(s);
-		  set_sleep_mode(SLEEP_MODE_IDLE);
-	 }
-	 
-	 bool updateAsync (void)
-	 {
-			uint16_t r;
-		  int8_t c, nD=0;
-		  if (CAnalogue::avail() > 0)
-		  {
-				 do
-				 {
-						c= CAnalogue::get(r);
-						if (c >= 0)
-						{
-							 if (c <= INST_PNLV)
-							 {
-									r= raw2mV(r);
-									if (r != mV[c]) { mV[c]= r; nD++; }
-							 }
-							 else if (3 == c) { sysTC= convTherm(r); }
-						}
-				 } while (c >= 0);
-		  }
-		  return(nD > 0);
-	 }
+   PwrState state[2];
+   uint16_t mVsys;
+   int8_t   tCsys;
+
+   CInstrmnt (void) { ; }
+
+   void update (uint8_t m)
+   {
+      if ((m & 0xF) > 0x1)
+      {
+         uint16_t s;
+         set_sleep_mode(SLEEP_MODE_ADC);
+         if (m & 0x2)
+         {
+            CAnalogue::set(INST_BATV);
+            s= readSumDIQ(RD_AVG);
+            state[m&0x1].mVbat= raw2mV(s/RD_AVG);
+
+            CAnalogue::set(INST_PNLV);
+            s= readSumDIQ(RD_AVG);
+            state[m&0x1].mVpnl= raw2mV(s/RD_AVG);
+         }
+         if (m & 0x4)
+         {
+            CAnalogue::set(INST_SYSV); 
+            s= readSumDIQ(1);
+            mVsys= raw2mV(s);
+         }
+         if (m & 0x8)
+         {
+            CAnalogue::set(INST_TC);
+            s= readSumDIQ(1);
+            tCsys= convTherm(s);
+         }
+      set_sleep_mode(SLEEP_MODE_IDLE);
+      }
+   } // update
+
+   int16_t stateDiff (uint8_t i=0) { return(state[i&0x1].diff()); }
+
+   int8_t dumpS (char str[], int8_t m)
+   {
+      int8_t n;
+      n= snprintf(str, m, " T=%dC", tCsys);
+      n+= snprintf(str+n, m-n, " S=%dmV", mVsys);
+      for (int8_t i=0; i < 2; i++)
+      {
+         n+= snprintf(str+n, m-n, " [%d]: %d %d", i, state[i].mVbat, state[i].mVpnl);
+      }
+      return(n);
+   } // dumpS
+
 }; // CInstrmnt
 
 class CCharge : public CInstrmnt
 {
 public:
-	
-	 CCharge (void) { ; }
+   uint16_t mVlim;
+   int8_t set, cycle;
+
+   CCharge (uint16_t mvl=7200) : mVlim{mvl} { ; }
+
+   uint8_t update (uint8_t ssm)
+   {
+      int16_t dmV;
+      ssm&= 0x1;
+      if (--cycle <= 0)
+      {
+         cycle+= 20;
+         ssm|= 0xE; // Full measurement
+      }
+      else { ssm|= 0x2; }
+      CInstrmnt::update(ssm);
+      dmV= mVlim - CInstrmnt::state[0].mVbat;
+      if (dmV > 0)
+      {
+         if (dmV >= 570) { set= 19; }
+         else { set= dmV / 30; }
+         if (stateDiff() > 0) { return(cycle < set); }
+      }
+      return(0);
+   }
+
+   int8_t dumpS (char str[], int8_t m)
+   {
+      int8_t n;
+      n= snprintf(str, m, " C/S%d,%d", cycle, set);
+      return CInstrmnt::dumpS(str+n, m-n);
+   }
+
 }; // CCharge
 
 #endif // CHARGE_HPP
