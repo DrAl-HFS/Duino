@@ -6,7 +6,7 @@
 #ifndef DA_ANALOGUE_HPP
 #define DA_ANALOGUE_HPP
 
-//#include <?>
+#include <avr/sleep.h>
 
 
 /***/
@@ -40,20 +40,14 @@ int8_t convTherm (uint16_t t)
 #define ANLG_MUX_MAX (1<<ANLG_MUX_SH)
 #define ANLG_MUX_MSK  (ANLG_MUX_MAX-1)
 
-#define ANLG_VQ_SH (4)
-#define ANLG_VQ_MAX (1<<ANLG_VQ_SH)
-#define ANLG_VQ_MSK  (ANLG_VQ_MAX-1)
-
-class CAnalogue
+class CAnMux
 {
 protected:
    uint8_t  vmux[ANLG_MUX_MAX];
-   volatile uint16_t v[ANLG_VQ_MAX]; // Latest values
-   volatile uint8_t nE; // Event (ISR reading) counter
-   uint8_t id, nR;
+   uint8_t  id;
 
 public:
-   CAnalogue (void)
+   CAnMux (void)
    {
       vmux[0]= 0xC0; // A0 / 1.1Vref
       vmux[1]= 0xC1; // A1 / 1.1Vref
@@ -65,34 +59,88 @@ public:
    // (assume memclear, static construction, then handoff to "app" level)
    void init (uint8_t id=0)
    {
-      nE= nR= 0;
       set(id);
-      ADCSRA= (1<<ADEN) | (1<<ADIE) | 0x07; // ADC enable, Interrupt enable, clock prescaler 128 -> 125kHz sampling clock
-      // 1<<ADATE; auto trigger enable
-      ADCSRB= 0x00; // Free run (when auto-trigger)
       PORTC&= 0xF0;
       DDRC&= 0xF0;
       DIDR0= 0x0F; // Disable digital input buffer on A0-A3 ; A5-A4 -> 0x3F
    } // init
 
    void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }
-   uint16_t readImmed (void)
+   void next (void) { set(id+1); }
+}; // CAnMux
+
+// Synchronous analogue reading
+class CAnReadSync : public CAnMux
+{
+public:
+   CAnReadSync (void) : CAnMux() { ; }
+
+   void init (uint8_t id=0, uint8_t clkPS=0x7)
    {
-      ADCSRA= (1<<ADEN) | (1<<ADSC) | (ADCSRA & 0x7);
+      ADCSRA= clkPS & 0x07; // Disabled, clock prescaler 128 -> 125kHz sampling clock (~12kHz 10b sample rate?)
+      //ADCSRB= 0x00; // Free run (when auto-trigger)
+      CAnMux::init(id);
+   } // init
+ 
+   uint16_t read (void)
+   {
+      ADCSRA= (1<<ADEN) | (1<<ADSC) | (ADCSRA & 0x7); // no interrupt
       while (ADCSRA & (1<<ADSC)); // spin
       return(ADCW);
-   }
-   uint16_t readImmedQuiet (void)
+   } // read
+   
+   uint16_t readQ (void) //set_sleep_mode(SLEEP_MODE_ADC);
    {
-      ADCSRA= (1<<ADEN) | (1<<ADIE) | (1<<ADSC) | (ADCSRA & 0x7);
-      //set_sleep_mode(SLEEP_MODE_ADC);
-      do
-      {
-         sleep_cpu();
-      } while (ADCSRA & (1<<ADSC)); // spin
+      ADCSRA= (1<<ADEN) | (1<<ADIE) | (1<<ADSC) | (ADCSRA & 0x7); // interrupt required for wake
+      do { sleep_cpu(); } while (ADCSRA & (1<<ADSC)); // spin
       return(ADCW);
-   }
-   void next (void) { set(id+1); }
+   } // readQ
+   
+   uint16_t readSumNDQ (int8_t n)
+   {
+      uint16_t s=0;
+      if (n > 0)
+      {
+         readQ(); // discard (NB - sets interrupt)
+         n&= 0xF;
+         do
+         {
+            ADCSRA|= 1<<ADSC;
+            do { sleep_cpu(); } while (ADCSRA & (1<<ADSC)); // spin
+            s+= ADCW;
+         } while (--n > 0);
+      }
+      return(s);
+   } // readSumNDQ
+   
+   void event (void) { ; } // dummy ISR endpoint for compatibility
+}; // CAnReadSync
+
+#define ANLG_VQ_SH (4)
+#define ANLG_VQ_MAX (1<<ANLG_VQ_SH)
+#define ANLG_VQ_MSK  (ANLG_VQ_MAX-1)
+
+class CAnalogue : public CAnMux
+{
+protected:
+   volatile uint16_t v[ANLG_VQ_MAX]; // Latest values
+   volatile uint8_t nE; // Event (ISR reading) counter
+   uint8_t id, nR;
+
+public:
+   CAnalogue (void) : CAnMux() { ; }
+
+   // deferred start essential to prevent overwrite by Arduino setup
+   // (assume memclear, static construction, then handoff to "app" level)
+   void init (uint8_t id=0, uint8_t clkPS=0x7)
+   {
+      nE= nR= 0;
+      ADCSRA= (1<<ADEN) | (1<<ADIE) | (clkPS & 0x07); // ADC enable, Interrupt enable, clock prescaler 128 -> 125kHz sampling clock
+      // 1<<ADATE; auto trigger enable
+      ADCSRB= 0x00; // Free run (when auto-trigger)
+      CAnMux::init(id);
+   } // init
+   
    void start (void) { ADCSRA|= (1<<ADSC); }
    void stop (void) { ADCSRA&= ~(1<<ADSC); }
    void startAuto (void) { ADCSRA|= (1<<ADSC) | (1<<ADATE); }
