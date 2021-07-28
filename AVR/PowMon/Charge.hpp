@@ -32,7 +32,7 @@ struct PwrState
 };
 
 // Instrumentation using ADC
-class CInstrmnt : public CAnalogue
+class CInstrmnt : public CAnReadSync
 {
 public:
    PwrState state[2];
@@ -49,24 +49,24 @@ public:
          set_sleep_mode(SLEEP_MODE_ADC);
          if (m & 0x2)
          {
-            CAnalogue::set(INST_BATV);
-            s= readSumDIQ(RD_AVG);
+            CAnMux::set(INST_BATV);
+            s= readSumNDQ(RD_AVG);
             state[m&0x1].mVbat= raw2mV(s/RD_AVG);
 
-            CAnalogue::set(INST_PNLV);
-            s= readSumDIQ(RD_AVG);
+            CAnMux::set(INST_PNLV);
+            s= readSumNDQ(RD_AVG);
             state[m&0x1].mVpnl= raw2mV(s/RD_AVG);
          }
          if (m & 0x4)
          {
-            CAnalogue::set(INST_SYSV); 
-            s= readSumDIQ(1);
+            CAnMux::set(INST_SYSV); 
+            s= readSumNDQ(1);
             mVsys= raw2mV(s);
          }
          if (m & 0x8)
          {
-            CAnalogue::set(INST_TC);
-            s= readSumDIQ(1);
+            CAnMux::set(INST_TC);
+            s= readSumNDQ(1);
             tCsys= convTherm(s);
          }
       set_sleep_mode(SLEEP_MODE_IDLE);
@@ -95,7 +95,7 @@ public:
    uint16_t mVlim;
    int8_t set, cycle;
 
-   CCharge (uint16_t mvl=7200) : mVlim{mvl} { ; }
+   CCharge (uint16_t mvFull=6600) : mVlim{mvFull} { ; }
 
    uint8_t update (uint8_t ssm)
    {
@@ -111,8 +111,8 @@ public:
       dmV= mVlim - CInstrmnt::state[0].mVbat;
       if (dmV > 0)
       {
-         if (dmV >= 570) { set= 19; }
-         else { set= dmV / 30; }
+         if (dmV >= 170) { set= 19; }
+         else { set= dmV / 8; }
          if (stateDiff() > 0) { return(cycle < set); }
       }
       return(0);

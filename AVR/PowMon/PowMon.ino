@@ -3,7 +3,6 @@
 // Licence: GPL V3A
 // (c) Project Contributors July 2021
 
-#include <avr/sleep.h>
 
 
 /***/
@@ -64,7 +63,7 @@ void setup (void)
   //setID("Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
-  gCharge.init(0); gCharge.start();
+  gCharge.init(0); //gCharge.start();
   pinMode(PIN_PULSE, OUTPUT);
   pinMode(PIN_DA0, OUTPUT);
 
