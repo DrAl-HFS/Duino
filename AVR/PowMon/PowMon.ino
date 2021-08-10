@@ -11,7 +11,7 @@
 #define DEBUG_BAUD 115200
 
 #define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
-#define PIN_DA0 2
+#define PIN_CHARGE_ON 3
 
 #define AVR_INTR_SLOW // reduce interrupt rate for more efficient low-speed control
 
@@ -26,7 +26,7 @@
 
 CCharge gCharge;
 
-CClock gClock(1000);
+CClock gClock(3000);
 
 #if (2 == AVR_CLOCK_TIMER)
 // Connect clock to timer interrupt
@@ -60,19 +60,21 @@ void setup (void)
 {
   noInterrupts();
   
-  //setID("Mega1" / "Nano1" / "UnoV3");
+  //setID("Pro1" / "Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
   gCharge.init(0); //gCharge.start();
   pinMode(PIN_PULSE, OUTPUT);
-  pinMode(PIN_DA0, OUTPUT);
+  pinMode(PIN_CHARGE_ON, OUTPUT);
 
   DEBUG.begin(DEBUG_BAUD);
-  char sid[8];
-  if (getID(sid) > 0) { DEBUG.print(sid); }
-  DEBUG.print(" Test " __DATE__ " ");
-  DEBUG.println(__TIME__);
-  
+  if (DEBUG)
+  {
+    char sid[8];
+    if (getID(sid) > 0) { DEBUG.print(sid); }
+    DEBUG.print(" PowMon " __DATE__ " ");
+    DEBUG.println(__TIME__);
+  }
   //
   set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
@@ -131,8 +133,8 @@ void loop (void)
       gClock.intervalStart();
     }
     pulseHack();
-    ev= digitalRead(PIN_DA0);
-    if (ev ^ gCharge.update(ev)) { digitalWrite(PIN_DA0, ev^0x1); }
+    ev= digitalRead(PIN_CHARGE_ON);
+    if (ev ^ gCharge.update(ev)) { digitalWrite(PIN_CHARGE_ON, ev^0x1); }
   }
 
   sleep_cpu();

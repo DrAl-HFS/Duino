@@ -1,4 +1,4 @@
-// Duino/Test.ino - Arduino IDE & AVR test harness
+// Duino/AVR/Test.ino - Arduino IDE & AVR test harness
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020 - Mar 2021
@@ -103,6 +103,7 @@ CmdSeg cmd; // Would be temp on stack but problems arise...
 #define SEC_DIG 1
 int8_t sysLog (Stream& s, uint8_t events)
 {
+static uint8_t nLog=0;
   uint8_t msBCD[SEC_DIG];
   char str[64];
   int8_t m=sizeof(str)-1, r=0, l=-1, n=0, x=0;
@@ -137,25 +138,13 @@ int8_t sysLog (Stream& s, uint8_t events)
       {
         l= r+1;
         if (r < 3) { n+= snprintf(str+n, m-n, " A%d=%u", r, t); }
-        else
-        { 
-          int tC;
-#if 1     // Device signature calibration: TSOFFSET=FF, TSGAIN=4F ???
-          // Looks like available docs are totally wrong on this.
-          tC= (int)t - ((int)273+80);
-          //tC= (tC * 128) / 0x4F;
-          tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
-          tC+= 25;
-#else
-          tC= 25+(((int)t-((int)273+80))*13)/16;
-#endif
-          n+= snprintf(str+n, m-n, " T%d=%dC", r, tC);
-        }
+        else { n+= snprintf(str+n, m-n, " T%d=%dC", r, convTherm(t)); }
       }
       else if (l < 0) { n+= gADC.dump(str+n, m-n); }
     } while ((r >= 0) && (n < 32));
     if (x & 0x01) { gADC.flush(); }
-    if (l >= 0) { gADC.set(l); }
+    if (0 == (++nLog & 0xF)) { gADC.next(); }
+    //if (l >= 0) { gADC.set(l); }
   }
 #endif
   s.println(str);
@@ -169,11 +158,11 @@ void setup (void)
 {
   noInterrupts();
   
-  //setID("Mega1" / "Nano1" / "UnoV3");
+  //setID("ProM1");//"Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
 #ifdef DA_ANALOGUE_HPP
-  gADC.init(); gADC.start();
+  gADC.init(1); gADC.start();
   gDAC.init(1); gDAC.set(0);
 #endif
   pinMode(PIN_PULSE, OUTPUT);
@@ -279,6 +268,6 @@ void loop (void)
   }
   //gAV++; 
 #else
-  //digitalWrite(PIN_DA0, gClock.tick & 0x1);
+  digitalWrite(PIN_DA0, (gClock.tick & 0x0400) > 0);
 #endif
 } // loop

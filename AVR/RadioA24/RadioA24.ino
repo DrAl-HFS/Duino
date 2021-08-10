@@ -83,20 +83,7 @@ int8_t sysLog (Stream& s, uint8_t events)
       {
         l= r+1;
         if (r < 3) { n+= snprintf(str+n, m-n, " A%d=%u", r, t); }
-        else
-        { 
-          int tC;
-#if 1     // Device signature calibration: TSOFFSET=FF, TSGAIN=4F ???
-          // Looks like available docs are totally wrong on this.
-          tC= (int)t - ((int)273+80);
-          //tC= (tC * 128) / 0x4F;
-          tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
-          tC+= 25;
-#else
-          tC= 25+(((int)t-((int)273+80))*13)/16;
-#endif
-          n+= snprintf(str+n, m-n, " T%d=%dC", r, tC);
-        }
+        else { n+= snprintf(str+n, m-n, " T%d=%dC", r, convTherm(t)); }
       }
       else if (l < 0) { n+= gADC.dump(str+n, m-n); }
     } while ((r >= 0) && (n < 32));
