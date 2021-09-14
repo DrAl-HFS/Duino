@@ -10,6 +10,7 @@
 int8_t lentil (const char s[], const char end=0x00) { int8_t i=0; while (end != s[i]) { ++i; } return(i); }
 //int8_t readN (uint8_t b[], const int8_t n, Stream& s) { for (int8_t i=0; i<n; i++) { b[i]= s.read(); } return(n); }
 
+// insert hdr byte: 0b10eennnn, e=endpoint/channel/stream id, n= number of payload bytes following
 class CSerMux // Presently stateless... so not really a class...
 {
 protected:
@@ -20,7 +21,7 @@ public:
    int8_t send (Stream& s, const uint8_t epid, const uint8_t b[], const int8_t n)
    {
       if (n <= 0) { return(0); }
-      uint8_t hdr= 0xC0 | (0x30 & epid) | (0xF & (n-1));
+      uint8_t hdr= 0x80 | (0x30 & epid) | (0xF & (n-1));
       s.write(hdr);
       s.write(b,n);
       //for (int8_t i=0; i<n; i++) { s.write(b[i]); }
@@ -34,7 +35,7 @@ public:
       if (n > 0)
       {
          uint8_t hdr= s.peek();
-         if (0xC0 != (hdr & 0xC0)) { epid= 0xFF; return s.readBytes(b, min(n, nMax)); }
+         if (0x80 != (hdr & 0xC0)) { epid= 0xFF; return s.readBytes(b, min(n, nMax)); }
          else
          {
             epid= (hdr >> 4) & 0x3;

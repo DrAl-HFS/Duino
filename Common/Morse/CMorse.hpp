@@ -315,7 +315,7 @@ public:
    
 }; // CMorseTime
 
-//#include "../SerMux.hpp" // host receiver still to do...
+#include "../SerMux.hpp" // host receiver in progress
 
 class CMorseDebug : public CMorseTime
 {
