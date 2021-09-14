@@ -1,4 +1,4 @@
-// Duino/Teensy/BlinkT.ino - Teensy 4.1 initial testing
+// Duino/Teensy/BlinkT/BlinkT.ino - Teensy 4.1 initial testing
 // (using Arduino 1.8.13, required Teensyduino 1.54-beta7 for successful launch)
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: AGPL3
@@ -12,24 +12,6 @@
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 13
 #endif
-
-class CMultiIntervalCounter : public CMultiIntervalTimer
-{
-public:
-  uint32_t tock[IVL_COUNT_MAX];
-  
-  CMultiIntervalCounter (void) : CMultiIntervalTimer() { ; }
-  
-  uint8_t update (void)
-  { 
-    uint8_t m= CMultiIntervalTimer::update();
-    for (int i=0; i<IVL_COUNT_MAX; i++)
-    {
-      if (m & (0x2<<i)) { tock[i]++; }
-    } 
-    return(m);
-  }
-}; // CMultiIntervalCounter
 
 CMultiIntervalCounter gMIC;
 void tickEvent (void) { gMIC.tickEvent(); }
