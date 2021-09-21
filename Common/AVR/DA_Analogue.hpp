@@ -36,7 +36,7 @@ int8_t convTherm (uint16_t t)
 } // convTherm
 
 // Collect multiplexed
-#define ANLG_MUX_SH (2)
+#define ANLG_MUX_SH (3)
 #define ANLG_MUX_MAX (1<<ANLG_MUX_SH)
 #define ANLG_MUX_MSK  (ANLG_MUX_MAX-1)
 
@@ -53,6 +53,10 @@ public:
       vmux[1]= 0xC1; // A1 / 1.1Vref
       vmux[2]= 0xC2; // A2 / 1.1Vref
       vmux[3]= 0xC8; // thermistor (A8) / 1.1Vref ~0x0161
+      vmux[4]= 0x02; // A2 / Aref
+      vmux[5]= 0x03; // A3 / Aref
+      vmux[6]= 0x04; // A4 / Aref
+      vmux[7]= 0x05; // A5 / Aref
    } // CTOR
 
    // deferred start essential to prevent overwrite by Arduino setup
@@ -89,6 +93,22 @@ public:
       return(ADCW);
    } // read
    
+   uint16_t readSumND (int8_t n)
+   {
+      uint16_t s= 0;
+      if (n > 0)
+      {
+         read(); // setup & discard first
+         do
+         {
+            ADCSRA|= 1<<ADSC;
+            while (ADCSRA & (1<<ADSC)); // spin
+            s+= ADCW;
+         } while (--n > 0);
+      }
+      return(s);
+   } // readSumND
+   
    uint16_t readQ (void) //set_sleep_mode(SLEEP_MODE_ADC);
    {
       ADCSRA= (1<<ADEN) | (1<<ADIE) | (1<<ADSC) | (ADCSRA & 0x7); // interrupt required for wake
@@ -116,6 +136,7 @@ public:
    void event (void) { ; } // dummy ISR endpoint for compatibility
 }; // CAnReadSync
 
+// Async (interrupt driven)
 #define ANLG_VQ_SH (4)
 #define ANLG_VQ_MAX (1<<ANLG_VQ_SH)
 #define ANLG_VQ_MSK  (ANLG_VQ_MAX-1)
