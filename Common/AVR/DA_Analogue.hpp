@@ -1,4 +1,4 @@
-// Duino/Common/AVR/DA_Analogue_HPP.hpp - Arduino-AVR interfacing to ADC and experimental PWM-DAC
+// Duino/Common/AVR/DA_Analogue.hpp - Arduino-AVR interfacing to ADC and experimental PWM-DAC
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020 - Mar 2021
@@ -14,26 +14,7 @@
 
 /***/
 
-int8_t convT1 (int32_t t)
-{
-   return(((t-353) * 0x4F) >> 7);
-   //return(((t-352) * 13) >> 4);
-} // convT1
-
-int8_t convTherm (uint16_t t)
-{
-   return(25 + convT1(t));
-#if 0
-   int32_t tC= (int)t - 0x160;
-   tC= (tC * 207) / 128; // (reciprocated scale - reduce division)
-   tC+= 25;
-   // Device signature calibration: TSOFFSET=FF, TSGAIN=4F ???
-   // Looks like available docs are totally wrong on this.
-   //tC= (tC * 128) / 0x4F;
-    //tC= 25+(((int)t-((int)273+80))*13)/16;
-   return(tC);
-#endif
-} // convTherm
+// convT* -> DA_Therm.hpp
 
 // Collect multiplexed
 #define ANLG_MUX_SH (3)
