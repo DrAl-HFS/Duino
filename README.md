@@ -11,6 +11,11 @@ A dumping ground, perhaps temporary...
 * The charactersitic function of a thermistor is exponential:
 Rt &#8733; exp(t)  
 
+* Direct measurement could be made highly accurate but is not appropriate in a low-cost application.  
+
+	* Precise current measurement (for resistance calculation) is a major hardware cost.
+	* Calculating t involves significant computational cost (including log(Rt) function evaluation).
+
 * A thermistor in a voltage divider circuit exhibits a linearised response.  
 
 	* This allows a simple model to provide reasonable accuracy over a limited range.
