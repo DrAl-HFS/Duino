@@ -214,7 +214,7 @@ protected:
 
    bool nextASCII (Stream& s)
    {
-      bool r;
+      bool r=false;
       char a;
       do
       {
