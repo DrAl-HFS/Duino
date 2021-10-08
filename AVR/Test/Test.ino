@@ -108,26 +108,14 @@ static uint8_t nLog=0;
   char str[64];
   int8_t m=sizeof(str)-1, r=0, l=-1, n=0, x=0;
   
-  convMilliBCD(msBCD, SEC_DIG, gClock.tick);
-#if 0
-  str[n++]= 'V';
-  n+= hex2ChU8(str+n, events);
-  str[n++]= ' ';
-#endif
-  n+= gClock.getStrHM(str+n, m-n, ':');
-  n+= hex2ChU8(str+n, msBCD[0]); // seconds
-#if SEC_DIG > 1
-  str[n++]= '.';
-  n+= hex2ChU8(str+n, msBCD[1]); // centi-sec
-#endif
-  str[n]= 0;
+  n= gClock.getStrHMS(str,m);
 #ifdef DA_ANALOGUE_HPP
   //s.print("DACt=");
   //s.println(gDAC.get());
   l= gADC.avail();
   if (l >= 0)
   {
-    n+= snprintf(str+n, m-n, "[%d]", l);
+    n+= snprintf(str+n, m-n, " A[%d]=", l);
     if (l > ANLG_VQ_MAX) { x|= 0x01; }
     l= -1;
     do
@@ -154,6 +142,31 @@ static uint8_t nLog=0;
 //void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
 CSampleCtrl gDS;
 
+void bootMsg (Stream& s)
+{
+  char sid[8];
+  if (getID(sid) > 0) { DEBUG.print(sid); }
+  DEBUG.print(" Test " __DATE__ " ");
+  DEBUG.println(__TIME__);
+} // bootMsg
+
+bool beginSync (HardwareSerial& s, const uint32_t bd, const uint8_t cfg=SERIAL_8N1, int8_t n=20)
+{
+  if ((bd > 0) && (cfg > 0))
+  {
+    do
+    {
+      if (s)
+      {
+        s.begin(bd,cfg);
+        return(true);
+      }
+      else { delay(n); }
+    } while (--n > 0);
+  }
+  return(false);
+} // beginSync
+
 void setup (void)
 {
   noInterrupts();
@@ -168,14 +181,8 @@ void setup (void)
   pinMode(PIN_PULSE, OUTPUT);
   pinMode(PIN_DA0, OUTPUT);
 
-  DEBUG.begin(DEBUG_BAUD);
-  char sid[8];
-  if (getID(sid) > 0) { DEBUG.print(sid); }
-  DEBUG.print(" Test " __DATE__ " ");
-  DEBUG.println(__TIME__);
-  //sig(DEBUG);
-  //dumpT0(DEBUG);
-   
+  if (beginSync(DEBUG, DEBUG_BAUD)) { bootMsg(DEBUG); }
+  
   interrupts();
   gClock.intervalStart();
   sysLog(DEBUG,0);
