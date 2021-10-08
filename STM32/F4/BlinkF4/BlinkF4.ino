@@ -3,56 +3,36 @@
 // Licence: GPL V3A
 // (c) Project Contributors Mar 2020 - Sept 2021
 
-#ifdef ARDUINO_ARCH_STM32F4
-//define DEBUG Serial // = instance of USBSerial, same old CDC sync problems
-#define DEBUG Serial1 // PA9/10 (F1xx compatible)
+#include "Common/STM32/ST_Util.hpp"
+#include "Common/STM32/ST_Timing.hpp"
+#include "Common/STM32/ST_Analogue.hpp"
 
-#ifdef VARIANT_blackpill_f401
+#define DEBUG Serial1 // PA9/10 (F1xx compatible)
+  
 #define PIN_LED     PC13  // = LED_BUILTIN
 #define PIN_BTN     PA0   // ? BTN_BUILTIN ?
-#else
+
+#ifdef ARDUINO_ARCH_STM32F4
+//define DEBUG Serial // = instance of USBSerial, same old CDC sync problems
+
+#ifndef VARIANT_blackpill_f401 // F407
 #define PIN_LED     PE0
 #define PIN_BTN     PD15
 #endif // f401
+
 #endif // STM32F4
 
-bool beginSync (USBSerial& s, int8_t n=20)
-{
-  uint8_t d= n;
-  do
-  {
-    if (s)
-    {
-      s.begin();//bd,cfg);
-      return(true);
-    }
-    else { delay(d); d= 1 + (d >> 1); }
-  } while (--n > 0);
-  return(false);
-} // beginSync
 
-bool beginSync (HardwareSerial& s, uint32_t bd=115200, int8_t n=20)//, uint8_t cfg=SERIAL_8N1
-{
-  uint8_t d= n;
-  if (bd > 0)// && (cfg > 0))
-  {
-    do
-    {
-      if (s)
-      {
-        s.begin(bd); //,cfg);
-        return(true);
-      }
-      else { delay(d); d= 1 + (d >> 1); }
-    } while (--n > 0);
-  }
-  return(false);
-} // beginSync
+ADC gADC;
+CTimer gT;
+void oflo (void) { gT.nextIvl(); }
+
 
 void bootMsg (Stream& s)
 {
-    DEBUG.print("BlinkF4 " __DATE__ " ");
-    DEBUG.println(__TIME__);
+  DEBUG.print("BlinkF4 " __DATE__ " ");
+  s.println(__TIME__);
+  dumpID(s);
 } // bootMsg
 
 void setup (void)
@@ -66,19 +46,63 @@ void setup (void)
 
   interrupts();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
+  
+  gT.start(oflo);
+  //gT.dbgPrint(DEBUG);
+  gADC.pinSetup(PA1,4);
 } // setup
 
-uint16_t v=0, i=0, d=100;
+uint16_t bv=0, iter=0, lastD=0, dT=250, calF=0;
+uint8_t chan=0;
 
-void loop ()
+void loop (void)
 {
-  digitalWrite(PIN_LED, ++i & 0x1);
-  v= (v<<1) | digitalRead(PIN_BTN);
-  if (0b10 == (v & 0b11)) // inverted input
+  uint16_t d= gT.diff();
+  if (d > 0)
   {
-    d*= 2;
-    if (d > 400) { d= 100; }
-    DEBUG.println(d);
-  } else DEBUG.print('.');
-  delay(d);
-}
+#if 0
+    if (d > lastD)
+    {
+      lastD= d;
+      bv= (bv<<1) | digitalRead(PIN_BTN);
+      if (0xFF00 == bv) // inverted input
+      {
+        dT*= 2;
+        if (dT > 400) { dT= 100; }
+        DEBUG.print("dT="); DEBUG.println(dT);
+      }
+    }
+#endif
+    if (d >= dT)
+    {
+      float a, t;
+      
+      gT.retire(dT); lastD= 0;
+      digitalWrite(PIN_LED, ++iter & 0x1);
+
+      if ((0 == gADC.n) || (iter > (gADC.ts+100)))
+      {
+        calF+= !gADC.calibrate(iter);
+      }
+      gADC.setRef(1);
+      gADC.setSamplePeriod(ADC_FAST);
+      if (++chan > 4) { chan=1; }
+      a= gADC.readSumN(chan,4) * 0.25 * gADC.kB;
+      //---
+      gADC.setSamplePeriod(ADC_SLOW);
+      gADC.setRef(0);
+      t= gADC.readSumN(17,4) * 0.25 * ADC_VBAT_SCALE * gADC.kR;
+      float tC= gADC.readTemp();
+      //---
+
+      DEBUG.print('T'); DEBUG.print(gT.swTickVal()); DEBUG.print(" v="); DEBUG.print(VCal::gADC.v,5);
+      DEBUG.print(" calF="); DEBUG.print(calF); // DEBUG.print(" vNRB="); DEBUG.print(gADC.vNRB); 
+      DEBUG.print(" CH"); DEBUG.print(chan); DEBUG.print('='); DEBUG.print(a);
+      // DEBUG.print(' '); for (int i=0; i<4; i++) { DEBUG.print(a[i]); DEBUG.print(','); }
+      DEBUG.print(" CH17="); DEBUG.print(t);
+      // DEBUG.print(' '); for (int i=0; i<4; i++) { DEBUG.print(t[i]); DEBUG.print(','); }
+      DEBUG.print(" tC="); DEBUG.println(tC);
+    }
+  }
+  //delay(dT);
+} // loop
