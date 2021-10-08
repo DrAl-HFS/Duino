@@ -55,7 +55,7 @@ public:
          {  // gap
             if (0 == i) { ss= MORSE_PG_MASK & ng; } //whatever was set (off, short, intersymbol, inter-word)
             else { ss= MORSE_PG_SHORT; } // short
-         } 
+         }
       }
       return(ss);
    }
@@ -68,7 +68,7 @@ signed char classifyASCII (const signed char a)
 {
    if (a >= '0')
    {
-      if (a <= '9') { return('0'); } 
+      if (a <= '9') { return('0'); }
       if (a >= 'A')
       {
          if (a <= 'Z') { return('A'); }
@@ -161,7 +161,7 @@ public:
       return(-1);
    } // read
    size_t write (uint8_t b) override { return(0); }
-   
+
    // Required for STM32 build, whereas AVR build ignores.. ??
    void flush (void) override { ; }
 }; // CMorseBuff
@@ -174,7 +174,7 @@ protected:
    B2Buff b2b;
    int8_t addLastGap;
    uint8_t dbgFlag;
-   
+
    bool setM5 (const uint8_t imc5, const int8_t addLast)
    {
       uint8_t c;
@@ -312,7 +312,7 @@ public:
    //using CMorseSSS::resend;
    //using CMorseSSS::ready;
    //using CMorseSSS::complete;
-   
+
 }; // CMorseTime
 
 #include "../SerMux.hpp" // host receiver in progress
