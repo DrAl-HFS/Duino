@@ -68,7 +68,7 @@ int8_t monthNumJulian (const char a[])
    char c= toupper(a[0]);
    int8_t i;
    i= findCh(c, m1, sizeof(m1));
-   if (i < sizeof(m1))
+   if (i < (int)sizeof(m1))
    {  // likely
       if (1 != i)
       {
@@ -92,7 +92,7 @@ int8_t monthNumJulian (const char a[])
    else
    {  // First character only!
       i= findCh(c, m9, sizeof(m9));
-      if (i < sizeof(m9)) { return(9+i); }
+      if (i < (int)sizeof(m9)) { return(9+i); }
    }
    return(-1);
 } // monthNumJulian
