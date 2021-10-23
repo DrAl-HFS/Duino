@@ -1,4 +1,4 @@
-// Duino/AVR/Test.ino - Arduino IDE & AVR test harness
+// Duino/AVR/Test/Test.ino - Arduino IDE & AVR test harness
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020 - Mar 2021
@@ -9,10 +9,10 @@
 
 /***/
 
+#define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
-#define DEBUG_BAUD 115200
 
-#define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
+//define PIN_PULSE LED_BUILTIN // pin 13 = SPI CLK
 #define PIN_DA0 2
 // 10kHz clock update - 100us (1600 coreClk) interrupt
 // Allows up to ~5kHz bandwidth for PWM-DAC signal reconstruction
@@ -23,13 +23,12 @@
 //#define DA_FAST_POLL_TIMER_HPP // resource contention
 //#define AVR_CLOCK_TRIM 64
 #include "Common/AVR/DA_Timing.hpp"
-#include "Common/AVR/DA_Analogue.hpp"
-#include "Common/Wave8.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
 //include "Common/AVR/DA_SPIMHW.hpp"
+#include "Common/CAD779x.hpp"
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/AVR/DA_RotEnc.hpp"
-
+#include "Common/AVR/DA_Util.hpp"
 
 #ifdef DA_SPIMHW_HPP
 // Very basic SPI comm test
@@ -85,20 +84,11 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 #endif // AVR_CLOCK_TN
 
-#ifdef DA_ANALOGUE_HPP
-
-CAnalogueDbg gADC;
-CFastPulseDAC gDAC;
-CMiniLUT8 gSin;
-
-ISR(ADC_vect) { gADC.event(); }
-
-#endif // DA_ANALOGUE_HPP
-
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
 
+CAD779xDbg ad779x;
 
 #define SEC_DIG 1
 int8_t sysLog (Stream& s, uint8_t events)
@@ -140,7 +130,6 @@ static uint8_t nLog=0;
 } // sysLog
 
 //void dumpT0 (Stream& s) { s.print("TCNT0="); s.println(TCNT0); }
-CSampleCtrl gDS;
 
 void bootMsg (Stream& s)
 {
@@ -149,23 +138,6 @@ void bootMsg (Stream& s)
   DEBUG.print(" Test " __DATE__ " ");
   DEBUG.println(__TIME__);
 } // bootMsg
-
-bool beginSync (HardwareSerial& s, const uint32_t bd, const uint8_t cfg=SERIAL_8N1, int8_t n=20)
-{
-  if ((bd > 0) && (cfg > 0))
-  {
-    do
-    {
-      if (s)
-      {
-        s.begin(bd,cfg);
-        return(true);
-      }
-      else { delay(n); }
-    } while (--n > 0);
-  }
-  return(false);
-} // beginSync
 
 void setup (void)
 {
@@ -178,23 +150,27 @@ void setup (void)
   gADC.init(1); gADC.start();
   gDAC.init(1); gDAC.set(0);
 #endif
-  pinMode(PIN_PULSE, OUTPUT);
-  pinMode(PIN_DA0, OUTPUT);
+  pinMode(NCS, OUTPUT); digitalWrite(NCS,1);
+  //pinMode(PIN_PULSE, OUTPUT);
+  //pinMode(PIN_DA0, OUTPUT);
 
-  if (beginSync(DEBUG, DEBUG_BAUD)) { bootMsg(DEBUG); }
+  if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   
   interrupts();
   gClock.intervalStart();
   sysLog(DEBUG,0);
+#ifdef DA_ANALOGUE_HPP
   gDS.set(evenTempScale[0]);
   DEBUG.print("gDS.r=");
   DEBUG.println(gDS.rQ8,HEX);
+#endif
 
 #ifdef DA_HACKRF24
   HackRF24 hack; hack.test(DEBUG);
 #endif
 } // setup
 
+#ifdef PIN_PULSE
 void pulseHack (void)
 { // Caveat: SPI CLK conflict
 static uint16_t gHackCount= 0;
@@ -211,6 +187,7 @@ static uint16_t gHackCount= 0;
     //if ((0 != gSigGen.rwm) && (gHackCount & 1<<15)) { SPI.begin(); gHackCount &= 0xFFF; }
   }
 } // pulseHack
+#endif
 
 uint8_t gLastCUD=0, gAV=0x01, gSI=0, gIS=0, gDIS= 2, gLastIS=0;
 
@@ -220,14 +197,18 @@ void loop (void)
   if (cud > 0) //AVR_MILLI_TICKS)
   { // <=1KHz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
+#ifdef DA_ANALOGUE
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
+#endif
     if (gClock.intervalUpdate())
     { 
       ev|= 0x80;
+#ifdef DA_ANALOGUE
       gIS+= majorSS[gSI];
       if (++gSI > 7) { gSI= 0; gIS= 0; }; 
       //gIS+= gDIS;
       //if (gIS > 14) { gIS= 0; gDIS= 16 - gDIS; }
+#endif
     }
     if (gStreamCmd.read(cmd,DEBUG))
     {
@@ -253,9 +234,11 @@ void loop (void)
         cmd.clean();
       }
       gClock.intervalStart();
+      ad779x.test(DEBUG);
     }
-    pulseHack();
+    //pulseHack();
   }
+#ifdef DA_ANALOGUE
 #ifdef ARDUINO_AVR_MEGA2560
   if (cud != gLastCUD)
   { // synthesise analogue voltage ramp
@@ -277,4 +260,5 @@ void loop (void)
 #else
   digitalWrite(PIN_DA0, (gClock.tick & 0x0400) > 0);
 #endif
+#endif // DA_ANALOGUE
 } // loop
