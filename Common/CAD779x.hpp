@@ -127,13 +127,13 @@ public:
 protected:
    AD779x::ShadowReg sr;
 
-   char checkID (void) //  return ASCII '2' or '3' if identified as AD779x, otherwise 0 (NUL)
+   int8_t checkID (void) //  return 0 or 1 if identified as AD779x, otherwise -1
    {
       uint8_t id=0x5F;
       readR(AD779x::ID, &id, 1);
       uint8_t t= ((id & 0xF) - 0xA);
-      if (t <= 1) { m|= 0x80; return('2'+t); }
-      return(0);
+      if (t <= 1) { m|= 0x80; return(t); }
+      return(-1);
    }
 
    //using AD779x:: ???
@@ -223,6 +223,12 @@ public:
       //for (int i=0; i<r; i++) { s.print(v[i],HEX); s.print(',');} s.println();
    } // testSPI
 
+   void strID (Stream& s, const uint8_t v)
+   {
+      char chv='2'; chv+= v & 0x1;
+      s.print("AD779"); s.print(chv);      
+   } // strID
+   
    void strChan (Stream& s, const uint8_t chan)
    {
       s.print(" CH:"); 
@@ -237,20 +243,19 @@ public:
  
    bool logID (Stream& s)
    {
-      char ch= checkID();
-      if (ch)
+      int8_t i= checkID();
+      if (i >= 0)
       {
-        s.print("AD779"); s.print(ch); s.println(" - OK");
+         strID(s, i); s.println(" - OK");
       } else { s.println("UNKNOWN ID"); } // s.println(id,HEX); }
-      return(ch);
+      return(i >= 0);
    } // logID
 
    void logStat (Stream& s)
    {
       readR(AD779x::COMMSTAT, &(sr.stat), 1);
 
-      char chv='2'; chv+= ((sr.stat & AD779x::IDB) > 0);
-      s.print("AD779"); s.print(chv); s.print(':');
+      strID(s, (sr.stat & AD779x::IDB) > 0); s.print(':');
       s.print("STAT=");
       if (0 == (sr.stat & AD779x::NRDY)) { s.print('R'); }
       if (sr.stat & AD779x::ERR) { s.print('E'); }
