@@ -8,8 +8,11 @@
 
 #include "MBD/mbdDef.h" // UU16/32
 
-#ifndef NCS
-#define NCS SS //=10
+#ifndef PIN_NCS
+#define PIN_NCS SS // Uno=10,Mega=53
+#endif
+#ifndef PIN_NRDY
+#define PIN_NRDY MISO //Uno=12,Mega=50
 #endif
 
 // Namespace useful for wrapping common token names such as <DATA>, <IDLE> etc.
@@ -23,10 +26,14 @@ namespace AD779x  // Caveat: namespace verbosity...
    enum Mode : int8_t { CONTINUOUS, SINGLE, IDLE, POWER_DOWN, CAL_IZS, CAL_IFS, CAL_XZS, CAL_XFS}; // <<5
    // mode LSB
    enum Clock : int8_t { CLK_INT, CLK_INT_OUT, CLK_EXT, CLK_EXT_DIV2 }; // <<6
-   enum Rate : int8_t { ROFF, R470, R242, R123, R62, R50, R39, R33_2, // raw (no rejection filter for 50&60Hz noise)
-                  R19_6, // 90dB rejection 60Hz noise
-                  R16_7A, // 80dB rejection 50Hz noise
-                  R16_7B, R12_5, R10, R8_33, R6_25, R4_17, RM=0xF }; // 65~74dB rejection 50&60Hz noise
+   enum Rate : int8_t {
+      ROFF,
+      R470, // limited to ~18b(?)  - raw (no rejection filter for 50&60Hz noise)
+      R242, // fastest 24b           "
+      R123, R62, R50, R39, R33_2, // "
+      R19_6, // 90dB rejection 60Hz noise
+      R16_7A, // 80dB rejection 50Hz noise
+      R16_7B, R12_5, R10, R8_33, R6_25, R4_17, RM=0xF }; // 65~74dB rejection 50&60Hz noise
    // conf MSB
    enum Bias : int8_t { BIAS_OFF, BIAS_A1, BIAS_A2 }; // <<6
    enum Flag : uint8_t { BURNOUT=0x20, UNIPOLAR=0x10, BOOST=0x08 };
@@ -53,32 +60,59 @@ namespace AD779x  // Caveat: namespace verbosity...
 
 //using namespace AD779x {
 
+// Low-level signalling using MISO line (seems unreliable; need pull-up/down?)
+class CAD779xSignal
+{
+public:
+   uint32_t ior; // debug check
+   CAD779xSignal (void) : ior{0}  { ; }
+   bool ready (void)
+   {
+      bool r= (0 == digitalRead(PIN_NRDY));
+      ior+= r;
+      return(r);
+   } // ready
+
+}; // CAD779xSignal
+
 // IO sub-class deals with SPI (pretty simple using 'Duino libraries).
 // Note that big-endian conversion is implicit here (AVR & ARM (almost) always little endian).
 // Could be replaced with "bare metal" hacking approach if required.
-class CAD779xIO
+class CAD779xSPI : public CAD779xSignal
 {
    SPISettings set;
 
 public:
-   CAD779xIO (uint32_t clk) : m{0x1} { SPI.begin(); set= SPISettings(clk, MSBFIRST, SPI_MODE3); }
+   CAD779xSPI (uint8_t clkM=0) : hsm{0} { init(clkM); }
 
-   //void init (clk) { if (m & 1) { SPI.end(); } set= SPISettings(clk, MSBFIRST, SPI_MODE3); SPI.begin(); m= 0x1; }
-   void close (void) { SPI.end(); m= 0x00; }
+   void init (uint8_t clkM)
+   {
+      if (hsm & 1) { close(); ior= 0; }
+      if (clkM > 0)
+      {
+         set= SPISettings(clkM*1000000, MSBFIRST, SPI_MODE3);
+         SPI.begin();
+         pinMode(PIN_NCS, OUTPUT);
+         digitalWrite(PIN_NCS,1);
+         hsm= 0x1;
+      }
+   } // init
+
+   void close (void) { SPI.end(); hsm= 0x00; }
 
    void reset (void) // not reliable.. ?
    {
       start();
       for (int8_t iB=0; iB<4; iB++) { SPI.transfer(0xFF); }
       complete();
-      m|= 0x20;
+      hsm|= 0x20;
    } // reset
 
 protected:
-   uint8_t m; // hacky state variable
+   uint8_t hsm; // hacky state mask
 
-   void start (void) { SPI.beginTransaction(set); digitalWrite(NCS,0); }
-   void complete (void) { SPI.endTransaction(); digitalWrite(NCS,1); }
+   void start (void) { SPI.beginTransaction(set); digitalWrite(PIN_NCS,0); }
+   void complete (void) { SPI.endTransaction(); digitalWrite(PIN_NCS,1); }
 
    int8_t readR (AD779x::Reg r, uint8_t vB[], const uint8_t nB)
    {
@@ -90,7 +124,7 @@ protected:
       complete();
       return(nB);
    } // readR
-   
+
    int8_t writeR (AD779x::Reg r, const uint8_t vB[], const uint8_t nB)
    {
       start();
@@ -101,16 +135,16 @@ protected:
       complete();
       return(nB);
    } // writeR
-   
-}; // CAD779xIO
+
+}; // CAD779xSPI
 
 // Next the raw utility layer, providing interface to registers, ordinal & flag values
-class CAD779xRaw : public CAD779xIO
+class CAD779xRaw : public CAD779xSPI
 {
 public:
-   CAD779xRaw (uint32_t clk) : CAD779xIO(clk) { ; }
+   CAD779xRaw (uint8_t clkM) : CAD779xSPI(clkM) { ; }
 
-   bool dataReady (void)
+   bool ready (void)
    {
       readR(AD779x::COMMSTAT, &(sr.stat), 1);
       return(0 == (sr.stat & AD779x::NRDY));
@@ -132,24 +166,24 @@ protected:
       uint8_t id=0x5F;
       readR(AD779x::ID, &id, 1);
       uint8_t t= ((id & 0xF) - 0xA);
-      if (t <= 1) { m|= 0x80; return(t); }
+      if (t <= 1) { hsm|= 0x80; return(t); }
       return(-1);
    }
 
    //using AD779x:: ???
 
-   void setConf (AD779x::Bias b=AD779x::BIAS_OFF, AD779x::Flag f=AD779x::UNIPOLAR, AD779x::Gain g=AD779x::G1, AD779x::VRef r=AD779x::VREF_INT, AD779x::Chan c=AD779x::THERM)
+   void setConf (AD779x::Chan c=AD779x::AVDD, AD779x::Gain g=AD779x::G1, AD779x::VRef r=AD779x::VREF_INT, AD779x::Bias b=AD779x::BIAS_OFF, AD779x::Flag f=AD779x::UNIPOLAR)
    {
-      sr.conf.u8[1]= (b<<6)|f|g;
       sr.conf.u8[0]= r|c;
-      
+      sr.conf.u8[1]= (b<<6)|f|g;
+
       writeR(AD779x::CONF, sr.conf.u8, 2);
    } // setConf
 
-   void setMode (AD779x::Mode m=AD779x::CONTINUOUS, AD779x::Clock c=AD779x::CLK_INT_OUT, AD779x::Rate r=AD779x::R16_7A)
+   void setMode (AD779x::Rate r=AD779x::R242, AD779x::Mode m=AD779x::CONTINUOUS, AD779x::Clock c=AD779x::CLK_INT)
    {
-      sr.mode.u8[1]= m<<5;
       sr.mode.u8[0]= (c<<6)|r;
+      sr.mode.u8[1]= m<<5;
       writeR(AD779x::MODE, sr.mode.u8, 2);
    } // setMode
 
@@ -163,8 +197,8 @@ protected:
    {
       setConf();
       setMode();
-      m|= 0x40;
-   }
+      hsm|= 0x40;
+   } // setDefault
 
 }; // CAD779xRaw
 
@@ -172,66 +206,116 @@ protected:
 class CAD779xUtil : public CAD779xRaw
 {
 public:
-   CAD779xUtil (uint32_t clk=1E6) : CAD779xRaw(clk) { ; }
+   CAD779xUtil (uint8_t clkM) : CAD779xRaw(clkM) { ; }
 
    uint8_t gain (void) { return(1 << (sr.conf.u8[1] & AD779x::GM)); }
-   uint32_t gain (uint32_t v) { return(v << (sr.conf.u8[1] & AD779x::GM)); } // trade mult for shift 
-   
+
    // raw reading to Volts
    float getV (uint32_t v)
    {
-      float V= (AD779x::internalRefV / AD779x::fsr) * gain(v); // single ended HACK
+      float V= (AD779x::internalRefV / AD779x::fsr) * v; // single ended HACK
       switch(sr.stat & AD779x::CHM)
-      { 
+      {
          case AD779x::THERM : V*= 100; break;   // norm to Celcius ?
          case AD779x::AVDD :  V*= 6; break;     // 1:5 divider
+         default :            V /= gain();
       }
       return(V);
-   }
-   
+   } // getV
+
 }; // CAD779xUtil
 
-// Data dump layer for debug support
-class CAD779xDbg : public CAD779xUtil
+#define SHSB   4
+#define NHSB   (1<<SHSB)
+#define MHSB   (NHSB-1)
+class CHackStat32
 {
 public:
-   CAD779xDbg (uint32_t clk=8E6) : CAD779xUtil(clk) { ; }
+   uint32_t xt[NHSB], sum, idx, mean;
 
-   // Displace to intermediate interface
-   
+   CHackStat32 (void) { init(); }
+
+   void init (void) { sum= 0; idx= 0; for (int8_t i=0; i<NHSB; i++) { xt[i]= 0; } }
+   void add (uint32_t x)
+   {
+      sum+= x - xt[MHSB & idx];
+      xt[MHSB & idx]= x;
+      if (0 == ++idx) { idx|= NHSB; }
+   } // add
+
+   uint32_t getMean (void)
+   {
+      if (idx >= NHSB) { return(sum >> SHSB); }//else
+      if (idx > 1) { return(sum / idx); }//else
+      return(sum);
+   } // getMean
+   uint32_t updateMean (void) { return(mean= getMean()); }
+
+// At 242Hz sample rate reveals oscillation:
+// period ~5 samples, peak amplitude ~13b
+// clearly suggests 50Hz noise...
+   void dumpMDiff (Stream& s)
+   {
+      const char sep[]={',','\n'};
+      const int8_t m= min(idx, NHSB);
+      for (int8_t i=0; i<m; i++)
+      {
+         s.print((int)(xt[i]-mean)); s.print(sep[i==(m-1)]);
+      }
+   } // dumpMDiff
+
+}; // CHackStat32
+
+// Data dump layer for debug support
+class CAD779xDbg : public CAD779xUtil, public CHackStat32
+{
+public:
+   CAD779xDbg (uint8_t clkM=8) : CAD779xUtil(clkM) { ; }
+
+   bool ready (void) { return(0xC0 == (hsm & 0xC0)); }
+
    bool test (Stream& s)
    {
-      if (0x10 == (m & 0xF0)) { m^= 0x10; return(false); }
-      if (m & 0x20) { m^= 0x20; return(false); }
-      if (0x80 == (m & 0xC0)) { setDefault(); }
-      if (0 == (m & 0x80))
-      { 
-         if (!logID(s)) { reset(); m|= 0x10; }
+      if (0x10 == (hsm & 0xF0)) { hsm^= 0x10; return(false); }
+      if (hsm & 0x20) { hsm^= 0x20; return(false); }
+      if (0x80 == (hsm & 0xC0)) { setDefault(); }
+      if (0 == (hsm & 0x80))
+      {
+         if (!logID(s)) { reset(); hsm|= 0x10; }
       }
-      if (m & 0x80)
+      if (hsm & 0x80)
       {
          logStat(s);
          logIO(s);
          logMode(s);
          logConf(s);
          logCal(s);
-         if (dataReady()) { logData(s); }
+         if (ready()) { logData(s); }
          // Hacky...
          return(true);
       }
-      //s.print(v[1]>>6); s.print('F'); s.println(v[1] & 0xF);
-      //for (int i=0; i<r; i++) { s.print(v[i],HEX); s.print(',');} s.println();
-   } // testSPI
+   } // test
+
+   void sample (void) { if (ready() && (CAD779xSignal::ready() || CAD779xRaw::ready())) { add(read24b()); } }
+   void report(Stream& s)
+   {
+      if (ior > 0)
+      {
+         s.print("ior="); s.println(ior);
+         s.print("M["); s.print(idx); s.print("]="); s.println(getV(updateMean()),6);
+         s.print("D:"); dumpMDiff(s);
+      }
+   } // report
 
    void strID (Stream& s, const uint8_t v)
    {
       char chv='2'; chv+= v & 0x1;
-      s.print("AD779"); s.print(chv);      
+      s.print("AD779"); s.print(chv);
    } // strID
-   
+
    void strChan (Stream& s, const uint8_t chan)
    {
-      s.print(" CH:"); 
+      s.print(" CH:");
       switch(chan)
       {
          case AD779x::THERM:  s.println("THERM"); break;
@@ -240,7 +324,7 @@ public:
          default : s.print('D'); s.println(chan); break;
       }
    } // strChan
- 
+
    bool logID (Stream& s)
    {
       int8_t i= checkID();
@@ -259,7 +343,7 @@ public:
       s.print("STAT=");
       if (0 == (sr.stat & AD779x::NRDY)) { s.print('R'); }
       if (sr.stat & AD779x::ERR) { s.print('E'); }
-      strChan(s, sr.stat & AD779x::CHM); 
+      strChan(s, sr.stat & AD779x::CHM);
    } // logStat
 
    void logIO (Stream& s)
@@ -268,7 +352,7 @@ public:
       readR(AD779x::IO, &io, 1);
 
       s.print("AD779x:");
-      s.print("IO= 0x"); s.println(io,HEX); 
+      s.print("IO= 0x"); s.println(io,HEX);
       //if (io & 0x80) { s.print('R'); }
    } // logStat
 
@@ -276,10 +360,10 @@ public:
    {
       readR(AD779x::MODE, sr.mode.u8, 2);
       s.print("AD779x:");
-      s.print("MODE= M#"); s.print(sr.mode.u8[1]>>5); 
+      s.print("MODE= M#"); s.print(sr.mode.u8[1]>>5);
       s.print(" C#"); s.print(sr.mode.u8[0]>>6);
       s.print(" R#"); s.println(sr.mode.u8[0] & AD779x::RM);
-   } // 
+   } // logMode
 
    void logConf (Stream& s)
    {
@@ -294,8 +378,8 @@ public:
       if (sr.conf.u8[0] & AD779x::VREF_INT) { s.print('I'); } else { s.print('X'); }
       if (sr.conf.u8[0] & AD779x::BUF) { s.print('B'); }
       strChan(s, sr.conf.u8[0] & AD779x::CHM);
-   }
-   
+   } // logConf
+
    void logCal (Stream& s)
    {
       uint32_t o, f;
@@ -303,15 +387,16 @@ public:
       s.print("OFFS="); s.println(o);
       f= read24b(AD779x::FS);
       s.print("FS="); s.println(f);
-   }
+   } // logCal
 
    void logData (Stream& s)
    {
       uint32_t v= read24b(); // very noisy ~10 lsb
       s.print("DATA= 0x"); s.print(v,HEX);
-      s.print(','); s.print(v); 
+      s.print(','); s.print(v);
       s.print(','); s.println(getV(v),4);
-   }
+   } // logData
+
 }; // CAD779xDbg
 
 // }; // using namespace AD779x
