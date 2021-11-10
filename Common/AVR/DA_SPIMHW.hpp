@@ -1,4 +1,5 @@
 // Duino/Common/AVR/DA_SPIMHW.hpp - Arduino-AVR SPI Master Hardware wrapper
+// Developed for AD9833 + MCP41010
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2020 - Mar 2021
@@ -23,12 +24,12 @@
 // Just use SS pin (D10 on Uno) - must be an output to prevent
 // SPI HW switching to slave mode (master + slave
 // operation would require extra signalling/arbitration)
-#define PIN_SEL1 SS // PB2 ADS9833 device select (inverted)  CPOL1 (falling) CPHA0 (leading)
-#define PIN_SEL2 9  // PB1 MCP41010 device select (inverted) CPOL0 (rising) CPHA0 (leading)
+#define PIN_SEL1 SS // PB2 ADS9833 device select (inverted)  CPOL1 (idle high) CPHA0 (leading)
+#define PIN_SEL2 9  // PB1 MCP41010 device select (inverted) CPOL0 (idle low) CPHA0 (leading)
 // Hardware SPI pins used implicitly
 //#define PIN_SCK SCK   // (D13 on Uno)
-//#define PIN_DAT MISO  // (D12 on Uno)
-//#define PIN_DAT MOSI  // (D11 on Uno)
+//#define PIN_MISO MISO  // (D12 on Uno)
+//#define PIN_MOSI MOSI  // (D11 on Uno)
 #endif
 
 
@@ -50,7 +51,7 @@ TODO - properly comprehend gcc assembler arg handling...
 #define SET_SEL1_HI() digitalWrite(PIN_SEL1, HIGH)
 #endif
 // Same for secondary SPI select
-#if (9 == PIN_SEl2) // PB1
+#if (9 == PIN_SEL2) // PB1
 #define SET_SEL2_LO() PORTB &= ~(1<<1)
 #define SET_SEL2_HI() PORTB |= (1<<1)
 #else

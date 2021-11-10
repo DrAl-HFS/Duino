@@ -115,38 +115,6 @@ void convMilliBCD (uint8_t bcd[], const int8_t n, uint_fast16_t m)
    }
 } // convMilliBCD
 
-// Class dependancies...
-
-bool beginSync (HardwareSerial& s, const uint32_t bd, const uint8_t cfg=SERIAL_8N1, int8_t n=20)
-{
-  if ((bd > 0) && (cfg > 0))
-  {
-    uint8_t d= n;
-    do
-    {
-      if (s)
-      {
-        s.begin(bd,cfg);
-        return(true);
-      }
-      else { delay(d); d= 1 + (d >> 1); }
-    } while (--n > 0);
-  }
-  return(false);
-} // beginSync
-
-// Not AVR specific: displace to general Duino util
-void dumplb (Stream& s, const char *h, const uint8_t b[], const int8_t n, const char *f=NULL)
-{
-  if (h) { s.print(h); }
-  for (int8_t i=0; i<n; i++)
-  { 
-    s.print(b[i]);
-    if (i < n) { s.print(','); }
-  }
-  if (f) { s.print(f); }
-} // dumplb
-
 #if 0 //def __cplusplus
 } // extern "C"
 #endif
