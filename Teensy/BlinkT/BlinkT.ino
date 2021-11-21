@@ -4,10 +4,12 @@
 // Licence: AGPL3
 // (c) Project Contributors Jan - Apr 2021
 
+#define SERIAL_TYPE usb_serial_class  // Teensy
+#include "Common/DN_Util.hpp"
 #include "Common/Teensy/TN_Timing.hpp"
 
 #define DEBUG       Serial
-#define DEBUG_BAUD  115200
+//define DEBUG_BAUD  115200
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 13
@@ -16,13 +18,14 @@
 CMultiIntervalCounter gMIC;
 void tickEvent (void) { gMIC.tickEvent(); }
 
+void bootMsg (Stream& s) { s.println("BlinkT " __DATE__ " " __TIME__); }
+
 void setup ()
 {
   //noInterrupts();
-  DEBUG.begin(DEBUG_BAUD);
   pinMode(LED_BUILTIN, OUTPUT);
-  //while (!DEBUG) { ; } // forces wait for serial console 
-  DEBUG.println("BlinkT " __DATE__ " " __TIME__);
+  if (beginSync(DEBUG)) { bootMsg(DEBUG); } //.begin(DEBUG_BAUD);
+  //inter
   
   gMIC.init(tickEvent,100);
 } // setup
