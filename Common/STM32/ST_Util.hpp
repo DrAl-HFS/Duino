@@ -6,6 +6,8 @@
 #ifndef ST_UTIL_HPP
 #define ST_UTIL_HPP
 
+#include "DN_Util.hpp"
+/*
 #define BIT_MASK(n) ((1<<(n))-1)
 
 // General fail-through start-sync routine for 'Duino hardware serial ports
@@ -26,7 +28,7 @@ bool beginSync (HardwareSerial& s, uint32_t bd=115200, int8_t n=20)//, uint8_t c
   }
   return(false);
 } // beginSync
-
+*/
 /*
 // USB version, pretty much useless due to host CDC problems over target reset
 bool beginSync (USBSerial& s, int8_t n=20)
