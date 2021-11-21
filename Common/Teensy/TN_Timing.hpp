@@ -38,35 +38,44 @@ public:
 
    uint8_t update (void)
    {
-      uint8_t m= diff() > 0;
-      for (int i=0; i<IVL_COUNT_MAX; i++)
+      uint8_t m= 0;
+
+      if (diff() > 0)
       {
-         if ((ivl[i] > 0) && (tick >= next[i]))
+         retire();
+         m= 0x1;
+         for (int i=0; i<IVL_COUNT_MAX; i++)
          {
-            m|= 0x2 << i;
-            next[i]+= ivl[i];
+            if ((ivl[i] > 0) && (tick >= next[i]))
+            {
+               m|= 0x2 << i;
+               next[i]+= ivl[i];
+            }
          }
       }
       return(m);
    }
+   uint32_t getTick (void) { return(tick); }
+
 }; // CMultiIntervalTimer
 
 class CMultiIntervalCounter : public CMultiIntervalTimer
 {
 public:
   uint32_t tock[IVL_COUNT_MAX];
-  
+
   CMultiIntervalCounter (void) : CMultiIntervalTimer() { ; }
-  
+
   uint8_t update (void)
-  { 
-    uint8_t m= CMultiIntervalTimer::update();
+  {
+    const uint8_t m= CMultiIntervalTimer::update();
     for (int i=0; i<IVL_COUNT_MAX; i++)
     {
       if (m & (0x2<<i)) { tock[i]++; }
-    } 
+    }
     return(m);
-  }
+  } // update
+
 }; // CMultiIntervalCounter
 
 #endif // TN_TIMING_HPP
