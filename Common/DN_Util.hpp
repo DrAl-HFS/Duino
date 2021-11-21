@@ -9,8 +9,12 @@
 // Factor to where ?
 #define BIT_MASK(n) ((1<<(n))-1)
 
-#if 0
+#ifndef SERIAL_TYPE
 #define SERIAL_TYPE HardwareSerial  // UART
+#endif
+
+#if 0
+#define SERIAL_TYPE HardwareSerial  // typically UART, but USB on PICO
 #define SERIAL_TYPE USBSerial       // STM32
 #define SERIAL_TYPE usb_serial_class  // Teensy
 #endif
@@ -20,7 +24,7 @@
 #endif
 
 #ifndef SERIAL_DELAY_STEP
-#define SERIAL_DELAY_STEP 30  // *20=600ms, long delay for Teensy USB-serial sync
+#define SERIAL_DELAY_STEP 30  // *20=600ms, long delay for USB-serial sync
 #endif
 
 class SerialDelayParam
@@ -40,17 +44,18 @@ bool beginSync (SERIAL_TYPE& s, const uint32_t bd=DEBUG_BAUD, const SerialDelayP
 {
    if (bd >= 0)
    {
-      uint16_t d= sdp.getInitialDelay();
-      uint8_t i= sdp.getInitialIter();
+      uint16_t t= 0, d= sdp.getInitialDelay();
+      uint8_t n= sdp.getInitialIter();
       do
       {
          if (s)
          {
             s.begin(bd);
+            if (t < 100) { delay(100 - t); }
             return(true);
          }
-         else { delay(d); d= 1 + (d >> 1); }
-      } while (--i > 0);
+         else { delay(d); t+= d; d= 1 + (d >> 1); }
+      } while (--n > 0);
    }
    return(false);
 } // beginSync
