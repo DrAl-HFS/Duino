@@ -13,6 +13,8 @@
 #define PIN_NCS 17
 #endif
 
+#include "CCommonSPI.hpp"
+
 
 class CAPA102State
 {
@@ -34,9 +36,9 @@ public:
    }
 }; // CAPA102State
 
-class CAPA102SPI
+class CAPA102SPI : public CCommonSPI // *Factoring
 {  //RP2040::
-   SPISettings set;
+   //SPISettings spiSet;
    
 public:
    CAPA102SPI (void) { ; }
@@ -44,7 +46,7 @@ public:
 
    void init (void)
    {
-      set= SPISettings(4<<20, MSBFIRST, SPI_MODE0);
+      spiSet= SPISettings(4<<20, MSBFIRST, SPI_MODE0);
       //HSPI.setTX(19); HSPI.setSCK(18); // EFP community core required
       HSPI.begin();
       pinMode(PIN_NCS, OUTPUT);
@@ -53,23 +55,10 @@ public:
 
    void release (void) { HSPI.end(); }
 
-   // Return values are bytes written
-   uint16_t write (const uint8_t b, const uint16_t n=4)
-   { 
-      for (uint16_t i=0; i<n; i++) { HSPI.transfer(b); }
-      return(n);
-   } // write
-   uint16_t write (const uint8_t b[], const uint16_t n)
-   {  // NB: transfer((void*), int); is read-write in same buffer ...
-      for (uint16_t i=0; i<n; i++) { HSPI.transfer(b[i]); } 
-      return(n);
-   } // write
-
    uint16_t start (void)
    {
-      HSPI.beginTransaction(set);
-      digitalWrite(PIN_NCS,0);
-      return write(0x00); // SOF / preamble
+      CCommonSPI::start();
+      return CCommonSPI::writeb(0x00,4); // SOF / preamble
    } // start
 
    uint16_t complete (uint16_t n)
@@ -77,9 +66,8 @@ public:
       // required to fully propagate data, i.e. nB / (4*2) bits. So
       // rounding up bits gives the number of bytes to send:
       // ((nB / 8) + 7) / 8 = (nB + 7*8) / 64
-      n= write(0xFF, (n+56)/64); // EOF / footer
-      digitalWrite(PIN_NCS,1);
-      HSPI.endTransaction();
+      n= CCommonSPI::writeb(0xFF, (n+56)/64); // EOF / footer
+      CCommonSPI::complete();
       return(n);
    } // complete
 
@@ -93,7 +81,7 @@ private:
    {  // NB always writes at least nB
       uint16_t tB=0;
       uint8_t iR= 0;
-      do { tB+= write(b, nB); } while (iR++ < nR);
+      do { tB+= CCommonSPI::write(b, nB); } while (iR++ < nR);
       return(tB);
    } // writeRep
 
