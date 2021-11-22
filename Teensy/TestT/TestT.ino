@@ -74,7 +74,7 @@ uint8_t idx= 0;
 void loop ()
 {
   const uint8_t sig= gMIC.update();
-  if (sig > 0) { ad779x.poll(DEBUG); }
+  if (sig > 0) { ad779x.sample(); }
   if (sig > 0x1)
   {
     if (ad779x.ready()) { ad779x.report(DEBUG); } else { ad779x.test(DEBUG); }

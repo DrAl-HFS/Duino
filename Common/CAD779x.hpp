@@ -3,11 +3,15 @@
 // Licence: GPL V3A
 // (c) Project Contributors Oct 2021
 
+#ifndef CAD779x_HPP
+#define CAD779x_HPP
+
 #include <SPI.h>
-
-
 #include "MBD/mbdDef.h" // UU16/32
 
+#ifndef HSPI
+#define HSPI SPI
+#endif
 #ifndef PIN_NCS
 #define PIN_NCS SS // Uno=10,Mega=53
 #endif
@@ -15,12 +19,15 @@
 #define PIN_NRDY MISO //Uno=12,Mega=50
 #endif
 
+// NB: following pin defs
+#include "CCommonSPI.hpp"
+
 // Namespace useful for wrapping common token names such as <DATA>, <IDLE> etc.
 // The resulting verbosity of code is not always convenient but the specificity
 // helps avoid tedious debugging of arcane problems.
 namespace AD779x  // Caveat: namespace verbosity...
 {
-   typedef enum Reg : int8_t { COMMSTAT, MODE, CONF, DATA, ID, IO, OFFS, FS };
+   enum Reg : int8_t { COMMSTAT, MODE, CONF, DATA, ID, IO, OFFS, FS };
    enum Stat : uint8_t { NRDY= 0x80, ERR=0x40, IDB=0x08, CHM=0x07  };
    // mode MSB
    enum Mode : int8_t { CONTINUOUS, SINGLE, IDLE, POWER_DOWN, CAL_IZS, CAL_IFS, CAL_XZS, CAL_XFS}; // <<5
@@ -58,9 +65,7 @@ namespace AD779x  // Caveat: namespace verbosity...
 }; // namespace AD779x
 
 
-//using namespace AD779x {
-
-// Low-level signalling using MISO line (seems unreliable; need pull-up/down?)
+// Low-level signalling using MISO line is unreliable; weak (100K) pull-up breaks SPI
 class CAD779xSignal
 {
 public:
@@ -78,9 +83,8 @@ public:
 // IO sub-class deals with SPI (pretty simple using 'Duino libraries).
 // Note that big-endian conversion is implicit here (AVR & ARM (almost) always little endian).
 // Could be replaced with "bare metal" hacking approach if required.
-class CAD779xSPI : public CAD779xSignal
+class CAD779xSPI : CCommonSPI, public CAD779xSignal
 {
-   SPISettings set;
 
 public:
    CAD779xSPI (uint8_t clkM=0) : hsm{0} { init(clkM); }
@@ -90,20 +94,20 @@ public:
       if (hsm & 1) { close(); ior= 0; }
       if (clkM > 0)
       {
-         set= SPISettings(clkM*1000000, MSBFIRST, SPI_MODE3);
-         SPI.begin();
+         spiSet= SPISettings(clkM*1000000, MSBFIRST, SPI_MODE3);
+         HSPI.begin();
          pinMode(PIN_NCS, OUTPUT);
          digitalWrite(PIN_NCS,1);
          hsm= 0x1;
       }
    } // init
 
-   void close (void) { SPI.end(); hsm= 0x00; }
+   void close (void) { HSPI.end(); hsm= 0x00; }
 
-   void reset (void) // not reliable.. ?
+   void reset (void) // reliability ?
    {
       start();
-      for (int8_t iB=0; iB<4; iB++) { SPI.transfer(0xFF); }
+      writeb(0xFF,4);
       complete();
       hsm|= 0x20;
    } // reset
@@ -111,30 +115,23 @@ public:
 protected:
    uint8_t hsm; // hacky state mask
 
-   void start (void) { SPI.beginTransaction(set); digitalWrite(PIN_NCS,0); }
-   void complete (void) { SPI.endTransaction(); digitalWrite(PIN_NCS,1); }
-
-   int8_t readR (AD779x::Reg r, uint8_t vB[], const uint8_t nB)
+   int8_t readReg (AD779x::Reg r, uint8_t vB[], const uint8_t nB)
    {
       start();
-      SPI.transfer( (0x8 | r) << 3); // First byte to COMM reg defines read target register
-      //for (int8_t iB=0; iB<nB; iB++) // preserve big endian byte order
-      int8_t iB= nB; // big to little endian byte order
-      while (iB-- > 0) { vB[iB]= SPI.transfer(0xFF); }
+      HSPI.transfer( (0x8 | r) << 3); // First byte to COMM reg defines read target register
+      readRev(vB,nB);
       complete();
       return(nB);
-   } // readR
+   } // readReg
 
-   int8_t writeR (AD779x::Reg r, const uint8_t vB[], const uint8_t nB)
+   int8_t writeReg (AD779x::Reg r, const uint8_t vB[], const uint8_t nB)
    {
       start();
-      SPI.transfer(r << 3); // First byte to COMM reg defines write target register
-      //for (int8_t iB=0; iB<nB; iB++) // preserve big endian byte order
-      int8_t iB= nB; // little to big endian byte order
-      while (iB-- > 0) { SPI.transfer(vB[iB]); }
+      HSPI.transfer(r << 3); // First byte to COMM reg defines write target register
+      writeRev(vB,nB);
       complete();
       return(nB);
-   } // writeR
+   } // writeReg
 
 }; // CAD779xSPI
 
@@ -146,14 +143,14 @@ public:
 
    bool ready (void)
    {
-      readR(AD779x::COMMSTAT, &(sr.stat), 1);
+      readReg(AD779x::COMMSTAT, &(sr.stat), 1);
       return(0 == (sr.stat & AD779x::NRDY));
    }
 
    uint32_t read24b (AD779x::Reg r=AD779x::DATA)
    {
       UU32 v;
-      readR(r, v.u8, 3);
+      readReg(r, v.u8, 3);
       v.u8[3]= 0;
       return(v.u32);
    } // readData
@@ -161,14 +158,12 @@ public:
 protected:
    AD779x::ShadowReg sr;
 
-   int8_t checkID (void) //  return 0 or 1 if identified as AD779x, otherwise -1
+   uint8_t getID (void)
    {
-      uint8_t id=0x5F;
-      readR(AD779x::ID, &id, 1);
-      uint8_t t= ((id & 0xF) - 0xA);
-      if (t <= 1) { hsm|= 0x80; return(t); }
-      return(-1);
-   }
+      uint8_t id=0xFF;
+      readReg(AD779x::ID, &id, 1);
+      return(id);
+   } // getID
 
    //using AD779x:: ???
 
@@ -177,20 +172,20 @@ protected:
       sr.conf.u8[0]= r|c;
       sr.conf.u8[1]= (b<<6)|f|g;
 
-      writeR(AD779x::CONF, sr.conf.u8, 2);
+      writeReg(AD779x::CONF, sr.conf.u8, 2);
    } // setConf
 
    void setMode (AD779x::Rate r=AD779x::R242, AD779x::Mode m=AD779x::CONTINUOUS, AD779x::Clock c=AD779x::CLK_INT)
    {
       sr.mode.u8[0]= (c<<6)|r;
       sr.mode.u8[1]= m<<5;
-      writeR(AD779x::MODE, sr.mode.u8, 2);
+      writeReg(AD779x::MODE, sr.mode.u8, 2);
    } // setMode
 
    void setIO (AD779x::EXCD d=AD779x::STRAIGHT,  AD779x::EXCI i=AD779x::I0)
    {
       uint8_t io= (d<<2) | i;
-      writeR(AD779x::IO, &io, 1);
+      writeReg(AD779x::IO, &io, 1);
    } // setIO
 
    void setDefault (void)
@@ -207,6 +202,19 @@ class CAD779xUtil : public CAD779xRaw
 {
 public:
    CAD779xUtil (uint8_t clkM) : CAD779xRaw(clkM) { ; }
+
+   int8_t identify (uint8_t *rawID)
+   {
+      uint8_t id= getID();
+      int8_t i= ((id & 0xF) - 0x8);
+      if ((i >= 2) && (i <= 3)) { hsm|= 0x80; } else { i= -1; }
+      //CCommonState::setHW(Device::HW::UNKNOWN);
+      //if (CCommonState::getHW() < Device::HW::STANDBY) { CCommonState::setHW(Device::HW::STANDBY); }
+      if (rawID) { *rawID= id; }
+      return(i);
+   } // identify
+
+   void setChan (AD779x::Chan c) { setConf(c); }
 
    uint8_t gain (void) { return(1 << (sr.conf.u8[1] & AD779x::GM)); }
 
@@ -257,7 +265,7 @@ public:
    void dumpMDiff (Stream& s)
    {
       const char sep[]={',','\n'};
-      const int8_t m= min(idx, NHSB);
+      int8_t m; if (idx < NHSB) { m= idx; } else { m= NHSB; } // C++ min() broken?
       for (int8_t i=0; i<m; i++)
       {
          s.print((int)(xt[i]-mean)); s.print(sep[i==(m-1)]);
@@ -269,8 +277,10 @@ public:
 // Data dump layer for debug support
 class CAD779xDbg : public CAD779xUtil, public CHackStat32
 {
+   char chid;
+
 public:
-   CAD779xDbg (uint8_t clkM=8) : CAD779xUtil(clkM) { ; }
+   CAD779xDbg (uint8_t clkM=8) : CAD779xUtil(clkM), chid{'x'} { ; }
 
    bool ready (void) { return(0xC0 == (hsm & 0xC0)); }
 
@@ -294,9 +304,12 @@ public:
          // Hacky...
          return(true);
       }
+      return(false);
    } // test
 
-   void sample (void) { if (ready() && (CAD779xSignal::ready() || CAD779xRaw::ready())) { add(read24b()); } }
+   // CAD779xSignal::ready() needed to work ?why?
+   void sample (void) { if (ready() && CAD779xRaw::ready() && CAD779xSignal::ready()) { add(read24b()); } }
+   
    void report(Stream& s)
    {
       if (ior > 0)
@@ -307,13 +320,12 @@ public:
       }
    } // report
 
-   void strID (Stream& s, const uint8_t v)
+   void printDevID (Stream& s, const char *end=": ")
    {
-      char chv='2'; chv+= v & 0x1;
-      s.print("AD779"); s.print(chv);
-   } // strID
+      s.print("AD779"); s.print(chid); if (end) { s.print(end); }
+   } // printDevID
 
-   void strChan (Stream& s, const uint8_t chan)
+   void printChan (Stream& s, const uint8_t chan)
    {
       s.print(" CH:");
       switch(chan)
@@ -323,43 +335,45 @@ public:
          case AD779x::S1   :  s.println("S1"); break;
          default : s.print('D'); s.println(chan); break;
       }
-   } // strChan
+   } // printChan
 
    bool logID (Stream& s)
    {
-      int8_t i= checkID();
-      if (i >= 0)
-      {
-         strID(s, i); s.println(" - OK");
-      } else { s.println("UNKNOWN ID"); } // s.println(id,HEX); }
-      return(i >= 0);
+static const char *msg[]= {"UNKNOWN","OK"};
+      uint8_t rawID;
+      int8_t i= identify(&rawID);
+      if (i >= 0) { chid='0'+i; }
+      printDevID(s);
+      i=  (i >= 0);
+      s.print("RAW="); s.print(rawID,HEX); s.print(" - ");
+      s.println(msg[i]);
+      return(i);
    } // logID
 
    void logStat (Stream& s)
    {
-      readR(AD779x::COMMSTAT, &(sr.stat), 1);
+      readReg(AD779x::COMMSTAT, &(sr.stat), 1);
 
-      strID(s, (sr.stat & AD779x::IDB) > 0); s.print(':');
+      printDevID(s);
       s.print("STAT=");
       if (0 == (sr.stat & AD779x::NRDY)) { s.print('R'); }
       if (sr.stat & AD779x::ERR) { s.print('E'); }
-      strChan(s, sr.stat & AD779x::CHM);
+      printChan(s, sr.stat & AD779x::CHM);
    } // logStat
 
    void logIO (Stream& s)
    {
       uint8_t io;
-      readR(AD779x::IO, &io, 1);
-
-      s.print("AD779x:");
+      readReg(AD779x::IO, &io, 1);
+      printDevID(s);
       s.print("IO= 0x"); s.println(io,HEX);
       //if (io & 0x80) { s.print('R'); }
    } // logStat
 
    void logMode (Stream& s)
    {
-      readR(AD779x::MODE, sr.mode.u8, 2);
-      s.print("AD779x:");
+      readReg(AD779x::MODE, sr.mode.u8, 2);
+      printDevID(s);
       s.print("MODE= M#"); s.print(sr.mode.u8[1]>>5);
       s.print(" C#"); s.print(sr.mode.u8[0]>>6);
       s.print(" R#"); s.println(sr.mode.u8[0] & AD779x::RM);
@@ -367,8 +381,8 @@ public:
 
    void logConf (Stream& s)
    {
-      readR(AD779x::CONF, sr.conf.u8, 2);
-      s.print("AD779x:");
+      readReg(AD779x::CONF, sr.conf.u8, 2);
+      printDevID(s);
       s.print("CONF= VB#"); s.print(sr.conf.u8[1] >> 6); s.print(' ');
       if (sr.conf.u8[1] & AD779x::BURNOUT) { s.print('R'); }
       if (sr.conf.u8[1] & AD779x::UNIPOLAR) { s.print('U'); }
@@ -377,7 +391,7 @@ public:
 
       if (sr.conf.u8[0] & AD779x::VREF_INT) { s.print('I'); } else { s.print('X'); }
       if (sr.conf.u8[0] & AD779x::BUF) { s.print('B'); }
-      strChan(s, sr.conf.u8[0] & AD779x::CHM);
+      printChan(s, sr.conf.u8[0] & AD779x::CHM);
    } // logConf
 
    void logCal (Stream& s)
@@ -399,4 +413,6 @@ public:
 
 }; // CAD779xDbg
 
-// }; // using namespace AD779x
+#endif // CAD779x_HPP
+
+
