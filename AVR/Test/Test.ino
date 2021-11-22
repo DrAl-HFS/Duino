@@ -25,7 +25,8 @@
 #include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
 //include "Common/AVR/DA_SPIMHW.hpp"
-#include "Common/CAD779x.hpp"
+//#include "Common/CAD779x.hpp"
+#include "Common/CADS1256.hpp"
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/AVR/DA_RotEnc.hpp"
 #include "Common/AVR/DA_Util.hpp"
@@ -88,7 +89,8 @@ SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
 
-CAD779xDbg ad779x;
+//CAD779xDbg ad779x;
+CADS1256Dbg adc;
 
 #define SEC_DIG 1
 int8_t sysLog (Stream& s, uint8_t events)
@@ -150,7 +152,6 @@ void setup (void)
   gADC.init(1); gADC.start();
   gDAC.init(1); gDAC.set(0);
 #endif
-  pinMode(NCS, OUTPUT); digitalWrite(NCS,1);
   //pinMode(PIN_PULSE, OUTPUT);
   //pinMode(PIN_DA0, OUTPUT);
 
@@ -168,6 +169,11 @@ void setup (void)
 #ifdef DA_HACKRF24
   HackRF24 hack; hack.test(DEBUG);
 #endif
+  adc.init();
+  delay(1);
+  adc.logID(DEBUG);
+  //ad779x.reset();
+  //ad779x.test(DEBUG);
 } // setup
 
 #ifdef PIN_PULSE
@@ -189,7 +195,7 @@ static uint16_t gHackCount= 0;
 } // pulseHack
 #endif
 
-uint8_t gLastCUD=0, gAV=0x01, gSI=0, gIS=0, gDIS= 2, gLastIS=0;
+uint8_t gCyc=0, gLastCUD=0, gAV=0x01, gSI=0, gIS=0, gDIS= 2, gLastIS=0;
 
 void loop (void)
 {
@@ -197,6 +203,7 @@ void loop (void)
   if (cud > 0) //AVR_MILLI_TICKS)
   { // <=1KHz update rate
     // Pre-collect multiple ADC samples, for pending sysLog()
+    //ad779x.poll();
 #ifdef DA_ANALOGUE
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
 #endif
@@ -234,7 +241,12 @@ void loop (void)
         cmd.clean();
       }
       gClock.intervalStart();
-      ad779x.test(DEBUG);
+      adc.logSR(DEBUG);
+      /*
+      if (ad779x.ready()) { ad779x.report(DEBUG); } else { ad779x.test(DEBUG); }
+      const AD779x::Chan cm[]= {AD779x::AVDD, AD779x::THERM};
+      ad779x.setChan( cm[ gCyc & 0x1 ] ); gCyc++;
+      */
     }
     //pulseHack();
   }
