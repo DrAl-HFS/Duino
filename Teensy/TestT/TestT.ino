@@ -8,6 +8,7 @@
 #include "Common/Teensy/TN_Timing.hpp"
 #include <SPI.h>
 #include "Common/CAD779x.hpp"
+#include "Common/CADS1256.hpp"
 
 #define DEBUG       Serial // not USBSerial
 //define DEBUG_BAUD  115200
@@ -20,7 +21,8 @@
 #define NCS SS //=10
 #endif
 
-CAD779xDbg ad779x;
+//CAD779xDbg ad779x;
+CADS1256Dbg adc;
 
 CMultiIntervalCounter gMIC;
 void tickEvent (void) { gMIC.tickEvent(); }
@@ -65,34 +67,28 @@ void setup ()
   DEBUG.print("MISO="); DEBUG.println(MISO);
 */
   gMIC.init(tickEvent,1000); // 1Hz
-  ad779x.reset();
-  ad779x.test(DEBUG);
+  adc.init(DEBUG);
+  //ad779x.reset();
+  //ad779x.test(DEBUG);
 } // setup
 
 uint8_t idx= 0;
+uint32_t  s;
 
 void loop ()
 {
   const uint8_t sig= gMIC.update();
-  if (sig > 0) { ad779x.sample(); }
+  if (sig > 0) { s= adc.read24b(); }
   if (sig > 0x1)
   {
+#if 1
+    adc.logSR(DEBUG);
+    DEBUG.print("s="); DEBUG.println(s);
+#else
     if (ad779x.ready()) { ad779x.report(DEBUG); } else { ad779x.test(DEBUG); }
     const AD779x::Chan cm[]= {AD779x::AVDD, AD779x::THERM};
     ad779x.setChan( cm[ idx & 0x1 ] );
-    /*
-    uint8_t vI[3]={0b01100000,0x01,0x00}, vO[3], r, m=0x3;
-    //v= 0xF0 | (idx & 0x0F);
-    r= pingSPI(vO, vI, 2);
-    for (int i=0; i<r; i++)
-    {
-      DEBUG.print(vO[i],HEX); DEBUG.print(',');
-    } DEBUG.println();// DEBUG.print(' ');
-    */
-    //if (0 == (idx & 0x0F)) { DEBUG.print('.'); }
-    //if (0 == idx) { DEBUG.println(); }
-    //digitalWrite(LED_BUILTIN, idx & 0x1);
-    //DEBUG.println('.');
+#endif
     idx++;
   }
 } // loop
