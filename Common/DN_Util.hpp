@@ -27,6 +27,25 @@
 #define SERIAL_DELAY_STEP 30  // *20=600ms, long delay for USB-serial sync
 #endif
 
+char hexCh (uint8_t x, const char a='a')
+{
+   x= '0' + (x & 0xF);
+   if (x > '9') { x-= '9' + a; }
+   return(x);
+} // hexCh
+
+int hex2ChNU8 (char ch[], const int maxCh, const uint8_t u[], const int n)
+{
+   int i= 0, j= 0;
+   while ((i < maxCh) && (j < n))
+   {
+      const uint8_t x= u[j];
+      ch[i++]= hexCh(x >> 4);
+      if (i < maxCh) { ch[i++]= hexCh(x); }
+   }
+   return(i);
+} // hex2ChNU8
+
 class SerialDelayParam
 {
 protected:

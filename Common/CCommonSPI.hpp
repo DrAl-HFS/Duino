@@ -6,6 +6,7 @@
 #ifndef CCOMMON_SPI_HPP
 #define CCOMMON_SPI_HPP
 
+//include "DN_Util.hpp"
 //include <SPI.h>
 #ifndef HSPI
 #define HSPI SPI

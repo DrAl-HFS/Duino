@@ -1,7 +1,7 @@
 // Duino/Common/CAD779x.hpp - AD779x precision ADC with SPI interface utility classes
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Oct 2021
+// (c) Project Contributors Oct-Nov 2021
 
 #ifndef CAD779x_HPP
 #define CAD779x_HPP
@@ -19,7 +19,7 @@
 #define PIN_NRDY MISO //Uno=12,Mega=50
 #endif
 
-// NB: following pin defs
+// NB: must follow pin defs
 #include "CCommonSPI.hpp"
 
 // Namespace useful for wrapping common token names such as <DATA>, <IDLE> etc.
@@ -153,7 +153,7 @@ public:
       readReg(r, v.u8, 3);
       v.u8[3]= 0;
       return(v.u32);
-   } // readData
+   } // read24b
 
 protected:
    AD779x::ShadowReg sr;
