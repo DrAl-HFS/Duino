@@ -44,26 +44,63 @@ namespace AD779x  // Caveat: namespace verbosity...
    // conf MSB
    enum Bias : int8_t { BIAS_OFF, BIAS_A1, BIAS_A2 }; // <<6
    enum Flag : uint8_t { BURNOUT=0x20, UNIPOLAR=0x10, BOOST=0x08 };
-   enum Gain : int8_t { G1, G2, G4, G8, G16, G32, G64, G128, GM=0x7 };
+   enum Gain : int8_t { G1, G2, G4, G8, G16, G32, G64, G128, GAIN_MASK=0x7 };
    // conf LSB
    enum VRef : uint8_t { VREF_EXT=0, BUF=0x10, VREF_INT=0x80 }; // unbuffered
-   enum Chan : int8_t { D1, D2, D3, S1, THERM=6, AVDD }; // CHM=0x07
+   enum Chan : int8_t { D1, D2, D3, S1, THERM=6, AVDD, CHAN_MASK=0x07 };
    // IO register
    enum EXCD : int8_t { STRAIGHT, SWAP, DUAL1, DUAL2 }; // <<2 Excitation current source destination ("direction" ?!?)
    enum EXCI : int8_t { I0, I10, I210, I1000 }; // Excitation current 10uA ~ 1mA
 
    // Use shadowing for important registers to
    // reduce communication overhead (& noise)
-   typedef struct
+   struct ShadowReg
    {
       UU16  mode, conf;
       U8    stat;
-   } ShadowReg;
+   };
+
+   struct RateClock
+   {
+      uint8_t m0, mm0;
+
+      RateClock (Rate r=R16_7A, Clock c=CLK_INT) : mm0{-1} { m0= (c<<6)|r; }
+
+      void set (ShadowReg& sr) { sr.mode.u8[0]= (sr.mode.u8[0] & ~mm0) | (m0 & mm0); }
+   };
+
+   struct OperMode
+   {
+      uint8_t m1;
+
+      OperMode (Mode m=AD779x::CONTINUOUS) { m1= m<<5; }
+
+      void set (ShadowReg& sr) { sr.mode.u8[1]= m1; }
+   };
+
+   struct ChanRef
+   {
+      uint8_t c0, cm0;
+
+      ChanRef (Chan c=AVDD, VRef r=VREF_INT) : cm0{-1} { c0= r|c; }
+
+      void set (ShadowReg& sr) { sr.conf.u8[0]= (sr.conf.u8[0] & ~cm0) | (c0 & cm0); }
+   };
+
+   struct GainFlagBias
+   {
+      uint8_t c1, cm1;
+
+      GainFlagBias (Gain g=G1, Flag f=UNIPOLAR, Bias b=BIAS_OFF) : cm1{-1} { c1= (b<<6)|f|g; }
+
+      void set (ShadowReg& sr) { sr.conf.u8[1]= (sr.conf.u8[1] & ~cm1) | (c1 & cm1); }
+   };
 
    const float internalRefV= 1.17f;
    const long fsr= (long)1<<24; // HACK! not for double ended, AD7792 etc.
 }; // namespace AD779x
 
+// TODO: determine suitbale "using AD779x::" scheme
 
 // Low-level signalling using MISO line is unreliable; weak (100K) pull-up breaks SPI
 class CAD779xSignal
@@ -135,6 +172,7 @@ protected:
 
 }; // CAD779xSPI
 
+
 // Next the raw utility layer, providing interface to registers, ordinal & flag values
 class CAD779xRaw : public CAD779xSPI
 {
@@ -164,8 +202,14 @@ protected:
       readReg(AD779x::ID, &id, 1);
       return(id);
    } // getID
-
-   //using AD779x:: ???
+   
+/* ** DEPRECATE
+   void setMode (AD779x::Rate r=AD779x::R242, AD779x::Mode m=AD779x::CONTINUOUS, AD779x::Clock c=AD779x::CLK_INT)
+   {
+      sr.mode.u8[0]= (c<<6)|r;
+      sr.mode.u8[1]= m<<5;
+      writeReg(AD779x::MODE, sr.mode.u8, 2);
+   } // setMode
 
    void setConf (AD779x::Chan c=AD779x::AVDD, AD779x::Gain g=AD779x::G1, AD779x::VRef r=AD779x::VREF_INT, AD779x::Bias b=AD779x::BIAS_OFF, AD779x::Flag f=AD779x::UNIPOLAR)
    {
@@ -175,23 +219,32 @@ protected:
       writeReg(AD779x::CONF, sr.conf.u8, 2);
    } // setConf
 
-   void setMode (AD779x::Rate r=AD779x::R242, AD779x::Mode m=AD779x::CONTINUOUS, AD779x::Clock c=AD779x::CLK_INT)
-   {
-      sr.mode.u8[0]= (c<<6)|r;
-      sr.mode.u8[1]= m<<5;
-      writeReg(AD779x::MODE, sr.mode.u8, 2);
-   } // setMode
-
    void setIO (AD779x::EXCD d=AD779x::STRAIGHT,  AD779x::EXCI i=AD779x::I0)
    {
       uint8_t io= (d<<2) | i;
       writeReg(AD779x::IO, &io, 1);
    } // setIO
+*/ // DEPRECATE **
+
+   void setMode (AD779x::RateClock rc, AD779x::OperMode om)
+   {
+      rc.set(sr);
+      om.set(sr);
+      writeReg(AD779x::MODE, sr.mode.u8, 2);
+   } // setMode
+
+   void setConf (AD779x::ChanRef cr, AD779x::GainFlagBias gfb)
+   {
+      cr.set(sr);
+      gfb.set(sr);
+
+      writeReg(AD779x::CONF, sr.conf.u8, 2);
+   } // setConf
 
    void setDefault (void)
    {
-      setConf();
-      setMode();
+      setConf( AD779x::ChanRef(), AD779x::GainFlagBias() );
+      setMode( AD779x::RateClock(), AD779x::OperMode() );
       hsm|= 0x40;
    } // setDefault
 
@@ -214,9 +267,15 @@ public:
       return(i);
    } // identify
 
-   void setChan (AD779x::Chan c) { setConf(c); }
+   void setChan (AD779x::Chan c) { setConf(AD779x::ChanRef(c), AD779x::GainFlagBias()); } //HACK!
+   
+   AD779x::Chan chan (bool refresh=false)
+   {
+      if (refresh) { readReg(AD779x::CONF, sr.conf.u8, 1); }
+      return(sr.conf.u8[0] & AD779x::CHM);
+   }
 
-   uint8_t gain (void) { return(1 << (sr.conf.u8[1] & AD779x::GM)); }
+   uint8_t gain (void) { return(1 << (sr.conf.u8[1] & AD779x::GAIN_MASK)); }
 
    // raw reading to Volts
    float getV (uint32_t v)
@@ -282,6 +341,11 @@ class CAD779xDbg : public CAD779xUtil, public CHackStat32
 public:
    CAD779xDbg (uint8_t clkM=8) : CAD779xUtil(clkM), chid{'x'} { ; }
 
+   void setChan (AD779x::Chan c)
+   {
+      if (c != chan()) { idx= 0; }
+      CAD779xUtil::setChan(c);
+   }
    bool ready (void) { return(0xC0 == (hsm & 0xC0)); }
 
    bool test (Stream& s)
@@ -310,12 +374,13 @@ public:
    // CAD779xSignal::ready() needed to work ?why?
    void sample (void) { if (ready() && CAD779xRaw::ready() && CAD779xSignal::ready()) { add(read24b()); } }
    
-   void report(Stream& s)
+   void report (Stream& s)
    {
       if (ior > 0)
       {
          s.print("ior="); s.println(ior);
-         s.print("M["); s.print(idx); s.print("]="); s.println(getV(updateMean()),6);
+         printChan(s,chan(),NULL);
+         s.print(" M["); s.print(idx); s.print("]="); s.println(getV(updateMean()),6);
          s.print("D:"); dumpMDiff(s);
       }
    } // report
@@ -325,16 +390,17 @@ public:
       s.print("AD779"); s.print(chid); if (end) { s.print(end); }
    } // printDevID
 
-   void printChan (Stream& s, const uint8_t chan)
+   void printChan (Stream& s, const uint8_t chan, const char *end="\n")
    {
       s.print(" CH:");
       switch(chan)
       {
-         case AD779x::THERM:  s.println("THERM"); break;
-         case AD779x::AVDD :  s.println("AVDD"); break;
-         case AD779x::S1   :  s.println("S1"); break;
-         default : s.print('D'); s.println(chan); break;
+         case AD779x::THERM:  s.print("THERM"); break;
+         case AD779x::AVDD :  s.print("AVDD"); break;
+         case AD779x::S1   :  s.print("S1"); break;
+         default : s.print('D'); s.print(1+chan); break;
       }
+      if (end) { s.print(end); }
    } // printChan
 
    bool logID (Stream& s)
