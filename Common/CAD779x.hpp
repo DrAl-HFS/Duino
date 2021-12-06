@@ -16,11 +16,28 @@
 #define PIN_NCS SS // Uno=10,Mega=53
 #endif
 #ifndef PIN_NRDY
-#define PIN_NRDY MISO //Uno=12,Mega=50
+#define PIN_NRDY MISO // Uno=12,Mega=50
 #endif
 
 // NB: must follow pin defs
 #include "CCommonSPI.hpp"
+
+/*
+#define _STR(x) #x
+#define STR(x) _STR(x)
+#pragma message "PIN_NRDY=" STR(MISO)
+*/
+#if 0
+#ifdef ARDUINO_ARCH_AVR
+// NB: cant use pin values due to preprocessor definition problems 
+#ifdef ARDUINO_AVR_UNO
+#define NRDY_MPB 0x10  // PB4
+#endif
+#ifdef ARDUINO_AVR_MEGA2560
+#define NRDY_MPB 0x08  // PB3
+#endif
+#endif
+#endif
 
 // Namespace useful for wrapping common token names such as <DATA>, <IDLE> etc.
 // The resulting verbosity of code is not always convenient but the specificity
@@ -52,21 +69,14 @@ namespace AD779x  // Caveat: namespace verbosity...
    enum EXCD : int8_t { STRAIGHT, SWAP, DUAL1, DUAL2 }; // <<2 Excitation current source destination ("direction" ?!?)
    enum EXCI : int8_t { I0, I10, I210, I1000 }; // Excitation current 10uA ~ 1mA
 
-   // Use shadowing for important registers to
-   // reduce communication overhead (& noise)
-   struct ShadowReg
-   {
-      UU16  mode, conf;
-      U8    stat;
-   };
 
    struct RateClock
    {
-      uint8_t m0, mm0;
+      uint8_t m0;//, mm0;
+//
+      RateClock (Rate r=R16_7A, Clock c=CLK_INT) { m0= (c<<6)|r; }
 
-      RateClock (Rate r=R16_7A, Clock c=CLK_INT) : mm0{-1} { m0= (c<<6)|r; }
-
-      void set (ShadowReg& sr) { sr.mode.u8[0]= (sr.mode.u8[0] & ~mm0) | (m0 & mm0); }
+      //void set (ShadowReg& sr) { sr.mode.u8[0]= (sr.mode.u8[0] & ~mm0) | (m0 & mm0); }
    };
 
    struct OperMode
@@ -75,44 +85,78 @@ namespace AD779x  // Caveat: namespace verbosity...
 
       OperMode (Mode m=AD779x::CONTINUOUS) { m1= m<<5; }
 
-      void set (ShadowReg& sr) { sr.mode.u8[1]= m1; }
+      //void set (ShadowReg& sr) { sr.mode.u8[1]= m1; }
    };
 
    struct ChanRef
    {
-      uint8_t c0, cm0;
+      uint8_t c0;//, cm0;
 
-      ChanRef (Chan c=AVDD, VRef r=VREF_INT) : cm0{-1} { c0= r|c; }
+      ChanRef (Chan c=AVDD, VRef r=VREF_INT) { c0= r|c; }
 
-      void set (ShadowReg& sr) { sr.conf.u8[0]= (sr.conf.u8[0] & ~cm0) | (c0 & cm0); }
+      //void set (ShadowReg& sr) { sr.conf.u8[0]= (sr.conf.u8[0] & ~cm0) | (c0 & cm0); }
    };
 
    struct GainFlagBias
    {
-      uint8_t c1, cm1;
+      uint8_t c1;//, cm1;
 
-      GainFlagBias (Gain g=G1, Flag f=UNIPOLAR, Bias b=BIAS_OFF) : cm1{-1} { c1= (b<<6)|f|g; }
+      GainFlagBias (Gain g=G1, Flag f=UNIPOLAR, Bias b=BIAS_OFF) { c1= (b<<6)|f|g; }
 
-      void set (ShadowReg& sr) { sr.conf.u8[1]= (sr.conf.u8[1] & ~cm1) | (c1 & cm1); }
+      //void set (ShadowReg& sr) { sr.conf.u8[1]= (sr.conf.u8[1] & ~cm1) | (c1 & cm1); }
+   };
+   
+   // Use shadowing for important registers to
+   // reduce communication overhead (& noise)
+   struct ShadowReg
+   {
+      UU16  mode, conf;
+      U8    stat;
+      // unsatisfactory..
+      operator = (const RateClock& rc) { mode.u8[0]= rc.m0; }
+      operator = (const OperMode& om) { mode.u8[1]= om.m1; }
+      operator = (const ChanRef& cr) { conf.u8[0]= cr.c0; }
+      operator = (const GainFlagBias& gfb) { conf.u8[1]= gfb.c1; }
    };
 
    const float internalRefV= 1.17f;
    const long fsr= (long)1<<24; // HACK! not for double ended, AD7792 etc.
 }; // namespace AD779x
 
-// TODO: determine suitbale "using AD779x::" scheme
+// TODO: determine suitable "using AD779x::" scheme
 
-// Low-level signalling using MISO line is unreliable; weak (100K) pull-up breaks SPI
+// Low-level signalling using MISO line seems unreliable.
+// Both HW pull-up (very weak ~100K) and INPUT_PULLUP (AVR) break SPI.
+// Try filtering.. ?
 class CAD779xSignal
 {
 public:
-   uint32_t ior; // debug check
-   CAD779xSignal (void) : ior{0}  { ; }
-   bool ready (void)
+   CAD779xSignal (void) { ; }
+#ifdef NRDY_MPB
+   uint8_t rdy (void) { return(0x0 == (NRDY_MPB & PORTB)); } // digitalReadFast(PIN_NRDY)
+#else
+   uint8_t rdy (void) { return(0 == digitalRead(PIN_NRDY)); }
+#endif
+
+   uint8_t rdy (uint8_t n)
    {
-      bool r= (0 == digitalRead(PIN_NRDY));
-      ior+= r;
+      uint8_t r= rdy();
+      while (n-- > 1) { r= (r<<1) | rdy(); } 
       return(r);
+   } // rdy
+
+   bool ready (const uint8_t n=3, int8_t t=3)
+   {  // noise filter 
+      const uint8_t m= (1 << n) - 1;
+      uint8_t r= rdy(n);
+      while (r > 0)
+      {
+         if (m == (r & m)) { return(true); }
+         if (--t <= 0) { return(false); }
+         // another sample
+         r= (r << 1) | rdy();
+      }
+      return(false);
    } // ready
 
 }; // CAD779xSignal
@@ -128,7 +172,7 @@ public:
 
    void init (uint8_t clkM)
    {
-      if (hsm & 1) { close(); ior= 0; }
+      if (hsm & 1) { close(); }
       if (clkM > 0)
       {
          spiSet= SPISettings(clkM*1000000, MSBFIRST, SPI_MODE3);
@@ -179,7 +223,7 @@ class CAD779xRaw : public CAD779xSPI
 public:
    CAD779xRaw (uint8_t clkM) : CAD779xSPI(clkM) { ; }
 
-   bool ready (void)
+   bool ready (void) // ~3us @ 8MHz sclk, potentially noisy
    {
       readReg(AD779x::COMMSTAT, &(sr.stat), 1);
       return(0 == (sr.stat & AD779x::NRDY));
@@ -203,40 +247,29 @@ protected:
       return(id);
    } // getID
    
-/* ** DEPRECATE
-   void setMode (AD779x::Rate r=AD779x::R242, AD779x::Mode m=AD779x::CONTINUOUS, AD779x::Clock c=AD779x::CLK_INT)
+   void setRate (AD779x::RateClock rc)
    {
-      sr.mode.u8[0]= (c<<6)|r;
-      sr.mode.u8[1]= m<<5;
+      sr= rc; // doesn't look right...
       writeReg(AD779x::MODE, sr.mode.u8, 2);
    } // setMode
-
-   void setConf (AD779x::Chan c=AD779x::AVDD, AD779x::Gain g=AD779x::G1, AD779x::VRef r=AD779x::VREF_INT, AD779x::Bias b=AD779x::BIAS_OFF, AD779x::Flag f=AD779x::UNIPOLAR)
-   {
-      sr.conf.u8[0]= r|c;
-      sr.conf.u8[1]= (b<<6)|f|g;
-
-      writeReg(AD779x::CONF, sr.conf.u8, 2);
-   } // setConf
-
-   void setIO (AD779x::EXCD d=AD779x::STRAIGHT,  AD779x::EXCI i=AD779x::I0)
-   {
-      uint8_t io= (d<<2) | i;
-      writeReg(AD779x::IO, &io, 1);
-   } // setIO
-*/ // DEPRECATE **
 
    void setMode (AD779x::RateClock rc, AD779x::OperMode om)
    {
-      rc.set(sr);
-      om.set(sr);
+      sr= rc; // doesn't look right...
+      sr= om;
       writeReg(AD779x::MODE, sr.mode.u8, 2);
    } // setMode
 
+   void setChan (AD779x::ChanRef cr)
+   {
+      sr= cr;
+      writeReg(AD779x::CONF, sr.conf.u8, 2);
+   }
+
    void setConf (AD779x::ChanRef cr, AD779x::GainFlagBias gfb)
    {
-      cr.set(sr);
-      gfb.set(sr);
+      sr= cr;
+      sr= gfb;
 
       writeReg(AD779x::CONF, sr.conf.u8, 2);
    } // setConf
@@ -267,12 +300,18 @@ public:
       return(i);
    } // identify
 
-   void setChan (AD779x::Chan c) { setConf(AD779x::ChanRef(c), AD779x::GainFlagBias()); } //HACK!
+   //void setChan (AD779x::Chan c) { setConf(AD779x::ChanRef(c), AD779x::GainFlagBias()); } //HACK!
    
    AD779x::Chan chan (bool refresh=false)
    {
-      if (refresh) { readReg(AD779x::CONF, sr.conf.u8, 1); }
+      if (refresh) { readReg(AD779x::CONF, sr.conf.u8, 2); }
       return(sr.conf.u8[0] & AD779x::CHM);
+   }
+
+   AD779x::Rate rate (bool refresh=false)
+   {
+      if (refresh) { readReg(AD779x::MODE, sr.mode.u8, 2); }
+      return(sr.mode.u8[0] & AD779x::RM);
    }
 
    uint8_t gain (void) { return(1 << (sr.conf.u8[1] & AD779x::GAIN_MASK)); }
@@ -300,9 +339,10 @@ class CHackStat32
 public:
    uint32_t xt[NHSB], sum, idx, mean;
 
-   CHackStat32 (void) { init(); }
+   CHackStat32 (void) { clear(); }
 
-   void init (void) { sum= 0; idx= 0; for (int8_t i=0; i<NHSB; i++) { xt[i]= 0; } }
+   void clear (void) { mean= 0; sum= 0; idx= 0; for (int8_t i=0; i<NHSB; i++) { xt[i]= 0; } }
+   
    void add (uint32_t x)
    {
       sum+= x - xt[MHSB & idx];
@@ -316,6 +356,7 @@ public:
       if (idx > 1) { return(sum / idx); }//else
       return(sum);
    } // getMean
+
    uint32_t updateMean (void) { return(mean= getMean()); }
 
 // At 242Hz sample rate reveals oscillation:
@@ -323,12 +364,17 @@ public:
 // clearly suggests 50Hz noise...
    void dumpMDiff (Stream& s)
    {
-      const char sep[]={',','\n'};
+      //const char sep[]={',','\n'};
       int8_t m; if (idx < NHSB) { m= idx; } else { m= NHSB; } // C++ min() broken?
+      s.print("M:"); 
+      s.print(mean);
+      s.print(" D:"); 
       for (int8_t i=0; i<m; i++)
       {
-         s.print((int)(xt[i]-mean)); s.print(sep[i==(m-1)]);
+         s.print(','); s.print((int)(xt[i]-mean));
+         // s.print(sep[i==(m-1)]);
       }
+      s.println();
    } // dumpMDiff
 
 }; // CHackStat32
@@ -336,15 +382,20 @@ public:
 // Data dump layer for debug support
 class CAD779xDbg : public CAD779xUtil, public CHackStat32
 {
+   uint16_t rl[4];
    char chid;
 
 public:
-   CAD779xDbg (uint8_t clkM=8) : CAD779xUtil(clkM), chid{'x'} { ; }
+   CAD779xDbg (uint8_t clkM=8) : CAD779xUtil(clkM), chid{'x'} { clear(); }
 
    void setChan (AD779x::Chan c)
    {
-      if (c != chan()) { idx= 0; }
-      CAD779xUtil::setChan(c);
+      if (c != chan())
+      {
+         clear();
+         CHackStat32::clear();
+         CAD779xRaw::setChan(c);
+      }
    }
    bool ready (void) { return(0xC0 == (hsm & 0xC0)); }
 
@@ -370,18 +421,28 @@ public:
       }
       return(false);
    } // test
-
+   
+   void clear (void) { for (int8_t i=0; i<4; i++) { rl[i]= 0; } }
+   
    // CAD779xSignal::ready() needed to work ?why?
-   void sample (void) { if (ready() && CAD779xRaw::ready() && CAD779xSignal::ready()) { add(read24b()); } }
+   void sample (void)
+   {
+      if (ready())
+      {
+         uint8_t rm= CAD779xSignal::ready() | (CAD779xRaw::ready() << 1);
+         rl[rm]++;
+         if (0x3 == rm) { add(read24b()); }
+      }
+   }
    
    void report (Stream& s)
    {
-      if (ior > 0)
+      //if (ior > 0)
       {
-         s.print("ior="); s.println(ior);
-         printChan(s,chan(),NULL);
-         s.print(" M["); s.print(idx); s.print("]="); s.println(getV(updateMean()),6);
-         s.print("D:"); dumpMDiff(s);
+         s.print("rl:"); s.print(rl[0]); for (int8_t i=1; i<4; i++) { s.print(','); s.print(rl[i]); } s.print(';');
+         printChan(s,chan()," "); printRate(s,rate()," ");
+         s.print("M["); s.print(idx); s.print("]="); s.println(getV(updateMean()),6);
+         dumpMDiff(s);
       }
    } // report
 
@@ -403,6 +464,19 @@ public:
       if (end) { s.print(end); }
    } // printChan
 
+   void printRate (Stream& s, const uint8_t rate, const char *end="\n")
+   {
+      s.print(" R:");
+      switch(rate) // AD779x::R12_5, AD779x::R50, AD779x::R123, AD779x::R470
+      {
+         case AD779x::R12_5:  s.print("12.5"); break;
+         case AD779x::R50:  s.print("50"); break;
+         case AD779x::R123:  s.print("123"); break;
+         case AD779x::R470:  s.print("470"); break;
+      }
+      if (end) { s.print(end); }
+   } // printRate
+   
    bool logID (Stream& s)
    {
 static const char *msg[]= {"UNKNOWN","OK"};
@@ -476,6 +550,14 @@ static const char *msg[]= {"UNKNOWN","OK"};
       s.print(','); s.print(v);
       s.print(','); s.println(getV(v),4);
    } // logData
+
+   void debugCycle (uint8_t c)
+   {
+      const AD779x::Rate rm[]= {AD779x::R12_5, AD779x::R50, AD779x::R123, AD779x::R470};
+      const AD779x::Chan cm[]= {AD779x::AVDD, AD779x::THERM, AD779x::S1, AD779x::D1};
+      setRate( rm[ c & 0x3 ] );
+      setChan( cm[ (c >> 2) & 0x3 ] );
+   } // debugCycle
 
 }; // CAD779xDbg
 

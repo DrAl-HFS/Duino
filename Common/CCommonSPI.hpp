@@ -15,7 +15,8 @@
 // General abstraction of device hard/soft states
 namespace Device
 {
-   enum HW : int8_t { FAIL, UNKNOWN, OFF, STANDBY, READY, BUSY, RESET, CALIBRATE }; //, INVALID }; // 4b , LOCK=0x8
+   enum HState : int8_t { FAIL, UNKNOWN, OFF, SLEEP, STANDBY, SETUP, READY, WAIT }; // 3b
+   enum SFlag : int8_t { IDENT=0x1, CONFIG=0x2, CALIB=0x4, TEST=0x8 };
 }; // Device
 
 namespace Bus
@@ -35,11 +36,11 @@ public:
 
 //protected:
    uint8_t getSC (void) { return(hsc); }
-   Device::HW getHW (void) { return((Device::HW)(hws & 0x7)); }
+   Device::HState getHW (void) { return((Device::HState)(hws & 0x7)); }
 
    void tick (void) { hsc+= (hsc<0xFF); }
 
-   void setHW (Device::HW s)
+   void setHW (Device::HState s)
    {
       if (getHW() != s)
       {
