@@ -254,8 +254,7 @@ void loop (void)
 #endif
 #ifdef CAD779x_HPP
       if (ad779x.ready()) { ad779x.report(DEBUG); } else { ad779x.test(DEBUG); }
-      const AD779x::Chan cm[]= {AD779x::AVDD, AD779x::THERM};
-      ad779x.setChan( cm[ gCyc & 0x1 ] ); gCyc++;
+      ad779x.debugCycle( gCyc++ );
 #endif
     }
     //pulseHack();
