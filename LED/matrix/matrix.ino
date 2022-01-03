@@ -27,46 +27,47 @@
 #define LM_WIDTH  (8*LM_SEGMENTS)
 
 
-LEDMatrixDriver led(LM_SEGMENTS, PIN_NCS); //, LEDMatrixDriver::INVERT_SEGMENT_X | LEDMatrixDriver::INVERT_Y);
+LEDMatrixDriver lmd(LM_SEGMENTS, PIN_NCS); //, LEDMatrixDriver::INVERT_SEGMENT_X | LEDMatrixDriver::INVERT_Y);
 
-#define SCROLL_TICK 40
-// 40ms -> 25pix/s -> ~5 chars/sec
-// 30ms -> 33.3pix/sec -> ~6chars/sec
+//char motto[]= "Nemo me Impune Lacessit\n" 
+//char discrim= "0Oo 1Iil"
+//char alpha= "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz\n";
+char asciiCharSet[]= "!#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_'abcdefghijklmnopqrstuvwxyz{|}~";
+char text[]= "!\"20~C\n";
 
-// No need to alter this.
-uint32_t marqueeDelayTimestamp = 0;
-
-//char text[]= "Nemo me Impune Lacessit\n" //!#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_'abcdefghijklmnopqrstuvwxyz{|}~";
-char text[]= "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz 0Oo 1Iil\n";
-
-TextScroll gTS;
-
-void marquee (void)
-{
-  uint32_t t= millis();
-
-  if (t < 1) { marqueeDelayTimestamp= 0; }
-  if (t < marqueeDelayTimestamp) return;
-
-  marqueeDelayTimestamp= t + SCROLL_TICK;
-
-  // Shift everything left by one led column.
-  led.scroll(LEDMatrixDriver::scrollDirection::scrollLeft);
-
-  // Write the next column of leds to the right.
-  led.setColumn(LM_WIDTH - 1, gTS.nextCBM(text));
-  
-  // Write buffered changes.
-  led.display();
-} // marquee
+TimedScroll gTS(50);
 
 void bootMsg (Stream& s)
 {
   char sid[8];
   if (getID(sid) > 0) { DEBUG.print(sid); }
-  DEBUG.print(" matrix " __DATE__ " ");
+  DEBUG.print(" LED/matrix " __DATE__ " ");
   DEBUG.println(__TIME__);
 } // bootMsg
+
+uint8_t printCh (const char ch, const uint8_t x)
+{
+  int16_t iG= glyphIndexASCII(ch);
+  uint8_t iC= 0;
+  if (iG >= 0)
+  {
+    uint8_t wG= glyphWidth(iG);
+    
+    while (iC < wG) { lmd.setColumn(x+iC, glyphCol(iG, iC)); iC++; }
+    lmd.setColumn(x+iC++, 0x00);
+  }
+  return(iC);
+} // printCh
+
+uint8_t printStr (const char s[], uint8_t x=0, const uint8_t w=32)
+{
+  uint8_t i=0;
+  while (s[i] && (x < w))
+  {
+    x+= printCh(s[i++],x);
+  }
+  return(i);
+} // printStr
 
 void setup (void)
 {
@@ -76,14 +77,29 @@ void setup (void)
   //gTS.dump(DEBUG);
 
   gTS.nextGlyph(text[0]);
+  gTS.delay(5000);
   
-  led.setEnabled(true);
-
+  lmd.clear();
   // LED brightness (0 - 15).
-  led.setIntensity(3);
-}
+  lmd.setIntensity(3);
+  lmd.setEnabled(true);
+  
+  //printCh('X',8);
+  printStr("matrix",0);
+  lmd.display();
+} // setup
 
 void loop (void)
 {
-  marquee();
-}
+  if (gTS.update())
+  {
+    // Shift everything left by one led column.
+    lmd.scroll(LEDMatrixDriver::scrollDirection::scrollLeft);
+
+    // Write the next column of leds to the right.
+    lmd.setColumn(LM_WIDTH - 1, gTS.nextCBM(asciiCharSet));
+    
+    // Write buffered changes.
+    lmd.display();
+  }
+} // loop

@@ -88,4 +88,26 @@ public:
 
 }; // TextScroll
 
+#define SCROLL_TICK 40
+// 40ms -> 25pix/s -> ~5 chars/sec
+// 30ms -> 33.3pix/sec -> ~6chars/sec
+
+class TimedScroll : public TextScroll
+{
+  uint32_t nextTS;
+  uint8_t interval;
+  
+public:
+  TimedScroll (uint8_t ti=SCROLL_TICK) : nextTS{0} { interval= ti; }
+  
+  void delay (uint16_t ms) { nextTS+= ms; }
+  bool update (void)
+  {
+    uint32_t t= millis();
+
+    if (t < 1) { nextTS= 0; }
+    if (t >= nextTS) { nextTS= t + interval; return(true); }
+    return(false);
+  }
+}; // TimedScroll
 
