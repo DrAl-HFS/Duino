@@ -1,14 +1,14 @@
 // Duino/LED/matrix/scroll.hpp - Scrolling text glyph rendering utils.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2021
+// (c) Project Contributors Dec 2021 - Jan 2022
 
 class GlyphScroll
 {
 protected:
    int16_t iG;       // index into glyph map (9b+sign)
    uint8_t wG, iC;   // glyph width and column index (3b ea)
-  
+
 public:
    GlyphScroll (void) { set(0x00); }
 
@@ -19,7 +19,7 @@ public:
       if (iC < wG) { return glyphCol(iG, iC++); }
       return(0x00);
    } // nextCBM
-  
+
    uint8_t nextGlyph (const char ch)
    {
       if (set(ch)) { wG= glyphWidth(iG); }
@@ -41,7 +41,19 @@ public:
 class TextScroll : public GlyphScroll
 {
    uint8_t iT, gap;
-   
+
+   void addGap (const char ch)
+   {
+      switch(ch)
+      {  // parameterise ?
+         case ' '  : gap+= 2; break;
+         case '\t' : gap= MAX(gap,8); break;
+         case '\r' : gap= MAX(gap,16); break;
+         case '\n' : gap= MAX(gap,32); break;
+      }
+      //DEBUG.print('['); DEBUG.print(ch); DEBUG.print(':'); DEBUG.print(gap);
+   } // addGap
+
    uint8_t next (const char txt[])
    {
       int8_t m= 10; // avoid bad message jam
@@ -51,23 +63,19 @@ class TextScroll : public GlyphScroll
       {
          while (nonGlyphChar(ch) && (m-- > 0))
          {
-            iT++; // always skip
-            switch(ch)
+            if (0x00 == ch) { iT= 0; } // wrap (count/mode?)
+            else
             {
-               case 0x00 : iT= 0; break; // wrap
-               case ' ' : gap+= 2; break;
-               case '\t' : gap= MAX(gap,8); break;
-               case '\r' :
-               case '\n' : gap= MAX(gap,32); break;
+               iT++; // always skip
+               addGap(ch);
             }
-            //DEBUG.print('['); DEBUG.print(ch); DEBUG.print(':'); DEBUG.print(gap);
             ch= txt[iT];
          }
       } while ((0 == nextGlyph(ch)) && (m > 0));
       iT++;
       return(gap);
    } // next
-   
+
 public:
    TextScroll (void) : GlyphScroll(), iT{0}, gap{0} { ; }
 
@@ -94,20 +102,22 @@ public:
 
 class TimedScroll : public TextScroll
 {
-  uint32_t nextTS;
-  uint8_t interval;
-  
-public:
-  TimedScroll (uint8_t ti=SCROLL_TICK) : nextTS{0} { interval= ti; }
-  
-  void delay (uint16_t ms) { nextTS+= ms; }
-  bool update (void)
-  {
-    uint32_t t= millis();
+   uint32_t nextTS;
+   uint8_t interval;
 
-    if (t < 1) { nextTS= 0; }
-    if (t >= nextTS) { nextTS= t + interval; return(true); }
-    return(false);
-  }
+public:
+   TimedScroll (uint8_t ti=SCROLL_TICK) : nextTS{0} { interval= ti; }
+
+   void addDelay (uint16_t ms) { nextTS+= ms; }
+
+   bool update (void)
+   {
+      uint32_t t= millis();
+
+      if (t < 1) { nextTS= 0; }
+      if (t >= nextTS) { nextTS= t + interval; return(true); }
+      return(false);
+   } // update
+
 }; // TimedScroll
 
