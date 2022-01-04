@@ -2,11 +2,11 @@
 //   "examples/MarqueeText" (author Marko Oette)
 // distributed as part of the library package
 //   "LEDMatrixDriver" (author Bartosz Bielawski).
-// Split from example main, space glyph deleted
+// Split from example main, space "glyph" deleted
 // index compacted, C++ helper functions added.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2021
+// (c) Project Contributors Dec 2021 - Jan 2022
 
 #ifndef FONT_5X7R_HPP
 #define FONT_5X7R_HPP
@@ -26,7 +26,7 @@ static const uint8_t font5by7Glyph[] PROGMEM=
 // 0x28
   3,0b00011100,0b00100010,0b01000001,                       /* 040 = ( */
   3,0b01000001,0b00100010,0b00011100,                       /* 041 = ) */
-  3,0b00000101,0b00000010,0b00000101,                       /* 042 = * */
+  3,0b00010100,0b00001000,0b00010100,                       /* 042 = * */
   5,0b00001000,0b00001000,0b00111110,0b00001000,0b00001000, /* 043 = + */
   2,0b11100000,0b01100000,                                  /* 044 = , */
   5,0b00001000,0b00001000,0b00001000,0b00001000,0b00001000, /* 045 = - */
@@ -59,7 +59,7 @@ static const uint8_t font5by7Glyph[] PROGMEM=
   5,0b01111111,0b01001001,0b01001001,0b01001001,0b01000001, /* 069 = E */
   5,0b01111111,0b00001001,0b00001001,0b00001001,0b00000001, /* 070 = F */
   5,0b00111110,0b01000001,0b01001001,0b01001001,0b01111010, /* 071 = G */
-  
+
   5,0b01111111,0b00001000,0b00001000,0b00001000,0b01111111, /* 072 = H */
   5,0b01000001,0b01000001,0b01111111,0b01000001,0b01000001, /* 073 = I */
   5,0b00100000,0b01000001,0b01000001,0b00111111,0b00000001, /* 074 = J */
@@ -146,6 +146,11 @@ static const uint8_t font5by7Index[] PROGMEM=
 };
 #define FIM_TRUNC_START ('Q' - '!')
 
+static const uint8_t extGlyph[] PROGMEM=
+{
+  3,0b00000010,0b00000101,0b00000010  // degree symbol
+}; // extGlyph
+
 bool isGlyphIndex (const uint8_t iG) { return(iG < sizeof(font5by7Index)); }
 bool nonGlyphChar (const char ch) { return !isGlyphIndex(ch-'!'); }
 
@@ -162,25 +167,46 @@ int16_t glyphIndexRaw (const uint8_t iG)
 
 int16_t glyphIndexASCII (const char ch) { return glyphIndexRaw(ch - '!'); }
 
-// CAVEAT: assumes valid index
-uint8_t glyphWidth (const int16_t iG) { return pgm_read_byte( font5by7Glyph + iG ); }
-uint8_t glyphCol (const int16_t iG, const int8_t iC) { return pgm_read_byte( font5by7Glyph + iG + 1 + iC ); }
+// CAVEATS: assumes valid index, supports <=16bit address space only
+int8_t glyphWidth (const int16_t iG, const uint16_t base=font5by7Glyph) { return pgm_read_byte( base + iG ); }
+uint8_t glyphCol (const int16_t iG, const int8_t iC, const uint16_t base=font5by7Glyph) { return pgm_read_byte( base + iG + 1 + iC ); }
+int8_t glyphCopy (uint8_t c[6], const int16_t iG, const uint16_t base=font5by7Glyph)
+{
+   int8_t w= glyphWidth(iG,base);
+   for (int8_t i=0; i<w; i++) { c[i]= glyphCol(iG,i,base); }
+   return(w);
+} // glyphCopy
 
 #ifndef DUMP
 #define DUMP //DUMP
 #else
 
-#define DUMP(s) dumpFont(s)
+//#define DUMP(s) verifyFontIndex(s)
 
-void dumpFont (Stream& s)
+void verifyFontIndex (Stream& s)
 {
+   int16_t j=0;
    for (int8_t iC=0; iC<sizeof(font5by7Index); iC++)
    {
       int16_t i= glyphIndexRaw(iC);
       uint8_t w= glyphWidth(i);
-      s.print(iC); s.print(':'); s.print(i); s.print(','); s.println(w);
+      s.print(iC); s.print(':');
+      s.print(i); s.print(','); s.print(w); s.print(';');
+      w= glyphWidth(j);
+      s.print(j); s.print(','); s.println(w);
+      j+= 1+w;
    }
-} // dump
+} // verifyFontIndex
+
+void dumpRawIndex (Stream& s)
+{
+   int16_t j=0;
+   for (int8_t iC=0; iC<sizeof(font5by7Index); iC++)
+   {
+      s.print("FIM("); s.print(j); s.print("), ");
+      j+= 1+glyphWidth(j);
+   }
+} // dumpRawIndex
 
 #endif // DUMP
 
