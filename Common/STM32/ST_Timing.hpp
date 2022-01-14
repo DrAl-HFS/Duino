@@ -26,7 +26,7 @@ public:
    CTimer (int8_t iTN=1) : HardwareTimer(iTN) { ; }
 
    void start (voidFuncPtr func, uint32_t ivl_us=1000)
-   {  // All working on F103, with ADC
+   {  // All working on F103, with ADC. Still no joy on F401...
       pause();
 #if 0
       setMode( TIMER_CH1, TIMER_OUTPUT_COMPARE );
@@ -36,8 +36,10 @@ public:
 #else // simple overflow interrupt - 
       //setMode( 0, 0 ); setOverflow(?); ticks or us?
       setPeriod(ivl_us);
+      setMode( 1, TIMER_OUTPUT_COMPARE );
       refresh();  // Commit parameters count, prescale, and overflow
       attachInterrupt( 0 , func ); 
+      attachInterrupt( 1 , func ); 
 #endif
       resume();   // Start counting
    }
@@ -69,6 +71,7 @@ public:
       //s.print("hwClkCfg "); s.println( getClkCfg1(), HEX); //s.print(','); s.println(c[1],HEX); ;
       s.print("hwClkRate= "); s.print( hwClkRate() ); s.println("MHz"); // getClockSpeed() ?
 #endif
+      //s.print("TIMER_CH1=");s.println(TIMER_CH1);
       s.print("hwTickRes= "); s.println( getPrescaleFactor() );
       s.print("hwTickOflo= "); s.println( getOverflow() );
       s.print("hwTickVal= "); s.print( hwTickVal() ); s.print(','); s.println( hwTickVal() );
