@@ -6,10 +6,10 @@
 #ifndef ST_UTIL_HPP
 #define ST_UTIL_HPP
 
-#include "DN_Util.hpp"
-/*
 #define BIT_MASK(n) ((1<<(n))-1)
 
+/*
+// DEPRECATE: replaced with DN_Util version...
 // General fail-through start-sync routine for 'Duino hardware serial ports
 bool beginSync (HardwareSerial& s, uint32_t bd=115200, int8_t n=20)//, uint8_t cfg=SERIAL_8N1
 {
@@ -28,8 +28,8 @@ bool beginSync (HardwareSerial& s, uint32_t bd=115200, int8_t n=20)//, uint8_t c
   }
   return(false);
 } // beginSync
-*/
-/*
+
+
 // USB version, pretty much useless due to host CDC problems over target reset
 bool beginSync (USBSerial& s, int8_t n=20)
 {
@@ -63,7 +63,9 @@ typedef struct { uint32_t id[3]; } UID;
 //typedef struct { const UID *pUID; const uint16_t *pFlashKB; } HWID;
 bool dumpID (Stream& s)
 {
-   s.print("UID:");
+   //s.print("STM32F1");
+   s.print("STM32F4");
+   s.print(" UID:");
    s.print(UID_BASE->id[0],HEX);
    for (int i=1; i<3; i++) { s.print(':'); s.print(UID_BASE->id[i],HEX);  }
    s.print("\nFlash:"); s.print(*FLAKB_BASE); s.println("KB");
