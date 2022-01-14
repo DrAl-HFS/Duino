@@ -50,10 +50,10 @@ class SerialDelayParam
 {
 protected:
    uint8_t m, n;
-   
+
 public:
    SerialDelayParam (uint8_t dsms=SERIAL_DELAY_STEP, uint8_t niter=20) : m{dsms}, n{niter} { ; }
-   
+
    uint16_t getInitialDelay (void) const { return((uint16_t)m * n); }
    uint8_t getInitialIter (void) const { return(n); }
 }; // SerialDelayParam
@@ -78,5 +78,37 @@ bool beginSync (SERIAL_TYPE& s, const uint32_t bd=DEBUG_BAUD, const SerialDelayP
    }
    return(false);
 } // beginSync
+
+// namespace ???
+
+typedef uint32_t TickCount;
+
+class DNTimer
+{
+   TickCount nextT, interval;
+
+protected:
+   void set (TickCount t) { nextT= t; }
+   void next (void) { nextT+= interval; }
+
+public:
+   DNTimer (TickCount ivl) : interval{ivl} { nextT= millis(); }
+
+   bool reached (TickCount t) const { return(t >= nextT); }
+
+   void add (TickCount delay) { set(nextT + delay); }
+
+   bool update (void)
+   {
+      TickCount t= millis();
+      bool r= reached(t);
+      if (r)
+      {
+         next();
+         if (reached(t)) { set(t); }
+      }
+      return(r);
+   }
+}; // DNTimer
 
 #endif // DN_UTIL_HPP
