@@ -73,15 +73,26 @@ public:
 //#endif
 }; // CCommonState
 
-class CCommonSPI
+class CSelect
+{
+public:
+   CSelect (void) { ; } // begin(); }
+
+   void begin (void) { pinMode(PIN_NCS, OUTPUT); digitalWrite(PIN_NCS,1); }
+   void start (void) { digitalWrite(PIN_NCS,0); }
+   void complete (void) { digitalWrite(PIN_NCS,1); }
+}; // CSelect
+
+class CCommonSPI : public CSelect
 {
 protected:
    SPISettings spiSet;
 
    CCommonSPI (void) { ; }
 
-   void start (void) { HSPI.beginTransaction(spiSet); digitalWrite(PIN_NCS,0); }
-   void complete (void) { digitalWrite(PIN_NCS,1); HSPI.endTransaction(); }
+   void begin (void) { HSPI.begin(); CSelect::begin(); }
+   void start (void) { HSPI.beginTransaction(spiSet); CSelect::start(); }
+   void complete (void) { CSelect::complete(); HSPI.endTransaction(); }
 
    // NB: transfer((void*), int); is read-write in same buffer ...
    // Beware of sending "dummy" bytes for reading: some devices
@@ -93,7 +104,7 @@ protected:
       return(n);
    } // write
 
-   // Reverse (endian) order
+   // Reverse (byte-endian) order
    uint16_t readRev (uint8_t b[], const uint16_t n, const uint8_t w=0xAA)
    {
       uint16_t i= n;
@@ -122,5 +133,38 @@ protected:
    } // write
 
 }; // CCommonSPI
+
+// DEBUG
+class CLoopBackSPI : public CCommonSPI
+{
+public:
+   CLoopBackSPI (uint8_t clkMHz=1)
+   {
+      spiSet= SPISettings(clkMHz*1000000, MSBFIRST, SPI_MODE0);
+   }
+  
+   void begin (Stream& s)
+   {
+      CCommonSPI::begin();
+      s.print("NCS="); s.println(PIN_NCS);
+   }
+   
+   bool test (Stream& s, uint8_t i)
+   {
+      static const uint8_t out[]={0x5A,0xA5};
+      uint8_t r;
+      i&= 0x1;
+      start();
+      r= HSPI.transfer(out[i]);
+      complete();
+      //if (s.?)
+      {
+         s.print("LB["); s.print(i); s.print("] "); 
+         s.print(out[i],HEX); s.print("->"); s.println(r,HEX);
+      }
+      return(r == out[i]);
+   } // test
+  
+}; // CLoopBackSPI
 
 #endif // CCOMMON_SPI_HPP
