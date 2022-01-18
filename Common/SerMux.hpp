@@ -1,6 +1,6 @@
-// Duino/ ??? /SerMux.hpp - Serial (software) channel multiplex
+// Duino/Common/SerMux.hpp - Serial (software) channel multiplex
 // https://github.com/DrAl-HFS/Duino.git
-// Licence: AGPL3
+// Licence: GPL V3A
 // (c) Project Contributors Apr 2021
 
 #ifndef SERMUX_HPP

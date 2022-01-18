@@ -29,10 +29,18 @@
 
 char hexCh (uint8_t x, const char a='a')
 {
-   x= '0' + (x & 0xF);
-   if (x > '9') { x-= '9' + a; }
-   return(x);
+   char ch;
+   x &= 0xF;
+   ch= x + '0';
+   if (x > 9) { ch= a + x - 0xa; }
+   return(ch);
 } // hexCh
+
+void hexByte (char ch[2], uint8_t x, const char a='a')
+{
+   ch[0]= hexCh(x>>4);
+   ch[1]= hexCh(x);
+} // hexByte
 
 int hex2ChNU8 (char ch[], const int maxCh, const uint8_t u[], const int n)
 {
@@ -45,6 +53,40 @@ int hex2ChNU8 (char ch[], const int maxCh, const uint8_t u[], const int n)
    }
    return(i);
 } // hex2ChNU8
+
+void dumpHex (Stream& s, const uint8_t b[], const int16_t n, const uint8_t w=16, const char sep=' ', const char *end="\n")
+{
+   if (n > 0)
+   {
+      int16_t m=w, i=0;
+      char sx[4];
+      sx[2]= sep;
+      sx[3]= 0x00;
+      do
+      {
+         int16_t j= i;
+         for (; i<m; i++)
+         {
+            hexByte(sx, b[i]>>4); 
+            s.print(sx);
+         }
+         s.print('\t');
+         for (; j<m; j++)
+         {
+            signed char ch= b[j];
+            if (ch < ' ') { ch= '.'; }
+            s.print((char)ch);
+         }
+         if (i < n)
+         {
+            m+= w;
+            if (m > n) { m= n; }
+            s.println();
+         }
+      } while (i < m);
+   }
+   if (end) { s.print(end); }
+} // dumpHex
 
 class SerialDelayParam
 {

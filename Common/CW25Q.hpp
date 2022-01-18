@@ -1,4 +1,4 @@
-// Duino/Common/CW25Q.hpp - Basic test hacks for Winbond SPI flash device
+// Duino/Common/CW25Q.hpp - Simple access to Winbond SPI flash device
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2022
@@ -6,48 +6,87 @@
 #ifndef CW25Q_HPP
 #define CW25Q_HPP
 
+#include "DN_Util.hpp"
+
 #include "CCommonSPI.hpp"
+#if 0
+//#include "MBD/mbdDef.h" // UU16/32
+#else
+typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
+#endif
 
 namespace W25Q
 {
    enum Cmd : uint8_t {
       RD_JID=0x9F, RD_UID=0x4B,  // identity
-      // read/write
-      RD_ST=0x05, WR_ST=0x01,    // status
+   // read/write
+       // status bytes
+      RD_ST1=0x05, RD_ST2=0x35, RD_ST3=0x15,
+      WR_ST1=0x01, WR_ST2=0x31, WR_ST3=0x11,
+
       RD_PG=0x03, WR_PG=0x02,    // data page (256 bytes)
-      WR_EN=0x06, WR_DIS=0x04,   // write enable/disable
+      RF_PG=0x0B,                // "read fast" allows up to 133MHz SPI clock (requires very high quality signal path)
       // erase sector/block/device
       EE_4K=0x20, EE_32K=0x52, EE_64K=0xD8, EE_DV=0x60,
+      // simple commands (single byte)
+      WR_EN=0x06, WR_DIS=0x04,   // write enable/disable
       SLEEP=0xB9, WAKE=0xAB      // power management
       };
+   const int PAGE_BYTES= 256;
 }; // namespace W25Q
-   
+
 class CW25Q : public CCommonSPI
 {
 protected:
-   
+   void cmdAddr (const W25Q::Cmd c, const UU32 addr)
+   {
+      HSPI.transfer(c);
+      writeRev(addr.u8,3);
+   } // cmdAddr
+
+   void cmd1 (const W25Q::Cmd c)
+   {
+      start();
+      HSPI.transfer(c);
+      complete();
+   } // cmd1
+
+   uint8_t cmdRd1 (const W25Q::Cmd c)
+   {
+      uint8_t r;
+      start();
+      HSPI.transfer(c);
+      r= HSPI.transfer(0x00);
+      complete();
+      return(r);
+   } // cmdRd1
+
 public:
-   CW25Q (uint8_t clkMHz=1)
+   CW25Q (const uint8_t clkMHz=21) // NB: clock rate for (84MHz) STM32F4
    {
       spiSet= SPISettings(clkMHz*1000000, MSBFIRST, SPI_MODE0);
    }
-  
-   using CCommonSPI::begin;
-   
+
+   void init (void)
+   {
+      CCommonSPI::begin();
+      cmd1(W25Q::WAKE);
+   } // init
+
    int8_t identify (uint8_t b[], int8_t maxB=11)
    {
       int8_t n= 0;
       if (maxB >= 3)
       {
          start();
-         writeb(W25Q::RD_JID);
+         HSPI.transfer(W25Q::RD_JID);
          read(b,3);
          complete();
          n+= 3;
          if (maxB >= (n+8))
          {
             start();
-            writeb(W25Q::RD_UID);
+            HSPI.transfer(W25Q::RD_UID);
             writeb(0x00,4);
             read(b+n,8);
             complete();
@@ -56,19 +95,57 @@ public:
       }
       return(n);
    } // identify
-   
+
+   void dataRead (uint8_t b[], int16_t n, UU32 addr) // UU32
+   {
+      start();
+      cmdAddr(W25Q::RD_PG, addr);
+      read(b,n);
+      complete();
+   } // dataRead
+
 }; // CW25Q
+
 
 class CW25QDbg : public CW25Q
 {
 public:
+   uint8_t stat[3];
+
    //CW25QDbg (c) : CW25Q(c) { ; }
-   
-   void begin (Stream& s)
+
+   void init (Stream& s)
    {
-      CCommonSPI::begin();
-      s.print("NCS="); s.println(PIN_NCS);
-   }
+      CW25Q::init();
+      s.print("W25Q:NCS="); s.println(PIN_NCS);
+   } // init
+
+   void status (Stream& s)
+   {
+      stat[0]= cmdRd1(W25Q::RD_ST1);
+      stat[1]= cmdRd1(W25Q::RD_ST2);
+      stat[2]= cmdRd1(W25Q::RD_ST3);
+      s.print("W25Q:STAT:");
+      dumpHex(s, stat, 3);
+   } // status
+
+   void identify (Stream& s)
+   {
+      uint8_t id[11], n;
+      n= CW25Q::identify(id,sizeof(id));
+      s.print("W25Q:ID:");
+      dumpHex(s, id, n);
+   } // identify
+
+   void dumpPage (Stream& s, uint16_t nP)
+   {
+      uint8_t b[ W25Q::PAGE_BYTES ];
+      UU32 a={(uint32_t)nP << 8};
+      dataRead(b, W25Q::PAGE_BYTES, a);
+      s.print("W25Q:PAGE:"); s.println(nP);
+      dumpHex(s, b, W25Q::PAGE_BYTES);
+   } // dumpPage
+
 }; // CW25QDbg
 
 #endif // CW25Q_HPP
