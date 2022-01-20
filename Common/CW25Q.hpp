@@ -61,8 +61,26 @@ protected:
       return(r);
    } // cmdRd1
 
+   void getID (uint8_t jid[4])
+   {
+      start();
+      HSPI.transfer(W25Q::RD_JID);
+      read(jid,4);
+      complete();
+   }
+   
+   uint8_t checkID (uint8_t jid[4], const uint8_t mark)
+   {
+      int8_t i;
+      for (i=0; i<4; i++) { jid[i]= mark; }
+      getID(jid);
+      i= 0;
+      while ((mark != jid[i]) && (i < 4)) { ++i; }
+      return(i);
+   } // checkID
+
 public:
-   CW25Q (const uint8_t clkMHz=21) // NB: clock rate for (84MHz) STM32F4
+   CW25Q (const uint8_t clkMHz=42) // NB: full clock rate for (84MHz) STM32F4
    {
       spiSet= SPISettings(clkMHz*1000000, MSBFIRST, SPI_MODE0);
    }
@@ -70,20 +88,17 @@ public:
    void init (void)
    {
       CCommonSPI::begin();
-      cmd1(W25Q::WAKE);
+      cmd1(W25Q::WAKE); // delay tres1 bfore next NCS low
    } // init
 
-   int8_t identify (uint8_t b[], int8_t maxB=11)
+   int8_t identify (uint8_t b[], int8_t maxB=12)
    {
       int8_t n= 0;
       if (maxB >= 3)
       {
-         start();
-         HSPI.transfer(W25Q::RD_JID);
-         read(b,3);
-         complete();
-         n+= 3;
-         if (maxB >= (n+8))
+         n= checkID(b,0xFA);
+         if (0 == n) { n= checkID(b,0xC5); } // try again
+         if ((n > 0) && (maxB >= (n+8)))
          {
             start();
             HSPI.transfer(W25Q::RD_UID);
@@ -112,12 +127,13 @@ class CW25QDbg : public CW25Q
 public:
    uint8_t stat[3];
 
-   //CW25QDbg (c) : CW25Q(c) { ; }
+   CW25QDbg (const uint8_t clkMHz) : CW25Q(clkMHz) { ; }
 
    void init (Stream& s)
    {
       CW25Q::init();
       s.print("W25Q:NCS="); s.println(PIN_NCS);
+      identify(s);
    } // init
 
    void status (Stream& s)
@@ -128,22 +144,37 @@ public:
       s.print("W25Q:STAT:");
       dumpHex(s, stat, 3);
    } // status
-
+   
+   int16_t capacityMb (const uint8_t id1)
+   {
+      if ((id1 >= 0x14) && (id1 <= 0x17)) return(16 << (id1 - 0x14));
+      if (0x13 == id1) return(80);
+      return(-1);
+   } // capacityMb
+   
    void identify (Stream& s)
    {
-      uint8_t id[11], n;
+      uint8_t id[12], n;
       n= CW25Q::identify(id,sizeof(id));
-      s.print("W25Q:ID:");
-      dumpHex(s, id, n);
+      if (n > 0)
+      {
+         if (0xEF == id[0])
+         {
+            s.print("W25Q");
+            s.println(capacityMb(id[1]));
+         }
+         s.print("ID:");
+         dumpHex(s, id, n);
+      }
    } // identify
 
    void dumpPage (Stream& s, uint16_t nP)
    {
       uint8_t b[ W25Q::PAGE_BYTES ];
       UU32 a={(uint32_t)nP << 8};
-      dataRead(b, W25Q::PAGE_BYTES, a);
+      dataRead(b, sizeof(b), a);
       s.print("W25Q:PAGE:"); s.println(nP);
-      dumpHex(s, b, W25Q::PAGE_BYTES);
+      dumpHex(s, b, sizeof(b));
    } // dumpPage
 
 }; // CW25QDbg
