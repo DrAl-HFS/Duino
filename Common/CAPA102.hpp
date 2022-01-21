@@ -1,7 +1,7 @@
 // Duino/Common/CAPA102.hpp - Utils for APA102 RGB LEDs with 2-wire SPI-like interface
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2021
+// (c) Project Contributors Nov 2021 - Jan 2022
 
 #ifndef CAPA102_HPP
 #define CAPA102_HPP
@@ -37,9 +37,8 @@ public:
 }; // CAPA102State
 
 class CAPA102SPI : public CCommonSPI // *Factoring
-{  //RP2040::
-   //SPISettings spiSet;
-   
+{
+ 
 public:
    CAPA102SPI (void) { ; }
    // ~CAPA102SPI  (void) { release(); } ???
@@ -48,9 +47,7 @@ public:
    {
       spiSet= SPISettings(4<<20, MSBFIRST, SPI_MODE0);
       //HSPI.setTX(19); HSPI.setSCK(18); // EFP community core required
-      HSPI.begin();
-      pinMode(PIN_NCS, OUTPUT);
-      digitalWrite(PIN_NCS,1);
+      CCommonSPI::begin();
    } // init
 
    void release (void) { HSPI.end(); }

@@ -175,15 +175,13 @@ public:
       if (hsm & 1) { close(); }
       if (clkM > 0)
       {
-         spiSet= SPISettings(clkM*1000000, MSBFIRST, SPI_MODE3);
-         HSPI.begin();
-         pinMode(PIN_NCS, OUTPUT);
-         digitalWrite(PIN_NCS,1);
+         CCommonSPI::spiSet= SPISettings(clkM*1000000, MSBFIRST, SPI_MODE3);
+         CCommonSPI::begin();
          hsm= 0x1;
       }
    } // init
 
-   void close (void) { HSPI.end(); hsm= 0x00; }
+   void close (void) { CCommonSPI::end(); hsm= 0x00; }
 
    void reset (void) // reliability ?
    {
@@ -364,15 +362,14 @@ public:
 // clearly suggests 50Hz noise...
    void dumpMDiff (Stream& s)
    {
-      //const char sep[]={',','\n'};
-      int8_t m; if (idx < NHSB) { m= idx; } else { m= NHSB; } // C++ min() broken?
+      int8_t m= NHSB; if (idx < NHSB) { m= idx; } // C++ min() broken
       s.print("M:"); 
       s.print(mean);
       s.print(" D:"); 
-      for (int8_t i=0; i<m; i++)
+      s.print((int)(xt[0]-mean));
+      for (int8_t i=1; i<m; i++)
       {
          s.print(','); s.print((int)(xt[i]-mean));
-         // s.print(sep[i==(m-1)]);
       }
       s.println();
    } // dumpMDiff

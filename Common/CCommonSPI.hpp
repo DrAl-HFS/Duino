@@ -1,7 +1,7 @@
 // Duino/Common/CCommonSPI.hpp - 'Duino encapsulation of functionality common to many SPI interfaces
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2021
+// (c) Project Contributors Nov 2021 - Jan 2022
 
 #ifndef CCOMMON_SPI_HPP
 #define CCOMMON_SPI_HPP
@@ -14,8 +14,9 @@
 // General abstraction of device hard/soft states
 namespace Device
 {
-   enum HState : int8_t { FAIL, UNKNOWN, OFF, SLEEP, STANDBY, SETUP, READY, WAIT }; // 3b
-   enum SFlag : int8_t { IDENT=0x1, CONFIG=0x2, CALIB=0x4, TEST=0x8 };
+   enum HState : int8_t { UNKNOWN, FAIL, ERROR, OFF, SLEEP, STANDBY, READY, WAIT }; // 3b
+   enum HAct   : int8_t { NONE, RESET, CALIBRATE, TEST }; // 2b   MEASURE?
+   //enum SFlag : uint8_t { IDENT=0x10, CONFIG=0x20, CALIB=0x40, TEST=0x80 };
 }; // Device
 
 namespace Bus
@@ -89,10 +90,10 @@ protected:
 
    CCommonSPI (void) { ; }
 
-   void begin (void) { HSPI.begin(); CSelect::begin(); }
+   void begin (void) { HSPI.begin(); CSelect::begin(); } // NB: ensure select pin setup follows default interface setup
    void start (void) { HSPI.beginTransaction(spiSet); CSelect::start(); }
    void complete (void) { CSelect::complete(); HSPI.endTransaction(); }
-
+   void end (void) { HSPI.end(); }
    // NB: transfer((void*), int); is read-write in same buffer ...
    // Beware of sending "dummy" bytes for reading: some devices
    // may interpret certain bytes as a command e.g. causing a reset
@@ -141,13 +142,13 @@ public:
    {
       spiSet= SPISettings(clkMHz*1000000, MSBFIRST, SPI_MODE0);
    }
-  
+
    void begin (Stream& s)
    {
       CCommonSPI::begin();
       s.print("NCS="); s.println(PIN_NCS);
    }
-   
+
    bool test (Stream& s, uint8_t i)
    {
       static const uint8_t out[]={0x5A,0xA5};
@@ -158,12 +159,12 @@ public:
       complete();
       //if (s.?)
       {
-         s.print("LB["); s.print(i); s.print("] "); 
+         s.print("LB["); s.print(i); s.print("] ");
          s.print(out[i],HEX); s.print("->"); s.println(r,HEX);
       }
       return(r == out[i]);
    } // test
-  
+
 }; // CLoopBackSPI
 
 #endif // CCOMMON_SPI_HPP
