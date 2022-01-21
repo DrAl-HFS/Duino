@@ -18,7 +18,7 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 namespace W25Q
 {
    enum Cmd : uint8_t {
-      RD_JID=0x9F, RD_UID=0x4B,  // identity
+      RD_MID=0x90, RD_JID=0x9F, RD_UID=0x4B,  // identity
    // read/write
        // status bytes
       RD_ST1=0x05, RD_ST2=0x35, RD_ST3=0x15,
@@ -38,6 +38,13 @@ namespace W25Q
 class CW25Q : public CCommonSPI
 {
 protected:
+   int8_t scanID (const uint8_t id[], const int8_t max)
+   {
+      int8_t i= 0;
+      while ((0x00 != id[i]) && (0xFF != id[i]) && (i < max)) { ++i; }
+      return(i);
+   } // scanID
+
    void cmdAddr (const W25Q::Cmd c, const UU32 addr)
    {
       HSPI.transfer(c);
@@ -61,22 +68,32 @@ protected:
       return(r);
    } // cmdRd1
 
-   void getID (uint8_t jid[4])
+   int8_t getMID (uint8_t mid[2])
+   {
+      start();
+      HSPI.transfer(W25Q::RD_MID);
+      writeb(0x00,3); // dummy address
+      read(mid,2);
+      complete();
+      return scanID(mid,2);
+   } // getMID
+
+   int8_t getJID (uint8_t jid[3]) // Manufacturer,Type,Capacity
    {
       start();
       HSPI.transfer(W25Q::RD_JID);
-      read(jid,4);
+      //delayMicroseconds(100);
+      read(jid,3);
       complete();
-   }
-   
-   uint8_t checkID (uint8_t jid[4], const uint8_t mark)
+      return scanID(jid,3);
+   } // getJID
+
+
+   int8_t checkID (uint8_t id[5])
    {
-      int8_t i;
-      for (i=0; i<4; i++) { jid[i]= mark; }
-      getID(jid);
-      i= 0;
-      while ((mark != jid[i]) && (i < 4)) { ++i; }
-      return(i);
+      int8_t n= getJID(id);
+      if (0xEF == id[0]) { n+= getMID(id+n); }
+      return(n);
    } // checkID
 
 public:
@@ -88,16 +105,16 @@ public:
    void init (void)
    {
       CCommonSPI::begin();
-      cmd1(W25Q::WAKE); // delay tres1 bfore next NCS low
+      cmd1(W25Q::WAKE); 
+      delayMicroseconds(3); // delay tRES1 before next NCS low
    } // init
 
-   int8_t identify (uint8_t b[], int8_t maxB=12)
+   int8_t identify (uint8_t b[], int8_t maxB=13)
    {
       int8_t n= 0;
-      if (maxB >= 3)
+      if (maxB >= 5)
       {
-         n= checkID(b,0xFA);
-         if (0 == n) { n= checkID(b,0xC5); } // try again
+         n= checkID(b);
          if ((n > 0) && (maxB >= (n+8)))
          {
             start();
@@ -132,7 +149,7 @@ public:
    void init (Stream& s)
    {
       CW25Q::init();
-      s.print("W25Q:NCS="); s.println(PIN_NCS);
+      s.print("W25Q:SPI:NCS="); s.println(PIN_NCS);
       identify(s);
    } // init
 
@@ -142,29 +159,33 @@ public:
       stat[1]= cmdRd1(W25Q::RD_ST2);
       stat[2]= cmdRd1(W25Q::RD_ST3);
       s.print("W25Q:STAT:");
-      dumpHex(s, stat, 3);
+      dumpHexFmt(s, stat, 3);
    } // status
    
-   int16_t capacityMb (const uint8_t id1)
+   int16_t capacityMb (const uint8_t devID)
    {
-      if ((id1 >= 0x14) && (id1 <= 0x17)) return(16 << (id1 - 0x14));
-      if (0x13 == id1) return(80);
+      if (devID >= 0x14) return(1 << (devID - 0x10));
+      if (0x13 == devID) return(80);
       return(-1);
    } // capacityMb
    
    void identify (Stream& s)
    {
-      uint8_t id[12], n;
+      uint8_t id[13], n;
       n= CW25Q::identify(id,sizeof(id));
       if (n > 0)
       {
+         //char fs[]="   ";
          if (0xEF == id[0])
          {
+            uint8_t c= id[2];
             s.print("W25Q");
-            s.println(capacityMb(id[1]));
-         }
+            if (0xEF == id[3]) { c= id[4]; }
+            s.println(capacityMb(c));
+         } else { s.println('?'); }
          s.print("ID:");
-         dumpHex(s, id, n);
+         dumpHexFmt(s, id, n);//, fs);
+         s.print('\n');
       }
    } // identify
 
@@ -174,7 +195,7 @@ public:
       UU32 a={(uint32_t)nP << 8};
       dataRead(b, sizeof(b), a);
       s.print("W25Q:PAGE:"); s.println(nP);
-      dumpHex(s, b, sizeof(b));
+      dumpHexTab(s, b, sizeof(b));
    } // dumpPage
 
 }; // CW25QDbg

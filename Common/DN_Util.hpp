@@ -57,7 +57,7 @@ int hex2ChNU8 (char ch[], const int maxCh, const uint8_t b[], const int n)
 } // hex2ChNU8
 */
 
-void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[]="00", const uint8_t ofs=0, const char a='a')
+void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const uint8_t ofs=0, const char a='a')
 {
    for (int16_t i=0; i<n; i++)
    {
@@ -66,14 +66,26 @@ void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[]="00", 
    }
 } // dumpHexFmt
 
-void dumpCharFmt (Stream& s, const signed char c[], const int16_t n, char fs[]=" ", const uint8_t ofs=0, const char g='.')
+void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n)
+{
+   char fs[]="  "; // safe default
+   dumpHexFmt(s,b,n,fs);
+} // dumpHexFmt
+
+void dumpCharFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const uint8_t ofs=0, const char g='.')
 {
    for (int16_t i=0; i<n; i++)
    {
-      fs[ofs]= c[i];
-      if ((c[i] < ' ') || (c[i] >= 0x7F)) { fs[ofs]= g; } // replace non-glyph characters
+      fs[ofs]= b[i];
+      if (((signed char)b[i] < ' ') || (b[i] >= 0x7F)) { fs[ofs]= g; } // replace non-glyph characters
       s.print(fs);
    }
+} // dumpCharFmt
+
+void dumpCharFmt (Stream& s, const uint8_t b[], const int16_t n)
+{
+   char fs[]="."; // safe default
+   dumpCharFmt(s,b,n,fs);
 } // dumpCharFmt
 
 // Consider: struct { } TabFmt; Move to class ?
@@ -88,25 +100,10 @@ void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end=
       if ((w > 0) && (w < m)) { m= w; }
       do
       {
-         /*int16_t j= i;
-         for (; j<m; j++)
-         {
-            hexByte(sx, b[j]); 
-            s.print(sx);
-         }
-         */
-         dumpHexFmt(s, b+i, m, sx);
+         dumpHexFmt(s, b+i, m-i, sx);
          s.print('\t');
-         dumpCharFmt(s, b+i, m);
+         dumpCharFmt(s, b+i, m-i);
          i= m;
-         /*
-         for (; i<m; i++)
-         {
-            signed char ch= b[i];
-            if (ch < ' ') { ch= '.'; }
-            s.print((char)ch);
-         }
-         */
          if (i < n)
          {
             if (w > 0) { m+= w; }
