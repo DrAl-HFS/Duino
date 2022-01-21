@@ -3,6 +3,7 @@
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2022
 
+#include <LEDMatrixDriver.hpp>
 #include "Font/font5x7r.hpp"
 
 #ifndef PIN_NCS
@@ -21,7 +22,7 @@ class CPrintLED : public LEDMatrixDriver
 {
 public:
    CPrintLED (uint8_t nSeg=LM_SEGMENTS, uint8_t ncs=PIN_NCS) : LEDMatrixDriver(nSeg, ncs) { ; }
-   
+
    int8_t printCols (const uint8_t c[], const int8_t n, const uint8_t x)
    {
       for (int8_t i=0; i<n; i++) { setColumn(x+i, c[i]); }
