@@ -8,9 +8,143 @@
 
 #include <libmaple/rcc.h>
 #include <libmaple/timer.h>
+#include <libmaple/spi.h>
 #include <libmaple/bitband.h>
 
-#ifndef ARDUINO_ARCH_STM32F4
+#ifndef RCC_BASE
+#define PERIPH_BASE           ((uint32_t)0x40000000)    
+#define RCC_BASE              (rcc_reg_map*)(PERIPH_BASE + 0x23800)
+#endif
+
+void dumpRCCReg (Stream& s, const rcc_reg_map *pR= RCC_BASE, const uint8_t m=0x2)
+{
+   s.println("RCC:"); 
+      s.print("CR="); s.println(pR->CR,HEX);
+      
+      s.print("CFGR="); s.println(pR->CFGR,HEX);
+      s.print("CIR="); s.println(pR->CIR,HEX);
+
+#ifdef TARGET_STM32F4
+   s.print("PLLCFGR="); s.println(pR->PLLCFGR,HEX);
+   if (m & 0x2)
+   {
+      s.print("AHB1RSTR="); s.println(pR->AHB1RSTR,HEX);
+      s.print("AHB2RSTR="); s.println(pR->AHB2RSTR,HEX);
+      
+      s.print("APB1RSTR="); s.println(pR->APB1RSTR,HEX);
+      s.print("APB2RSTR="); s.println(pR->APB2RSTR,HEX);
+      
+      s.print("AHB1ENR="); s.println(pR->AHB1ENR,HEX);
+      s.print("AHB2ENR="); s.println(pR->AHB2ENR,HEX);
+      
+      s.print("APB1ENR="); s.println(pR->APB1ENR,HEX);
+      s.print("APB2ENR="); s.println(pR->APB2ENR,HEX);
+
+      s.print("AHB1LPENR="); s.println(pR->AHB1LPENR,HEX);
+      s.print("AHB2LPENR="); s.println(pR->AHB2LPENR,HEX);
+      
+      s.print("APB1LPENR="); s.println(pR->APB1LPENR,HEX);
+      s.print("APB2LPENR="); s.println(pR->APB2LPENR,HEX);
+   }
+   s.print("SSCGR="); s.println(pR->SSCGR,HEX);
+   s.print("PLLI2SCFGR="); s.println(pR->PLLI2SCFGR,HEX);
+#endif // TARGET_STM32F4
+
+   s.print("BDCR="); s.println(pR->BDCR,HEX);
+   s.print("CSR="); s.println(pR->CSR,HEX);
+      
+      //??s.print("DCKCFGR="); s.println(pR->DCKCFGR,HEX);
+} // dumpRCCReg
+
+void dumpSPIReg (Stream& s, const spi_reg_map *pR=SPI1_BASE, const uint8_t m=0X7)
+{
+   s.print("SPI"); s.print(1+pR-SPI1_BASE); s.println(":"); 
+   if (m & 0x1)
+   {
+      s.print("CR1="); s.println(pR->CR1,HEX);
+      s.print("CR2="); s.println(pR->CR2,HEX);
+   }
+   s.print("SR="); s.println(pR->SR,HEX);
+   s.print("DR="); s.println(pR->DR,HEX);
+   if (m & 0x2)
+   {
+      s.print("CRCPR="); s.println(pR->CRCPR,HEX);
+      s.print("RXCRCR="); s.println(pR->RXCRCR,HEX);
+      s.print("TXCRCR="); s.println(pR->TXCRCR,HEX);
+   }
+   if (m & 0x4)
+   {
+      s.print("I2SCFGR="); s.println(pR->I2SCFGR,HEX);
+      s.print("I2SPR="); s.println(pR->I2SPR,HEX);
+   }
+} // dumpSPIReg
+
+void dumpATimReg (Stream& s, const timer_adv_reg_map *pR=TIMER1_BASE)
+{
+   //void *p= RCC_AHB1ENR; // RCC_BASE;
+   //uint8_t v= bb_peri_get_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM1EN_BIT);
+   //uint8_t v= bb_peri_get_bit( &(RCC_AHB1ENR), RCC_AHB1ENR_TIM1EN_BIT);
+   s.print("T"); s.print(1+pR-TIMER1_BASE); s.println(":"); 
+   
+   s.print("CR1="); s.println(pR->CR1,HEX);
+   s.print("CR2="); s.println(pR->CR2,HEX);
+
+   s.print("SMCR="); s.println(pR->SMCR,HEX);
+   s.print("DIER="); s.println(pR->DIER,HEX);
+   s.print("SR="); s.println(pR->SR,HEX);
+   s.print("EGR="); s.println(pR->EGR,HEX);
+   //bb_peri_set_bit( &(pR->EGR), 0x01, 1 ); // CC1G
+   
+   s.print("CCMR1="); s.println(pR->CCMR1,HEX);
+   s.print("CCMR2="); s.println(pR->CCMR2,HEX);
+   s.print("CCER="); s.println(pR->CCER,HEX);
+   
+   s.print("CNT="); s.println(pR->CNT,HEX);
+   s.print("PSC="); s.println(pR->PSC,HEX);
+   s.print("ARR="); s.println(pR->ARR,HEX);
+   
+   s.print("CCR1="); s.println(pR->CCR1,HEX);
+   s.print("CCR2="); s.println(pR->CCR2,HEX);
+   s.print("CCR3="); s.println(pR->CCR3,HEX);
+   s.print("CCR4="); s.println(pR->CCR4,HEX);
+
+   s.print("BDTR="); s.println(pR->BDTR,HEX);
+
+   s.print("DCR="); s.println(pR->DCR,HEX);
+   s.print("DMAR="); s.println(pR->DMAR,HEX);
+   //pR->PSC= 0x0000; // TICK= CLK/(1+PSC)
+} // dumpATimReg
+
+void dumpGTimReg (Stream& s, const timer_gen_reg_map *pR=TIMER2_BASE)
+{
+   s.print("T"); s.print(2+pR-TIMER2_BASE); s.println(":"); 
+   s.print("CR1="); s.println(pR->CR1,HEX);
+   s.print("CR2="); s.println(pR->CR2,HEX);
+
+   s.print("SMCR="); s.println(pR->SMCR,HEX);
+   s.print("DIER="); s.println(pR->DIER,HEX);
+   s.print("SR="); s.println(pR->SR,HEX);
+   s.print("EGR="); s.println(pR->EGR,HEX);
+   //bb_peri_set_bit( &(pR->EGR), 0x01, 1 ); // CC1G
+   
+   s.print("CCMR1="); s.println(pR->CCMR1,HEX);
+   s.print("CCMR2="); s.println(pR->CCMR2,HEX);
+   s.print("CCER="); s.println(pR->CCER,HEX);
+   
+   s.print("CNT="); s.println(pR->CNT,HEX);
+   s.print("PSC="); s.println(pR->PSC,HEX);
+   s.print("ARR="); s.println(pR->ARR,HEX);
+   
+   s.print("CCR1="); s.println(pR->CCR1,HEX);
+   s.print("CCR2="); s.println(pR->CCR2,HEX);
+   s.print("CCR3="); s.println(pR->CCR3,HEX);
+   s.print("CCR4="); s.println(pR->CCR4,HEX);
+
+   s.print("DCR="); s.println(pR->DCR,HEX);
+   s.print("DMAR="); s.println(pR->DMAR,HEX);
+} // dumpGTimReg
+
+#if 0
 
 // F103 hackery using some libmaple hooks
 
@@ -19,7 +153,7 @@
 static uint32_t getClkCfg1 (void) { return( RCC_BASE->CFGR ); } // 0x51840A
 //static void getClkCfg2 (uint32_t c[2]) { c[0]= RCC_BASE->CFGR; c[1]= RCC_BASE->CFGR2; } // not F103
 
-#endif
+//#endif
 
 uint32_t hwClkRate (void)
 {
@@ -40,7 +174,6 @@ uint32_t hwClkRate (void)
 } // hwClkRate
 
 void enableT4 (void) { bb_peri_set_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM4EN_BIT, 1 ); }
-
 
 class CSTM32_HW_RCC //  ?!?
 {
@@ -82,12 +215,13 @@ typedef struct timer_gen_reg_map {
     __IO uint32 DMAR;           // DMA address for full transfer **
 } timer_gen_reg_map;
 */
+
 class TimerHack : CSTM32_HW_RCC
 {
 public:
    TimerHack (void) { ; }
 
-   void start (timer_gen_reg_map *pR=TIMER4_BASE)
+   void start (Stream& s, timer_gen_reg_map *pR=TIMER4_BASE)
    {
       uint8_t v= bb_peri_get_bit( &(RCC_BASE->APB1ENR), RCC_APB1ENR_TIM4EN_BIT);
       DEBUG.print("Timer4:"); DEBUG.println(checkTimers(),HEX);
@@ -107,7 +241,6 @@ public:
   
 }; // TimerHack
 
-#endif // !ARDUINO_ARCH_STM32F4
-
+#endif // 0
 
 #endif // ST_HWH_HPP

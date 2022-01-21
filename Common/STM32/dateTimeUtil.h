@@ -6,10 +6,10 @@
 // TODO: factor common code!
 
 // Return ASCII for low 4 bits (nybble)
-char hexCharL4 (uint_fast8_t u)
+char hexCharL4 (uint_fast8_t u, const char a='a')
 {
    u&= 0xF;
-   if (u <= 9) { return(u+'0'); } else { return(u-9+'a'); }
+   if (u <= 9) { return(u+'0'); } else { return(u-9+a); }
 } // hexCharL4
 
 int8_t hex2ChU8 (char c[2], uint8_t u) // hexCharFromU8
