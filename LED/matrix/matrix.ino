@@ -9,19 +9,20 @@
 // Licence: GPL V3A
 // (c) Project Contributors Dec 2021 - Jan 2022
 
-
-#include <LEDMatrixDriver.hpp>
-
-#include "Common/AVR/DA_Config.hpp"
-
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
+
 #include "Common/AVR/DA_Util.hpp"
-
-//define DUMP(s) verifyFontIndex(s)
-
+#include "Common/AVR/DA_Therm.hpp"
+#include "Common/AVR/DA_Config.hpp"
+#include "Common/CDS18.hpp"
 #include "CPrintLED.hpp"
 #include "scroll.hpp"  // NB: order dependancy
+//define DUMP(s) verifyFontIndex(s)
+
+ThermNTC gTherm;
+
+CDS18Debug gDS;
 
 CPrintLED gLM;
 
@@ -34,9 +35,10 @@ const char asciiCharSet[]= " !#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRST
 //char motto[]= "Nemo me Impune Lacessit\n" 
 //char alpha= "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz\n";
 
-void scrollMessage (const char msg[], TimedScroll& ts, CPrintLED& lm)
+bool scrollMessage (const char msg[], TimedScroll& ts, CPrintLED& lm)
 {
-  if (ts.update())
+  bool b= ts.update();
+  if (b)
   {
     // Shift everything left by one led column.
     lm.scroll(LEDMatrixDriver::scrollDirection::scrollLeft);
@@ -47,6 +49,7 @@ void scrollMessage (const char msg[], TimedScroll& ts, CPrintLED& lm)
     // Write buffered changes.
     lm.display();
   }
+  return(b);
 } // scrollMessage
 
 void bootMsg (Stream& s)
@@ -61,6 +64,8 @@ void setup (void)
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   DUMP(DEBUG);
 
+  gDS.init();
+
   gLM.clear();
   gLM.printStr("LED/mtx",0);
   gLM.display();
@@ -69,10 +74,22 @@ void setup (void)
   gLM.setIntensity(3);
   gLM.setEnabled(true);
 
-  gTS.addDelay(5000);
+  gTS.addDelay(500);
 } // setup
+
+uint8_t t=0, u=0;
 
 void loop (void)
 {
-  scrollMessage(buildID, gTS, gLM);
+  t+= scrollMessage(buildID, gTS, gLM);
+  if (t >= 10)
+  {
+    t-= 10;
+    gTherm.log(DEBUG);
+    if (++u >= 10)
+    {
+      u-= 10;
+      gDS.log(DEBUG); gDS.start(); // write(0x44);
+    }
+  }
 } // loop

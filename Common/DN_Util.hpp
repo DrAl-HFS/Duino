@@ -29,64 +29,97 @@
 
 char hexCh (uint8_t x, const char a='a')
 {
-   char ch;
    x &= 0xF;
-   ch= x + '0';
-   if (x > 9) { ch= a + x - 0xa; }
-   return(ch);
+   if (x > 9) return(a + x - 0xa);
+   //else
+   return(x + '0');
 } // hexCh
 
 void hexByte (char ch[2], uint8_t x, const char a='a')
 {
-   ch[0]= hexCh(x>>4);
-   ch[1]= hexCh(x);
+   ch[0]= hexCh(x>>4,a);
+   ch[1]= hexCh(x,a);
 } // hexByte
 
-int hex2ChNU8 (char ch[], const int maxCh, const uint8_t u[], const int n)
+/*
+ DEPRECATE (?)
+int hex2ChNU8 (char ch[], const int maxCh, const uint8_t b[], const int n)
 {
    int i= 0, j= 0;
    while ((i < maxCh) && (j < n))
    {
-      const uint8_t x= u[j];
+      //hexByte(ch+i, u[j++]); i+= 2;
+      const uint8_t x= b[j++];
       ch[i++]= hexCh(x >> 4);
       if (i < maxCh) { ch[i++]= hexCh(x); }
    }
    return(i);
 } // hex2ChNU8
+*/
 
-void dumpHex (Stream& s, const uint8_t b[], const int16_t n, const uint8_t w=16, const char sep=' ', const char *end="\n")
+void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[]="00", const uint8_t ofs=0, const char a='a')
+{
+   for (int16_t i=0; i<n; i++)
+   {
+      hexByte(fs+ofs, b[i], a); 
+      s.print(fs);
+   }
+} // dumpHexFmt
+
+void dumpCharFmt (Stream& s, const signed char c[], const int16_t n, char fs[]=" ", const uint8_t ofs=0, const char g='.')
+{
+   for (int16_t i=0; i<n; i++)
+   {
+      fs[ofs]= c[i];
+      if ((c[i] < ' ') || (c[i] >= 0x7F)) { fs[ofs]= g; } // replace non-glyph characters
+      s.print(fs);
+   }
+} // dumpCharFmt
+
+// Consider: struct { } TabFmt; Move to class ?
+void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end="\n", const char sep=' ', const int16_t w=16)
 {
    if (n > 0)
    {
-      int16_t m=w, i=0;
+      int16_t m=n, i=0;
       char sx[4];
       sx[2]= sep;
       sx[3]= 0x00;
+      if ((w > 0) && (w < m)) { m= w; }
       do
       {
-         int16_t j= i;
-         for (; i<m; i++)
-         {
-            hexByte(sx, b[i]>>4); 
-            s.print(sx);
-         }
-         s.print('\t');
+         /*int16_t j= i;
          for (; j<m; j++)
          {
-            signed char ch= b[j];
+            hexByte(sx, b[j]); 
+            s.print(sx);
+         }
+         */
+         dumpHexFmt(s, b+i, m, sx);
+         s.print('\t');
+         dumpCharFmt(s, b+i, m);
+         i= m;
+         /*
+         for (; i<m; i++)
+         {
+            signed char ch= b[i];
             if (ch < ' ') { ch= '.'; }
             s.print((char)ch);
          }
+         */
          if (i < n)
          {
-            m+= w;
+            if (w > 0) { m+= w; }
             if (m > n) { m= n; }
             s.println();
          }
-      } while (i < m);
+      } while (i < n);
    }
    if (end) { s.print(end); }
-} // dumpHex
+} // dumpHexTab
+
+// temporary conflict resolution
+#ifndef DA_UTIL_HPP
 
 class SerialDelayParam
 {
@@ -121,6 +154,7 @@ bool beginSync (SERIAL_TYPE& s, const uint32_t bd=DEBUG_BAUD, const SerialDelayP
    return(false);
 } // beginSync
 
+#endif // DA_UTIL
 // namespace ???
 
 typedef uint32_t TickCount;

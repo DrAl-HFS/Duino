@@ -71,7 +71,7 @@ public:
 
    void init (void) { CAnMux::init(2); }
 
-   int8_t conv (uint16_t v_4)
+   int8_t conv (uint16_t v_4) // NB: 4b fraction, fixed point
    { // linear approximation to divider response (flattened sigmoid curve)
       return(25 + (dHi(v_4) / 0x64));  // 0x70 for series only
    }

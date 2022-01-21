@@ -1,7 +1,7 @@
 // Duino/AVR/Test/Test.ino - Arduino IDE & AVR test harness
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Dec 2020 - Mar 2021
+// (c) Project Contributors Dec 2020 - Jan 2022
 
 #include <math.h>
 //include <avr.h>
@@ -41,10 +41,10 @@ class HackRF24 : protected DA_SPIMHW
 
 public:
    HackRF24 (void) { ; }
-   
+
    void test (Stream &s)
    {
-      rb[0]= rb[1]= 0xFF; 
+      rb[0]= rb[1]= 0xFF;
       wb[0]= 0x07; wb[1]= 0x00;
       int8_t i, nr= readWriteN(rb,wb,2);
       //rf.endTrans();
@@ -103,7 +103,7 @@ static uint8_t nLog=0;
   uint8_t msBCD[SEC_DIG];
   char str[64];
   int8_t m=sizeof(str)-1, r=0, l=-1, n=0, x=0;
-  
+
   n= gClock.getStrHMS(str,m);
 #ifdef DA_ANALOGUE_HPP
   //s.print("DACt=");
@@ -148,7 +148,7 @@ void bootMsg (Stream& s)
 void setup (void)
 {
   noInterrupts();
-  
+
   //setID("ProM1");//"Mega1" / "Nano1" / "UnoV3");
   gClock.setA(__TIME__);
   gClock.start();
@@ -160,7 +160,7 @@ void setup (void)
   //pinMode(PIN_DA0, OUTPUT);
 
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  
+
   interrupts();
   gClock.intervalStart();
   sysLog(DEBUG,0);
@@ -189,7 +189,7 @@ static uint16_t gHackCount= 0;
   if (((++gHackCount) & 0xFFF) >= 1000) { gHackCount-= 1000; }
   if ((gHackCount & 0xFFF) < 20)// && (0 == gSigGen.rwm))
   {
-    //SPI.end(); 
+    //SPI.end();
     gHackCount|= 1<<15;
     digitalWrite(PIN_PULSE, HIGH);
   }
@@ -216,11 +216,11 @@ void loop (void)
     if (gClock.intervalDiff() >= -1) { gADC.startAuto(); } else { gADC.stop(); }
 #endif
     if (gClock.intervalUpdate())
-    { 
+    {
       ev|= 0x80;
 #ifdef DA_ANALOGUE
       gIS+= majorSS[gSI];
-      if (++gSI > 7) { gSI= 0; gIS= 0; }; 
+      if (++gSI > 7) { gSI= 0; gIS= 0; };
       //gIS+= gDIS;
       //if (gIS > 14) { gIS= 0; gDIS= 16 - gDIS; }
 #endif
@@ -233,7 +233,7 @@ void loop (void)
         uint8_t hms[3], d;
         d= cmd.v[SCI_VAL_MAX-1].extractHMS(hms,3);
         if (d >= 2)
-        { 
+        {
           gClock.setHM(hms);
           if (d >= 3) { gClock.setS(hms[2]); }
           cmd.cmdR[0]|= 0x10;
@@ -277,7 +277,7 @@ void loop (void)
     gAV++;
     gLastCUD= cud;
   }
-  //gAV++; 
+  //gAV++;
 #else
   digitalWrite(PIN_DA0, (gClock.tick & 0x0400) > 0);
 #endif

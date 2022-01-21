@@ -73,8 +73,8 @@ protected:
 
    void init (void)
    {
-      pinMode(PIN_NCS, OUTPUT);
-      digitalWrite(PIN_NCS,1);
+      //pinMode(PIN_NCS, OUTPUT); -> CCommonSPI::begin
+      //digitalWrite(PIN_NCS,1);
       pinMode(PIN_NRST, OUTPUT);
       digitalWrite(PIN_NRST,1);
       //pinMode(PIN_NRDY, INPUT);
@@ -118,11 +118,11 @@ public:
       if (clk_hk > 0)
       {
         CCommonSPI::spiSet= SPISettings(clk_hk*100000, MSBFIRST, SPI_MODE1);
-        HSPI.begin();
+        CCommonSPI::begin();
       }
    } // init
 
-   void close (void) { HSPI.end(); } // hsm= 0x00; }
+   void close (void) { CCommonSPI::end(); } // hsm= 0x00; }
 
 protected:
    // NB: Delay of 50 CLKIN cycles (CLKIN typically 7.68MHz) required in
