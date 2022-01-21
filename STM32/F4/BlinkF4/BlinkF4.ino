@@ -3,14 +3,14 @@
 // Licence: GPL V3A
 // (c) Project Contributors Mar 2020 - Sept 2021
 
-//#define PIN_NCS PA2
-#define PIN_NCS PC15
+#define PIN_NCS PA4 // default for SPI1 but used for builtin 32Mbit flash chip
+//#define PIN_NCS PC15
 
 #include "Common/DN_Util.hpp"
 #include "Common/STM32/ST_Util.hpp"
 //#include "Common/STM32/ST_Timing.hpp"
 //#include "Common/STM32/ST_HWH.hpp"
-//#include "Common/STM32/ST_Analogue.hpp"
+#include "Common/STM32/ST_Analogue.hpp"
 #include <SPI.h>
 #include "Common/CW25Q.hpp"
 
@@ -20,7 +20,7 @@
 #define PIN_BTN     PA0   // ? BTN_BUILTIN ?
 
 #define SPI1_MOSI PA7
-#define SPI1_MISO PA6
+#define SPI1_MISO PA6 // PB4 (builtin 32Mbit flash design/manufacturing error!?), wire bridge to PA6 works for ~1MHz clock
 #define SPI1_SCK  PA5
 #define SPI1_NSEL PIN_NCS
 
@@ -37,7 +37,7 @@
 
 DNTimer gT(100);
 CLoopBackSPI gLB;
-CW25QDbg gW25QDbg;
+CW25QDbg gW25QDbg(1);
 
 bool ok=false;
 
@@ -90,10 +90,13 @@ void loop (void)
 #if 0
     gLB.test(DEBUG,i);
 #else
-    //wbSetup(DEBUG);
     //DEBUG.print(iter); DEBUG.print(' ');
     //gW25QDbg.status(DEBUG);
-    gW25QDbg.dumpPage(DEBUG,iter);
+    if (iter <= 0xF)
+    {
+      gW25QDbg.dumpPage(DEBUG,iter & 0xF);
+    }
+    else if (0 == (0x1F & iter)) { gW25QDbg.identify(DEBUG); }
 #endif
 
 #ifdef ST_ANALOGUE_HPP
@@ -120,9 +123,6 @@ void loop (void)
     DEBUG.print(" CH17="); DEBUG.print(t);
     // DEBUG.print(' '); for (int i=0; i<4; i++) { DEBUG.print(t[i]); DEBUG.print(','); }
     DEBUG.print(" tC="); DEBUG.println(tC);
-
-    DEBUG.print("\ntest="); DEBUG.println(lbt.test(0xA5));
-    //if (!ok) { wbSetup(); DEBUG.print("\nok="); DEBUG.println(ok); }
 #endif // ST_ANALOGUE_HPP
     iter++;
   }
