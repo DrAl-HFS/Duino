@@ -45,11 +45,11 @@ protected:
       return(i);
    } // scanID
 
-   void cmdAddr (const W25Q::Cmd c, const UU32 addr)
+   void cmdAddrFrag (const W25Q::Cmd c, const UU32 addr)
    {
       HSPI.transfer(c);
       writeRev(addr.u8,3);
-   } // cmdAddr
+   } // cmdAddrFrag
 
    void cmd1 (const W25Q::Cmd c)
    {
@@ -105,7 +105,7 @@ public:
    void init (void)
    {
       CCommonSPI::begin();
-      cmd1(W25Q::WAKE); 
+      cmd1(W25Q::WAKE);
       delayMicroseconds(3); // delay tRES1 before next NCS low
    } // init
 
@@ -131,13 +131,29 @@ public:
    void dataRead (uint8_t b[], int16_t n, UU32 addr) // UU32
    {
       start();
-      cmdAddr(W25Q::RD_PG, addr);
+      cmdAddrFrag(W25Q::RD_PG, addr);
       read(b,n);
       complete();
    } // dataRead
 
+   void dataWrite (uint8_t b[], int16_t n, UU32 addr) // UU32
+   {
+      cmd1(W25Q::WR_EN);
+      start();
+      cmdAddrFrag(W25Q::WR_PG, addr);
+      write(b,n);
+      complete();
+   } // dataWrite
+
 }; // CW25Q
 
+// TODO: factor out [Bit-twiddling hacks]
+uint32_t bitCount32 (uint32_t v)
+{
+   v= v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
+   v= (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
+   return(((v + ((v >> 4) & 0xF0F0F0F)) * 0x1010101) >> 24);
+} // bitCount32
 
 class CW25QDbg : public CW25Q
 {
@@ -161,14 +177,15 @@ public:
       s.print("W25Q:STAT:");
       dumpHexFmt(s, stat, 3);
    } // status
-   
+
    int16_t capacityMb (const uint8_t devID)
-   {
+   {  // NB: Winbond encoding (not JEDEC)
       if (devID >= 0x14) return(1 << (devID - 0x10));
       if (0x13 == devID) return(80);
+      // Older device encoding unknown
       return(-1);
    } // capacityMb
-   
+
    void identify (Stream& s)
    {
       uint8_t id[13], n;
@@ -189,13 +206,17 @@ public:
       }
    } // identify
 
-   void dumpPage (Stream& s, uint16_t nP)
+   uint16_t dumpPage (Stream& s, uint16_t nP)
    {
       uint8_t b[ W25Q::PAGE_BYTES ];
       UU32 a={(uint32_t)nP << 8};
+      uint16_t r=0;
       dataRead(b, sizeof(b), a);
+      for (uint16_t i= 0; i < sizeof(b); i+= sizeof(uint32_t)) { r+= bitCount32(*(uint32_t*)(b+i)); }
       s.print("W25Q:PAGE:"); s.println(nP);
       dumpHexTab(s, b, sizeof(b));
+      s.print("bs="); s.println(r);
+      return(r);
    } // dumpPage
 
 }; // CW25QDbg
