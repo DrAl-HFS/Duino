@@ -8,21 +8,11 @@
 
 #include "Common/DN_Util.hpp"
 #include "Common/STM32/ST_Util.hpp"
-//#include "Common/STM32/ST_Timing.hpp"
-//#include "Common/STM32/ST_HWH.hpp"
-#include "Common/STM32/ST_Analogue.hpp"
-#include <SPI.h>
-#include "Common/CW25Q.hpp"
 
 #define DEBUG Serial1 // PA9/10 (F1xx compatible)
   
 #define PIN_LED     PC13  // = LED_BUILTIN
 #define PIN_BTN     PA0   // ? BTN_BUILTIN ?
-
-#define SPI1_MOSI PA7
-#define SPI1_MISO PA6 // PB4 (builtin 32Mbit flash design/manufacturing error!?), wire bridge to PA6 works for ~1MHz clock
-#define SPI1_SCK  PA5
-#define SPI1_NSEL PIN_NCS
 
 #ifdef ARDUINO_ARCH_STM32F4
 //define DEBUG Serial // = instance of USBSerial, same old CDC sync problems
@@ -34,16 +24,8 @@
 
 #endif // STM32F4
 
-
-DNTimer gT(100);
-CLoopBackSPI gLB;
-CW25QDbg gW25QDbg(1);
-
-bool ok=false;
-
-#ifdef ST_ANALOGUE_HPP
-ADC gADC;
-#endif // ST_ANALOGUE_HPP
+uint32_t gIter=0;
+DNTimer gT(100); // 100ms -> 10Hz
 
 void bootMsg (Stream& s)
 {
@@ -64,66 +46,22 @@ void setup (void)
 
   interrupts();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-
-#ifdef ST_ANALOGUE_HPP
-  gADC.pinSetup(PA0,4);
-#endif // ST_ANALOGUE_HPP
-#if 0
-  gLB.begin(DEBUG);
-#else
-  gW25QDbg.init(DEBUG);
-#endif
-  
+  //gIter= 0;
 } // setup
 
-uint16_t bv=0, iter=0, dT=250, calF=0;
-uint8_t chan=0;
+void log (Stream& s, uint32_t i)
+{
+static const char sep[2]={' ','\n'};
+  uint8_t iS= (0 == (i & 0xF));
+  s.print(i); s.print( sep[iS] );
+} // log
 
 void loop (void)
 {
   if (gT.update())
   {
-    uint8_t i= iter & 0x1;
-    digitalWrite(PIN_LED, i);
-    //if (s) { DEBUG.print('.'); }
-    //if (0 == (iter & 0xF80)) { DEBUG.println(); }
-#if 0
-    gLB.test(DEBUG,i);
-#else
-    //DEBUG.print(iter); DEBUG.print(' ');
-    //gW25QDbg.status(DEBUG);
-    if (iter <= 0xF)
-    {
-      gW25QDbg.dumpPage(DEBUG,iter & 0xF);
-    }
-    else if (0 == (0x1F & iter)) { gW25QDbg.identify(DEBUG); }
-#endif
-
-#ifdef ST_ANALOGUE_HPP
-    float a, t;
-
-    if ((0 == gADC.n) || (iter > (gADC.ts+100)))
-    {
-      calF+= !gADC.calibrate(iter);
-    }
-    gADC.setRef(1);
-    gADC.setSamplePeriod(ADC_FAST);
-    if (++chan > 3) { chan=0; }
-    a= gADC.readSumN(chan,4) * 0.25 * gADC.kB;
-    //---
-    gADC.setSamplePeriod(ADC_SLOW);
-    gADC.setRef(0);
-    t= gADC.readSumN(17,4) * 0.25 * ADC_VBAT_SCALE * gADC.kR;
-    float tC= gADC.readTemp();
-
-    DEBUG.print(" v="); DEBUG.print(gADC.v,5);
-    DEBUG.print(" calF="); DEBUG.print(calF); // DEBUG.print(" vNRB="); DEBUG.print(gADC.vNRB); 
-    DEBUG.print(" CH"); DEBUG.print(chan); DEBUG.print('='); DEBUG.print(a);
-    // DEBUG.print(' '); for (int i=0; i<4; i++) { DEBUG.print(a[i]); DEBUG.print(','); }
-    DEBUG.print(" CH17="); DEBUG.print(t);
-    // DEBUG.print(' '); for (int i=0; i<4; i++) { DEBUG.print(t[i]); DEBUG.print(','); }
-    DEBUG.print(" tC="); DEBUG.println(tC);
-#endif // ST_ANALOGUE_HPP
-    iter++;
+    ++gIter;
+    digitalWrite(PIN_LED, gIter & 0x1);
+    log(DEBUG,gIter);
   }
 } // loop
