@@ -6,6 +6,9 @@
 #ifndef ST_ANALOGUE_HPP
 #define ST_ANALOGUE_HPP
 
+// Sampling periods use ADclk = APB2clk / 2~8
+// APB2clck is max 100MHz, so could match core clock.
+// F401: 84MHz core So ADclk 42 ~ 10.5MHz => 1.5M ~ 21.875k samples/s
 #ifdef ARDUINO_ARCH_STM32F4
 #include <STM32F4ADC.h>
 #define ADC_NORM_SCALE  (1.0 / BIT_MASK(12))
@@ -20,7 +23,7 @@
 #define ADC_SLOW        ADC_SMPR_239_5
 #endif
 
-#define ADC_ID ADC1    
+#define ADC_ID ADC1
 
 #if 0
 #include <Arduino.h>
@@ -47,7 +50,7 @@ public:
          if (0 != t) { ts= t; }
          if (v != vB)
          {
-             vB= v; 
+             vB= v;
              n+= (n < 0xFFFF);
              return(2);
          }
@@ -63,7 +66,7 @@ class ADC : public VCal, public STM32ADC
 //static const normScale ???
 public:
    float kR, kB;
-     
+
    ADC (void) : VCal(), STM32ADC(ADC1) { setK(); }
 
    void pinSetup (uint8_t pn, uint8_t n)
@@ -87,7 +90,7 @@ public:
       }
 #endif // ARDUINO_ARCH_STM32F4
    }
-   
+
 #ifdef ARDUINO_ARCH_STM32F4
    bool calibrate (uint16_t t=0)
    {
@@ -100,7 +103,7 @@ public:
       // by USB or debug header (YMMV). Seems unreliable...
       uint8_t r= setVB( readSumN(17,8) * 0.125 * ADC_NORM_SCALE , t);
       if (r > 0)
-      { 
+      {
          if (r > 1) { setK(); }
          return(true);
       }
