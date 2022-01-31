@@ -27,19 +27,37 @@
 #define SERIAL_DELAY_STEP 30  // *20=600ms, long delay for USB-serial sync
 #endif
 
-char hexCh (uint8_t x, const char a='a')
+// Low 4 bits (nybble) hex char
+char hexChFromL4 (uint8_t x, const char a='a')
 {
    x &= 0xF;
-   if (x > 9) return(a + x - 0xa);
+   if (x > 9) return(a + x - 0xA);
    //else
    return(x + '0');
-} // hexCh
+} // hexChFromL4
 
-void hexByte (char ch[2], uint8_t x, const char a='a')
+// Full byte hex chars (leading zero)
+void hexChFromU8 (char ch[2], uint8_t x, const char a='a')
 {
-   ch[0]= hexCh(x>>4,a);
-   ch[1]= hexCh(x,a);
-} // hexByte
+   ch[0]= hexChFromL4(x>>4,a);
+   ch[1]= hexChFromL4(x,a);
+} // hexChFromU8
+
+uint8_t bcd4Add (const uint8_t a, const uint8_t b, const uint8_t c=0)
+{
+   uint8_t r= a + b + c;
+   if (r >= 0xA) { r= 0x10 + (r-0xA); }
+   return(r);
+} // bcd4Add
+
+uint8_t bcd8Add (uint8_t r[1], const uint8_t a, const uint8_t b)
+{
+   uint8_t t[2];
+   t[0]= bcd4Add(a&0xF, b&0xF); // lo digits -> sum + carry
+   t[1]= bcd4Add(a>>4, b>>4, t[0]>>4); // hi digits -> sum + carry
+   r[0]= ((t[1] & 0xF) << 4) | (t[0] & 0xF); // mergi hi lo digits
+   return(t[1]>>4); // return hi carry
+} // bcd8Add
 
 /*
  DEPRECATE (?)
@@ -48,7 +66,7 @@ int hex2ChNU8 (char ch[], const int maxCh, const uint8_t b[], const int n)
    int i= 0, j= 0;
    while ((i < maxCh) && (j < n))
    {
-      //hexByte(ch+i, u[j++]); i+= 2;
+      //hexChFromU8(ch+i, u[j++]); i+= 2;
       const uint8_t x= b[j++];
       ch[i++]= hexCh(x >> 4);
       if (i < maxCh) { ch[i++]= hexCh(x); }
@@ -61,7 +79,7 @@ void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const
 {
    for (int16_t i=0; i<n; i++)
    {
-      hexByte(fs+ofs, b[i], a); 
+      hexChFromU8(fs+ofs, b[i], a);
       s.print(fs);
    }
 } // dumpHexFmt
@@ -72,12 +90,12 @@ void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n)
    dumpHexFmt(s,b,n,fs);
 } // dumpHexFmt
 
-void dumpCharFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const uint8_t ofs=0, const char g='.')
+void dumpCharFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const uint8_t ofs=0, const char ng='.')
 {
    for (int16_t i=0; i<n; i++)
    {
       fs[ofs]= b[i];
-      if (((signed char)b[i] < ' ') || (b[i] >= 0x7F)) { fs[ofs]= g; } // replace non-glyph characters
+      if (((signed char)b[i] < ' ') || (b[i] >= 0x7F)) { fs[ofs]= ng; } // replace non-glyph characters (except space)
       s.print(fs);
    }
 } // dumpCharFmt
