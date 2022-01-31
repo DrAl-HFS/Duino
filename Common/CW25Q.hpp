@@ -7,13 +7,7 @@
 #define CW25Q_HPP
 
 #include "DN_Util.hpp"
-
 #include "CCommonSPI.hpp"
-#if 0
-//#include "MBD/mbdDef.h" // UU16/32
-#else
-typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
-#endif
 
 namespace W25Q
 {
@@ -91,8 +85,8 @@ protected:
 
    int8_t checkID (uint8_t id[5])
    {
-      int8_t n= getJID(id);
-      if (0xEF == id[0]) { n+= getMID(id+n); }
+      int8_t n= getMID(id);
+      n+= getJID(id+n);
       return(n);
    } // checkID
 
@@ -188,18 +182,17 @@ public:
 
    void identify (Stream& s)
    {
+      int16_t c= -1;
       uint8_t id[13], n;
       n= CW25Q::identify(id,sizeof(id));
       if (n > 0)
       {
-         //char fs[]="   ";
          if (0xEF == id[0])
          {
-            uint8_t c= id[2];
+            c= capacityMb(id[1]);
             s.print("W25Q");
-            if (0xEF == id[3]) { c= id[4]; }
-            s.println(capacityMb(c));
-         } else { s.println('?'); }
+         }
+         if (c > 0) { s.println(c); } else { s.println('?'); }
          s.print("ID:");
          dumpHexFmt(s, id, n);//, fs);
          s.print('\n');
