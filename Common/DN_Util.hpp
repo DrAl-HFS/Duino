@@ -37,10 +37,11 @@ char hexChFromL4 (uint8_t x, const char a='a')
 } // hexChFromL4
 
 // Full byte hex chars (leading zero)
-void hexChFromU8 (char ch[2], uint8_t x, const char a='a')
+int8_t hexChFromU8 (char ch[2], uint8_t x, const char a='a')
 {
    ch[0]= hexChFromL4(x>>4,a);
    ch[1]= hexChFromL4(x,a);
+   return(2);
 } // hexChFromU8
 
 // max 2 ACII chars -> 2 digit packed bcd.

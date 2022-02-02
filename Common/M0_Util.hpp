@@ -6,7 +6,8 @@
 #ifndef M0_UTIL
 #define M0_UTIL
 
-// COMMON - TODO : factor out to common (cross-arch) header
+/* -> DN_Util.hpp : hexChFrom*
+ *  COMMON - TODO : factor out to common (cross-arch) header
 // Return ASCII hex for low 4 bits (nybble)
 // NB - also useful for bcd -> char
 char hexCharL4 (uint8_t u)
@@ -21,19 +22,6 @@ int8_t hexCharU8 (char c[2], uint8_t u)
    c[0]= hexCharL4(u >> 4);
    return(2);
 } // hexCharU8
-// COMMON
-
-
-// TODO : assess mod&div performance on NRF51 (no HW div on Cortex-M0+)
-// Compute numerator / divisor, store quotient & return remainder,.
-uint32_t divmod32 (uint32_t& q, const uint32_t n, const uint32_t d) { q= n / d; return(n % d); }
-
-
-// Packed BCD remains useful as an intermediate format for stream IO
-// as it results in very compact and efficient code for the majority
-// of simple use cases. General C string handling becomes practical
-// for more complex issues (eg. floating point) but incurs significant
-// cost...
 
 uint8_t bcd4FromChar (const char ch[2], int8_t n)
 {
@@ -49,6 +37,26 @@ uint8_t bcd4FromChar (const char ch[2], int8_t n)
    return(r);
 } // bcd4FromChar
 
+uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
+{
+   uint8_t r= (bcd >> 4); // & 0xF;
+   if (n > 1) { r= 10 * r + (bcd & 0xF); }
+   return(r);
+} // bcd4ToU8*/
+
+
+// TODO : assess mod&div performance on NRF51 (no HW div on Cortex-M0+)
+// Compute numerator / divisor, store quotient & return remainder,.
+uint32_t divmod32 (uint32_t& q, const uint32_t n, const uint32_t d) { q= n / d; return(n % d); }
+
+
+// Packed BCD remains useful as an intermediate format for stream IO
+// as it results in very compact and efficient code for the majority
+// of simple use cases. General C string handling becomes practical
+// for more complex issues (eg. floating point) but incurs significant
+// cost...
+
+#if 0 // -> DN_Util.hpp
 int bcd4FromU8 (uint8_t bcd[1], uint8_t u)
 {
    if (u > 99) { return(-1); }
@@ -63,6 +71,7 @@ int bcd4FromU8 (uint8_t bcd[1], uint8_t u)
    bcd[0]= (q << 4) | u;
    return(2);
 } // bcd4FromU8
+#endif
 
 int bcd4FromU16 (uint8_t bcd[2], uint16_t u)
 {
@@ -77,32 +86,26 @@ int bcd4FromU16 (uint8_t bcd[2], uint16_t u)
    return bcd4FromU8(bcd+1,u);
 } // bcd4FromU16
 
-// Packed BCD string of n digits to ASCII
+// DEPRECATE ? Packed BCD string of n digits to ASCII
 int bcd4ToChar (char ch[], int maxCh, const uint8_t bcd[], int n)
 {
    int i= 0, nCh= 0;
    while ((i < n) && (nCh < maxCh))
    {
-      nCh+= hexCharU8(ch+nCh, bcd[i++]);
+      nCh+= hexChFromU8(ch+nCh, bcd[i++]);
    }
    return(nCh);
 } // bcd4ToChar
 
-uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
-{
-   uint8_t r= (bcd >> 4); // & 0xF;
-   if (n > 1) { r= 10 * r + (bcd & 0xF); }
-   return(r);
-} // bcd4ToU8
 
 uint32_t hmsU8ToSecU32 (uint8_t hms[3]) { return(hms[2] + 60 * (hms[1] + (60 * hms[0]))); }
 
-uint32_t hmsU8FromSecU32 (uint8_t hms[3], uint32_t sec)
+uint32_t hmsU8FromSecU32 (uint8_t hms[3], uint32_t t)
 {
-   hms[2]= divmod32(sec, sec, 60);
-   hms[1]= divmod32(sec, sec, 60); 
-   hms[0]= divmod32(sec, sec, 24);
-   return(sec); // days
+   hms[2]= divmod32(t, t, 60); // sec
+   hms[1]= divmod32(t, t, 60); // min
+   hms[0]= divmod32(t, t, 24); // hr
+   return(t); // days
 } // hmsU8FromSecU32
 
 #endif // M0_UTIL
