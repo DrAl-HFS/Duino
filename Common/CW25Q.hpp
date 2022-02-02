@@ -13,8 +13,8 @@ namespace W25Q
 {
    enum Cmd : uint8_t {
       RD_MID=0x90, RD_JID=0x9F, RD_UID=0x4B,  // identity
-   // read/write
-       // status bytes
+      // read/write
+      // status bytes
       RD_ST1=0x05, RD_ST2=0x35, RD_ST3=0x15,
       WR_ST1=0x01, WR_ST2=0x31, WR_ST3=0x11,
 
@@ -26,6 +26,20 @@ namespace W25Q
       WR_EN=0x06, WR_DIS=0x04,   // write enable/disable
       SLEEP=0xB9, WAKE=0xAB      // power management
       };
+   enum FlagS1 : uint8_t {
+      BUSY=0x01, WEL=0x02, 
+      BP0=0x04, BP1=0x08, BP2=0x10, 
+      TB=0x20, SEC=0x40, SRP=0x80
+   };
+   enum FlagS2 : uint8_t { // Caveat: not on earlier devices...
+      SRL=0x01, QE=0x02, RSV1=0x4,
+      LB1=0x08, LB2=0x10, LB3=0x20,
+      CMP=0x40, SUS=0x80
+   };
+   enum FlagS3 : uint8_t { // ditto
+      RSV2=0x3, WPS=0x04, RSV3=0x18,
+      DRV2=0x20, DRV1=0x40, RSV4=0x80
+   };
    const int PAGE_BYTES= 256;
 }; // namespace W25Q
 
@@ -139,6 +153,17 @@ public:
       complete();
    } // dataWrite
 
+   bool sync (uint8_t m=0)
+   {
+      uint8_t s;
+      do
+      {
+         s= cmdRd1(W25Q::RD_ST1);
+         s&= W25Q::BUSY;
+      } while (s && (0 == m));
+      return(0 == s);
+   } // sync
+
 }; // CW25Q
 
 // TODO: factor out [Bit-twiddling hacks]
@@ -152,7 +177,6 @@ uint32_t bitCount32 (uint32_t v)
 class CW25QDbg : public CW25Q
 {
 public:
-   uint8_t stat[3];
 
    CW25QDbg (const uint8_t clkMHz) : CW25Q(clkMHz) { ; }
 
@@ -163,8 +187,10 @@ public:
       identify(s);
    } // init
 
-   void status (Stream& s)
+   void dumpStatus (Stream& s)
    {
+      uint8_t stat[3];
+
       stat[0]= cmdRd1(W25Q::RD_ST1);
       stat[1]= cmdRd1(W25Q::RD_ST2);
       stat[2]= cmdRd1(W25Q::RD_ST3);
