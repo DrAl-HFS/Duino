@@ -3,14 +3,16 @@
 // Licence: GPL V3A
 // (c) Project Contributors Jan 20 - June 21
 
+#include "Common/dateTimeUtil.h"
 #include "Common/N5/N5_HWID.hpp"
-//#include "Common/N5/N5_Timing.hpp"
 #include "Common/N5/N5_ClockInstance.hpp"
 #include "MapLED.hpp"
 #include "Buttons.hpp"
 #ifdef TARGET_UBITV2
 #include "Audio.hpp"
 #endif
+
+#define DEBUG Serial
 
 // Extend with virtual "double-press" button using timed lockout
 class BlinkInput : public CUBitButtons
@@ -50,11 +52,19 @@ BlinkInput gBI;
 uint8_t iR=0, iC=0;
 uint8_t mode=0x03, cycleA= 0, cycleB= 0; 
 
+void bootMsg (Stream& s)
+{
+  s.println("\n---");
+  s.print("Blink N5 " __DATE__ " ");
+  s.println(__TIME__);
+  nrf5DumpHWID(s);
+} // bootMsg
+
 void setup (void)
 { 
-  Serial.begin(115200);
-  nrf5DumpHWID(Serial);
-
+  DEBUG.begin(115200);
+  bootMsg(DEBUG);
+  
   gSpkr.init();
   //analogWrite(SPKR_PIN, 0x100);
 
@@ -63,10 +73,8 @@ void setup (void)
   gBI.init();
 
   gClock.init(50); // 50ms -> 20Hz
-  uint8_t hms[3];
-  hms[0]= bcd4ToU8(bcd4FromChar(__TIME__+0,2),2);
-  hms[1]= bcd4ToU8(bcd4FromChar(__TIME__+3,2),2);
-  hms[2]= bcd4ToU8(bcd4FromChar(__TIME__+5,2),2);
+  uint8_t hms[3]; // TODO: factor
+  bcd4FromTimeA(hms,__TIME__);
   gClock.setHMS(hms);
 
   gClock.start();

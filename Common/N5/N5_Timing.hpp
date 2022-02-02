@@ -169,7 +169,7 @@ public:
       for (int i=0; i<sizeof(hms); i++)
       {
          bcd4FromU8(hms+i, hms[i]); // in-place conversion
-         hexCharU8(ch, hms[i]);
+         hexChFromU8(ch, hms[i]);
          if (i == (sizeof(hms)-1)) { ch[2]= 0; }
          s.print(ch);
       }
@@ -193,7 +193,7 @@ public:
       uint16_t ms= divmod32(sec, CTimerN5::tickCount, 1000);
       printSecHMS(s,sec);
       printMilliSec(s,ms);
-      if (end > 0) { Serial.print(end); }
+      if (end > 0) { s.print(end); }
       // snprintf adds 16KB code! Hence BCD->char used instead.
       // snprintf(ch,sizeof(ch)-1,"%02u:%02u:%02u.%03u", hms[0], hms[1], hms[2], ms);
 #if 0
