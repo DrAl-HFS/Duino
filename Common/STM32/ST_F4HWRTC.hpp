@@ -29,7 +29,7 @@ protected:
       RTC->DR= d & 0xFFFF3F; // mask off reserved bits
    } // setRawDate
 
-   bool init (void)
+   bool init (uint32_t t=0, uint32_t d=0)
    {
       bkp_init();             // Enable PWR clock.
       bkp_enable_writes();    // PWR_CR:DBP control bit
@@ -46,10 +46,12 @@ protected:
       }
       rtc_enter_config_mode();
       RTC->PRER = (uint32_t)((0x7F << 16) + 0xFF);
-      if ((getRawDate() & 0xFFFFFF) < 0x220000)
+      if (t || d || ((getRawDate() & 0xFFFFFF) < 0x220000))
       {
-         setRawDate(0x220131); // (Mon) 22/1/31
-         setRawTime(0x185948); // (pm) 18:59:48
+         if (0 == d) { d= 0x6220101; } // (Sat) 22/1/1
+         setRawDate(d);
+         if (0 == t) { t= 0x105923; } // 10:59:23
+         setRawTime(t);
       }
       //RCC->CR |= RTC_CR_BYPSHAD;
       *bb_perip(&RTC->CR, RTC_CR_BYPSHAD_BIT)= 1; // enable shadow bypass (reduce update latency)
@@ -85,7 +87,22 @@ public:
    RTCDebug (void) { ; }
 
    //using F4HWRTC::init;
-   bool init (Stream& s) { return F4HWRTC::init(); } //s.print("F4HWRTC:CR="); s.println(RTC->CR,HEX); return(r); }
+   bool init (Stream& s, const char *timeStr=NULL, const char *dateStr=NULL)
+   {
+      UU32 smh={0}, dmy={0};
+      //s.print("RTCDebug::init() ");
+      if (timeStr)
+      { 
+         bcd4FromTimeA(smh.u8, timeStr, 0);
+         //s.print(timeStr); s.print(" -> "); s.println(smh.u32, HEX);
+      }
+      if (dateStr)
+      {
+         bcd4FromDateA(dmy.u8, dateStr, 0);
+         //s.print(dateStr); s.print(" -> "); s.println(dmy.u32, HEX);
+      }
+      return F4HWRTC::init(smh.u32, dmy.u32);
+   } //s.print("F4HWRTC:CR="); s.println(RTC->CR,HEX); return(r); }
    
    void dump (Stream& s)
    {

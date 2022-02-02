@@ -12,12 +12,12 @@
 typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif
 
-#include "Common/DN_Util.hpp"
+//#include "Common/DN_Util.hpp"
+#include "Common/dateTimeUtil.h"
 #include "Common/STM32/ST_Util.hpp"
 //#include "Common/STM32/ST_Analogue.hpp"
 //include "Common/STM32/ST_HWH.hpp"
 #include "Common/STM32/ST_F4HWRTC.hpp"
-//#include <RTClock.h>
 #include <SPI.h>
 #include "Common/CW25Q.hpp"
 
@@ -43,8 +43,7 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif // STM32F4
 
 RTCDebug gRTCDbg;
-//RTClock gRTC;
-DNTimer gT(100);
+DNTimer gT(100); // 100ms -> 10Hz
 CW25QDbg gW25QDbg(21);
 
 uint16_t gIter=0;
@@ -103,11 +102,19 @@ void bootMsg (Stream& s)
 
 void hackInit (Stream& s)
 {
+  UU32 a={64};
+  uint8_t b[16]={0x00};
+  gW25QDbg.dataRead(b, sizeof(b), a);
+  if (0xFF == b[0])
+  {
+    //char s[]="123456789ABCDEF";
+    char s[]="FEDCBA987654321";
+    gW25QDbg.dataWrite((uint8_t*)s, sizeof(s), a);
+    gW25QDbg.sync();
+  }
   //revTest(DEBUG,0xA050);
   //crcEnable();
   //dumpRCCReg(DEBUG);
-  //gRTC.setTime(1643392338); useless
-  //gRTC.begin();
 #if 0
   uint8_t v[]={0x11, 0x12, 0x00, 0x00};
   v[3]= bcd8Add(v+2, v[0], v[1]);
@@ -145,8 +152,8 @@ void setup (void)
 #endif // ST_ANALOGUE_HPP
 
   gW25QDbg.init(DEBUG);
+  gRTCDbg.init(DEBUG, __TIME__, __DATE__);
   hackInit(DEBUG);
-  gRTCDbg.init(DEBUG);
 } // setup
 
 void loop (void)

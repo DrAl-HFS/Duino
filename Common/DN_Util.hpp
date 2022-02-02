@@ -43,6 +43,39 @@ void hexChFromU8 (char ch[2], uint8_t x, const char a='a')
    ch[1]= hexChFromL4(x,a);
 } // hexChFromU8
 
+// max 2 ACII chars -> 2 digit packed bcd.
+// CAVEAT: No range checking!
+uint8_t bcd4FromA (const char a[], int8_t nD)
+{
+   uint8_t r= 0;
+   if (nD > 0)
+   {
+      r= 0xF & (a[0] - '0');
+      if (nD > 1)
+      {
+         r= (r << 4) | (0xF & (a[1] - '0'));
+      }
+   }
+   return(r);
+} // bcd4FromA
+
+// CAVEAT: Ignores any leading non-digit
+uint8_t bcd4FromASafe (const char a[], int8_t nA)
+{
+   if (nA > 0)
+   {
+      uint8_t mD= isdigit(a[0]);
+      if (nA > 1) { mD|= isdigit(a[1])<<1; }
+      switch (mD)
+      {
+         case 0b01 : return bcd4FromA(a+0, 1);
+         case 0b10 : return bcd4FromA(a+1, 1);
+         case 0b11 : return bcd4FromA(a+0, 2);
+      }
+   }
+   return(0);
+} // bcd4FromASafe
+
 uint8_t bcd4Add (const uint8_t a, const uint8_t b, const uint8_t c=0)
 {
    uint8_t r= a + b + c;
@@ -74,6 +107,25 @@ int hex2ChNU8 (char ch[], const int maxCh, const uint8_t b[], const int n)
    return(i);
 } // hex2ChNU8
 */
+
+uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
+{
+   uint8_t r= (bcd >> 4); // & 0xF;
+   if (n > 1) { r= 10 * r + (bcd & 0xF); }
+   return(r);
+} // bcd4ToU8
+
+// return number of (output) digits
+int8_t bcd4FromU8 (uint8_t bcd[1], uint8_t u)
+{
+   if (u > 99) { return(-1); }
+   if (u <= 9) { bcd[0]= u; return(u>0); }
+   //else
+   uint8_t q= u / 10;  // 1) division by small constant
+   u-= 10 * q;          // 2) multiplication to synthesise remainder
+   bcd[0]= (q << 4) | u;
+   return(2);
+} // bcd4FromU8
 
 void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const uint8_t ofs=0, const char a='a')
 {
