@@ -21,11 +21,10 @@
 /***/
 
 //#define DA_FAST_POLL_TIMER_HPP // resource contention
-//#define AVR_CLOCK_TRIM 64
-#include "Common/AVR/DA_Timing.hpp"
+#include "Common/AVR/DA_ClockInstance.hpp" // Timing.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
 //include "Common/AVR/DA_SPIMHW.hpp"
-#include "Common/CAD779x.hpp"
+//#include "Common/CAD779x.hpp"
 //#include "Common/CADS1256.hpp"
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/AVR/DA_RotEnc.hpp"
@@ -69,22 +68,6 @@ uint8_t gM= SPI_MODE3;
       gM+= SPI_MODE1;
     }*/
 #endif // DA_SPIMHW_HPP
-
-
-CClock gClock(1000);
-
-#ifdef AVR_CLOCK_TIMER
-
-#if (2 == AVR_CLOCK_TIMER)
-// Connect clock to timer interrupt
-// SIGNAL blocks other ISRs - check use of sleep()
-SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
-//SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
-//SIGNAL(TIMER2_OCB_vect) { gClock.nextIvl(); }
-#endif // AVR_CLOCK_TIMER
-
-#endif // AVR_CLOCK_TN
-
 
 StreamCmd gStreamCmd;
 CmdSeg cmd; // Would be temp on stack but problems arise...
