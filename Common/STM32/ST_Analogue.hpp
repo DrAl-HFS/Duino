@@ -67,7 +67,7 @@ class ADC : public VCal, public STM32ADC
 public:
    float kR, kB;
 
-   ADC (void) : VCal(), STM32ADC(ADC1) { setK(); }
+   ADC (void) : VCal(), STM32ADC(ADC_ID) { setK(); }
 
    void pinSetup (uint8_t pn, uint8_t n)
    {
@@ -95,7 +95,7 @@ public:
    bool calibrate (uint16_t t=0)
    {
       adc_enable_vbat();
-      adc_set_sampling_time(ADC1,ADC_SLOW);
+      adc_set_sampling_time(ADC_ID,ADC_SLOW);
       // Read internal Vref, using Vbat/Vdd as full scale.
       // This explicitly requires power to Vbat: if not
       // from a battery, then by linking to Vdd (3.3V).
@@ -115,10 +115,18 @@ public:
 
    uint32_t readSumN (uint8_t chan, uint8_t n)
    {
-      uint32_t s= adc_read(ADC1,chan);
+      uint32_t s= adc_read(ADC_ID,chan);
       for (uint8_t i=1; i<n; i++) { s+= adc_read(ADC_ID,chan); }
       return(s);
-   }
+   } // readSumN
+
+   uint32_t readSum16 (uint8_t chan, uint16_t n)
+   {
+      uint32_t s= adc_read(ADC1,chan);
+      for (uint16_t i=1; i<n; i++) { s+= adc_read(ADC_ID,chan); }
+      return(s);
+   } // readSum16
+
    void setSamplePeriod (adc_smp_rate r)
    {
 #ifdef ARDUINO_ARCH_STM32F4
