@@ -38,6 +38,7 @@ uint_fast8_t swapHiLo4U8 (uint_fast8_t u)
    return(u);
 } // swapHiLo4U8
 
+// Duplicate in DN_Util.hpp
 // Return ASCII for low 4 bits (nybble)
 char hexCharL4 (uint_fast8_t u)
 {

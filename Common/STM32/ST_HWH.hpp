@@ -7,24 +7,50 @@
 #define ST_HWH_HPP
 
 #include <libmaple/rcc.h>
+#include <libmaple/rtc.h>
 #include <libmaple/timer.h>
 #include <libmaple/spi.h>
 #include <libmaple/bitband.h>
 
-#ifndef RCC_BASE
-#define PERIPH_BASE           ((uint32_t)0x40000000)    
-#define RCC_BASE              (rcc_reg_map*)(PERIPH_BASE + 0x23800)
+#ifndef PERIPH_BASE
+#define PERIPH_BASE  ((uint32_t)0x40000000)
 #endif
+
+#ifndef RCC_BASE
+#define RCC_BASE     (rcc_reg_map*)(PERIPH_BASE + 0x23800)
+#endif
+
+#ifdef TEST_CRC
+void crcEnable (rcc_reg_map *pR= RCC_BASE) { pR->AHB1ENR|= 0x1000; } // seems OK
+//NB: <libmaple/crc.h> doesn't exist
+#define CRC_BASE  (crc_reg_map*)(PERIPH_BASE + 0x23000)
+typedef struct crc_reg_map { uint32_t CRC_DR, CRC_IDR, CRC_CR; } crc_reg_map;
+
+// TODO figure out why this kills everything...
+// No input buffer on F4 - bus stall ?
+uint32_t crc (const uint32_t v[], const int n)
+{
+   crc_reg_map *pR= CRC_BASE;
+   
+   pR->CRC_CR= 0x1; // reset
+   for (int i=0; i<n; i++)
+   {
+      pR->CRC_DR= v[i]; // 4 AHB clks
+   }
+   return(pR->CRC_DR);
+} // crc
+#endif
+
 
 void dumpRCCReg (Stream& s, const rcc_reg_map *pR= RCC_BASE, const uint8_t m=0x2)
 {
    s.println("RCC:"); 
-      s.print("CR="); s.println(pR->CR,HEX);
+   s.print("CR="); s.println(pR->CR,HEX);
       
-      s.print("CFGR="); s.println(pR->CFGR,HEX);
-      s.print("CIR="); s.println(pR->CIR,HEX);
+   s.print("CFGR="); s.println(pR->CFGR,HEX);
+   s.print("CIR="); s.println(pR->CIR,HEX);
 
-#ifdef TARGET_STM32F4
+#ifdef ARDUINO_ARCH_STM32F4
    s.print("PLLCFGR="); s.println(pR->PLLCFGR,HEX);
    if (m & 0x2)
    {
@@ -53,7 +79,7 @@ void dumpRCCReg (Stream& s, const rcc_reg_map *pR= RCC_BASE, const uint8_t m=0x2
    s.print("BDCR="); s.println(pR->BDCR,HEX);
    s.print("CSR="); s.println(pR->CSR,HEX);
       
-      //??s.print("DCKCFGR="); s.println(pR->DCKCFGR,HEX);
+   //??s.print("DCKCFGR="); s.println(pR->DCKCFGR,HEX);
 } // dumpRCCReg
 
 void dumpSPIReg (Stream& s, const spi_reg_map *pR=SPI1_BASE, const uint8_t m=0X7)
@@ -143,6 +169,12 @@ void dumpGTimReg (Stream& s, const timer_gen_reg_map *pR=TIMER2_BASE)
    s.print("DCR="); s.println(pR->DCR,HEX);
    s.print("DMAR="); s.println(pR->DMAR,HEX);
 } // dumpGTimReg
+
+void dumpTimReg (Stream& s, uint8_t n)
+{
+   if (1 == n) { dumpATimReg(s); }
+   else if ((n >= 2) && (n <= 5)) { dumpGTimReg(s, TIMER2_BASE+(n-2)); }
+} // dumpTimReg
 
 #if 0
 

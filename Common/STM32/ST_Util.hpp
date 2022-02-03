@@ -6,7 +6,7 @@
 #ifndef ST_UTIL_HPP
 #define ST_UTIL_HPP
 
-#define BIT_MASK(n) ((1<<(n))-1)
+//#define BIT_MASK(n) ((1<<(n))-1) DN_UTIL
 
 /*
 // DEPRECATE: replaced with DN_Util version...
