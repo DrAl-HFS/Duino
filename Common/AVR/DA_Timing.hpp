@@ -8,6 +8,7 @@
 
 #include <avr/sleep.h>
 #include "DA_Util.h"
+#include "../dateTimeUtil.hpp"
 
 //#define AVR_CLOCK_TRIM 64 // 64/128 +50% micro-tick (4us) per ms
 
@@ -190,10 +191,10 @@ protected:
 
 public:
    CDownTimer (void) {;}
-   
+
    void set (int16_t r) { remain= r; }
    void add (int16_t r) { remain+= r; }
-   
+
    bool isSet (void) { return(remain>0); }
    bool update (uint8_t dt=1) { remain-= dt; return(remain<=0); }
 }; // CDownTimer
@@ -235,7 +236,7 @@ uint16_t tickDiffWrapU16 (uint16_t ta, uint16_t tb)
    if (ta > tb) { return(ta-tb); } else { return(ta+60000-tb); }
 } // tickDiffWrapU16
 
-// Simple clock running off timer class, handy for debug logging 
+// Simple clock running off timer class, handy for debug logging
 // A high precision crystal resonator <=20ppm, temperature compensation,
 // battery backup and some calendar awareness could facilitate a tolerable
 // chronometer...
@@ -278,24 +279,38 @@ public:
    using CTrimTimer::nextIvl; // void nextIvl (void) { CTrimTimer::nextIvl(); }
 #endif
 
+   void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
    void setHM (const uint8_t hm[2]) { tock= hm[0]*60 + hm[1]; }
    // HACK! <<<
    void setS (const uint8_t s) { tick= s*1000; tickTock(); }
-   void addM (int8_t dm) { tock+= dm; } 
+   void addM (int8_t dm) { tock+= dm; }
    void addS (int8_t ds) { tick+= ds*1000; tickTock(); } // overflow/wrap hazard
-   // HACK! >>>
+
+}; // CClock
+
+// Extend with basic ASCII IO functions
+class CClockA : public CClock
+{
+public:
+   CClockA (uint16_t ivl=3000, int8_t trim=0) : CClock(ivl,trim) { ; }
+
    void setA (const char a[], uint16_t msAdd=0)
    {  // No parsing! assumes exact "hh:mm:ss"
-      uint8_t tt[2];
-  
+      uint8_t tt[3];
+#if 1
+      u8FromTimeA(tt, a);
+      setHM(tt);
+      setS(tt[2]);
+#else
       tt[0]= fromBCD4(char2BCD4(a+0,2),2);
       tt[1]= fromBCD4(char2BCD4(a+3,2),2);
       setHM(tt);
       tt[0]= fromBCD4(char2BCD4(a+5,2),2);
       setS(tt[0]);
+#endif
       tick+= msAdd;
    }
-   void getHM (uint8_t hm[2]) const { convTimeHM(hm, tock); }
+
    // Serial interface support, debug mostly?
    int8_t getStrHM (char str[], int8_t max, char end=0) const
    {
@@ -312,6 +327,7 @@ public:
       }
       return(0);
    } // getStrHM
+
    int8_t getStrS (char str[], int8_t max, int8_t bcdB=1, char end=0) const
    {
       int8_t n= 0;
@@ -329,12 +345,14 @@ public:
       }
       return(n);
    } // getStrS
+
    int8_t getStrHMS (char str[], int8_t max, char end=0) const
    {
       int8_t n= getStrHM(str, max, ':');
       if (n > 0) { n+= getStrS(str+n, max-n, 1, end); }
       return(n);
    } // getStrHMS
+
    int8_t printHMS (Stream& s, const char end=0x0)
    {
       char hms[10];
@@ -342,9 +360,10 @@ public:
       //if (i < sizeof(hms))
       hms[i++]= end;
       if (0x00 != end) { hms[i++]= 0x00; }
-      s.print(hms); 
+      s.print(hms);
       return(i);
    }
-}; // CClock
+
+}; // CClockA
 
 #endif // DA_TIMING_HPP
