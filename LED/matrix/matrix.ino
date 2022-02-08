@@ -12,9 +12,12 @@
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
 
+#define CLOCK_INTERVAL 3000 // 3s
+
 #include "Common/AVR/DA_Util.hpp"
 #include "Common/AVR/DA_Therm.hpp"
 #include "Common/AVR/DA_Config.hpp"
+#include "Common/AVR/DA_ClockInstance.hpp"
 #include "Common/CDS18.hpp"
 #include "CPrintLED.hpp"
 #include "scroll.hpp"  // NB: order dependancy
@@ -61,8 +64,15 @@ void bootMsg (Stream& s)
 
 void setup (void)
 {
+  noInterrupts();
+  gClock.setA(__TIME__);
+  gClock.start();
+
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   DUMP(DEBUG);
+
+  interrupts();
+  gClock.intervalStart();
 
   gDS.init();
 
@@ -81,6 +91,10 @@ uint8_t t=0, u=0;
 
 void loop (void)
 {
+  if (gClock.update())
+  {
+    if (gClock.intervalUpdate()) { gClock.printHMS(DEBUG,'\n'); }
+  }
   t+= scrollMessage(buildID, gTS, gLM);
   if (t >= 10)
   {

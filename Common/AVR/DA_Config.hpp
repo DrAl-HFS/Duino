@@ -11,7 +11,88 @@
 
 /***/
 
+//--- Hacking ... ideas on more robust data dumping, using log-file-structures ?
+
+// adapted from linux/lib/crc4.h
+class CRC4
+{
+static const uint8_t kPoly[16];
+
+   // MB: 0xF mask applied AFTER xor : this protects against error where input exceeds 0xF
+   uint8_t compute4bit (const uint8_t c4, const uint8_t i4) const { return kPoly[ (c4 ^ i4) & 0xF ]; }
+
+public:
+   CRC4 (void) { ; }
+
+   // NB: effectiveness relies on input <= (2^(4+1))-1 = 31bits (almost 4 bytes)
+   uint8_t compute (const uint8_t b[], const int8_t n, uint8_t c= 0xF) const
+   {
+      for (int8_t i= 0; i<n; i++)
+      {  // process nybbles lsb first
+         c= compute4bit(c, b[i]); // & 0xF); redundant mask
+         c= compute4bit(c, b[i]>>4);
+      }
+      return(c);
+   } // compute
+}; // CRC4
+// Polynomial lookup might be compacted 50%
+static const uint8_t CRC4::kPoly[16]= {
+   0x0, 0x7, 0xe, 0x9, 0xb, 0xc, 0x5, 0x2,
+   0x1, 0x6, 0xf, 0x8, 0xa, 0xd, 0x4, 0x3
+};
+
+// Compact File Chunk declarations: a DIY approach to simple and efficient
+// yet reasonably flexible data storage (log, archive etc.) on flash memory
+// devices having capacity in the 1~256Mbit range.
+extern "C" {
+// Header storage byte layout (msb to lsb)
+// *Hdr0 is the general wrapper to allow simple chunk scanning
+// 1011iiii ssssssss ssssssss xxxxrrrr = 0xBISSSSXR
+// "i" bits are header id / chunk size code : 0xF for [Hdr0][Hdr1], 0xE for [Hdr0][Lnk1]
+// "s" bits are chunk payload size in bytes (l+h forms misaligned LE uint16_t)
+// "x" are extension flag bits (reserved, default to 0xF)
+// "r" are CRC4 computed over the preceding 28 bits
+typedef union { uint32_t w; struct { uint8_t hi, sl, sh, xc; } s; } UCFCHdr0;
+//---
+// Immediately following *Hdr0, *Hdr1 describes an object fragment
+// jjjjjjjj jjjjjjjj ffffffff ffffrrrr = 0xJJJJFFFR
+// "j" l+h form LE uint16_t object id
+// "f" l+ form LE "uint12" fragment/chunk id
+// "r" are CRC4 computed over the preceding 28 bits
+// Object id=0 is reserved, so valid range 0x0001..0xFFFF
+// Fragment id=0 is reserved for the file object descriptor, 0x001..0xFFF are data chunks
+typedef union { uint32_t w; struct { uint8_t jl, jh, fl, fc; } s; } UCFCHdr1;
+//---
+// Immediately following *Hdr0, *Lnk1 describes a fragment link, so that a gap in the 
+// fragment ID sequence may be efficiently skipped. This simplifies truncation and may
+// help in the efficient implementation of circular log buffer storage.
+// tttttttt ttttxxxx ffffffff ffffrrrr = 0xTTTXFFFR
+// "t" gives the target fragment ID
+// "x" are extension flag bits (reserved, default to 0xF)
+// "f" is the sought/expected ID for a deleted fragment
+// "r" are CRC4 computed over the preceding 28 bits
+typedef union { uint32_t w; struct { uint8_t tl, thx, fl, fc; } s; } UCFCLnk1;
+//---
+// The file object descriptor is expected to include user-friendly features such as
+// an ASCII name to associate with the object ID.
+// e.g. a file might appear as
+//    [Hdr0][Hdr1:J1,F0]["log.dat"]
+//    ..
+//    [Hdr0][Hdr1:J1,F1][DataChunk1]
+//    ..
+//    [Hdr0][Hdr1:J1,F2][DataChunk2]
+};
+
+// Micro File Chunk declarations for sub Mbit capacity devices (e.g. EEPROM)
+// 10iissss ssssrrrr
+// ooooooff ffffrrrr
+// ttttttff ffffrrrr
+
+//struct ObjHdr { uint8_t tid, obj, size; }
+//struct DataChunkHdr { uint8_t tid, obj, chunk, size; }
 //char hackCh (char ch) { if ((0==ch) || (ch >= ' ')) return(ch); else return('?'); }
+
+//---
 
 // TODO : wrap as ID class
 int8_t setID (char idzs[])
@@ -24,7 +105,8 @@ int8_t setID (char idzs[])
       {
          do
          {
-            if (EEPROM.read(i) != idzs[i]) { EEPROM.write(i,idzs[i]); }
+            EEPROM.update(i,idzs[i]);
+            //if (EEPROM.read(i) != idzs[i]) { EEPROM.write(i,idzs[i]); }
          } while (0 != idzs[i++]);
       }
    }

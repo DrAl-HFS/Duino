@@ -20,6 +20,7 @@
 
 /***/
 
+#include "Common/AVR/DA_Util.hpp" // NB must come first to avoid conflict
 //#define DA_FAST_POLL_TIMER_HPP // resource contention
 #include "Common/AVR/DA_ClockInstance.hpp" // Timing.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
@@ -28,7 +29,6 @@
 //#include "Common/CADS1256.hpp"
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/AVR/DA_RotEnc.hpp"
-#include "Common/AVR/DA_Util.hpp"
 
 #ifdef DA_SPIMHW_HPP
 // Very basic SPI comm test
