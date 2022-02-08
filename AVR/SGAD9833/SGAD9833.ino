@@ -16,10 +16,11 @@
 // max val in 14LSB: 0x3FFF -> 1.526kHz
 
 /***/
+#define CLOCK_INTERVAL 3000
 
 #include "DA_ad9833Mgt.hpp"
 #include "Common/AVR/DA_StrmCmd.hpp"
-#include "Common/AVR/DA_Timing.hpp"
+#include "Common/AVR/DA_ClockInstance.hpp"
 #ifndef DA_FAST_POLL_TIMER_HPP // resource contention
 #include "Common/AVR/DA_Counting.hpp"
 #endif
@@ -34,19 +35,6 @@ CRotEncDFR gRotEnc;
 StreamCmd gStreamCmd;
 DA_AD9833Control gSigGen;
 DA_AD9833Chirp gChirp;
-CClock gClock(3000);
-
-#ifdef AVR_CLOCK_TIMER
-
-#if (2 == AVR_CLOCK_TIMER)
-// Connect clock to timer interrupt
-// SIGNAL blocks other ISRs - check use of sleep()
-SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
-//SIGNAL(TIMER2_OCA_vect) { gClock.nextIvl(); }
-//SIGNAL(TIMER2_OCB_vect) { gClock.nextIvl(); }
-#endif // AVR_CLOCK_TIMER
-
-#endif // AVR_CLOCK_TN
 
 #ifdef DA_COUNTING_HPP
 

@@ -5,9 +5,10 @@
 
 #include "Common/Morse/CMorse.hpp"
 #include "Common/AVR/DA_Analogue.hpp"
-#include "Common/AVR/DA_Timing.hpp"
 #include "Common/AVR/DA_Config.hpp"
 
+#define CLOCK_INTERVAL 5000
+#include "Common/AVR/DA_ClockInstance.hpp"
 
 /***/
 
@@ -46,7 +47,8 @@ public:
 
 /***/
 
-CClock gClock(5000); // 5.0 sec interval timer
+//CClock gClock(5000); // 5.0 sec interval timer
+//SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 CMorseDebug gS;
 CDownTimer gMorseDT;
 //CDownTimer gStreamDT;
@@ -56,7 +58,6 @@ CAnalogue gADC;
 ISR(ADC_vect) { gADC.event(); gADC.start(); } // deferred restart reduces rate slightly
 
 
-SIGNAL(TIMER2_COMPA_vect) { gClock.nextIvl(); }
 
 
 /***/
