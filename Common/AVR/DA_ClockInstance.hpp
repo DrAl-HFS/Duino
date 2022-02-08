@@ -14,7 +14,7 @@
 #define CLOCK_INTERVAL 1000
 #endif // 
 
-CClock gClock(CLOCK_INTERVAL);
+CClockA gClock(CLOCK_INTERVAL);
 
 #if (2 == AVR_CLOCK_TIMER)
 // Connect clock to timer interrupt
