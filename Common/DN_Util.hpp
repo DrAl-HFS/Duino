@@ -108,7 +108,8 @@ int hex2ChNU8 (char ch[], const int maxCh, const uint8_t b[], const int n)
    return(i);
 } // hex2ChNU8
 */
-
+//u8FromBCD4
+#define fromBCD4 bcd4ToU8   // transitional
 uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
 {
    uint8_t r= (bcd >> 4); // & 0xF;

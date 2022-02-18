@@ -9,6 +9,10 @@
 #include "DN_Util.hpp"
 #include "CCommonSPI.hpp"
 
+#ifndef SPI_CLOCK_DEFAULT
+#define SPI_CLOCK_DEFAULT 42  // MHz
+#endif //
+
 namespace W25Q
 {
    enum Cmd : uint8_t {
@@ -21,16 +25,18 @@ namespace W25Q
       RD_PG=0x03, WR_PG=0x02,    // data page (256 bytes)
       RF_PG=0x0B,                // "read fast" allows up to 133MHz SPI clock (requires very high quality signal path)
       // erase sector/block/device
+      GL_UN=0x98, // global unlock
       EE_4K=0x20, EE_32K=0x52, EE_64K=0xD8, EE_DV=0x60,
       // simple commands (single byte)
       WR_EN=0x06, WR_DIS=0x04,   // write enable/disable
       SLEEP=0xB9, WAKE=0xAB      // power management
       };
    enum FlagS1 : uint8_t {
-      BUSY=0x01, WEL=0x02, 
-      BP0=0x04, BP1=0x08, BP2=0x10, 
+      BUSY=0x01, WEL=0x02,
+      BP0=0x04, BP1=0x08, BP2=0x10,
       TB=0x20, SEC=0x40, SRP=0x80
    };
+   enum BitsS1 : uint8_t { BPM=0x1C, BPS=2, BPB=3 };
    enum FlagS2 : uint8_t { // Caveat: not on earlier devices...
       SRL=0x01, QE=0x02, RSV1=0x4,
       LB1=0x08, LB2=0x10, LB3=0x20,
@@ -43,16 +49,11 @@ namespace W25Q
    const int PAGE_BYTES= 256;
 }; // namespace W25Q
 
+// Basic access "toolkit"
 class CW25Q : public CCommonSPI
 {
 protected:
-   int8_t scanID (const uint8_t id[], const int8_t max)
-   {
-      int8_t i= 0;
-      while ((0x00 != id[i]) && (0xFF != id[i]) && (i < max)) { ++i; }
-      return(i);
-   } // scanID
-
+   // hex addr fmt : 0xKKSPYY (blocK, Sector, Page, bYte)
    void cmdAddrFrag (const W25Q::Cmd c, const UU32 addr)
    {
       HSPI.transfer(c);
@@ -66,15 +67,133 @@ protected:
       complete();
    } // cmd1
 
-   uint8_t cmdRd1 (const W25Q::Cmd c)
+   uint8_t cmdRW1 (const W25Q::Cmd c, const uint8_t w=0x00)
    {
       uint8_t r;
       start();
       HSPI.transfer(c);
-      r= HSPI.transfer(0x00);
+      r= HSPI.transfer(w);
       complete();
       return(r);
-   } // cmdRd1
+   } // cmdRW1
+
+public:
+   CW25Q (const uint8_t clkMHz=SPI_CLOCK_DEFAULT) // NB: full clock rate for (84MHz) STM32F4
+   {
+      spiSet= SPISettings(clkMHz*1000000, MSBFIRST, SPI_MODE0);
+   }
+
+   void init (void)
+   {
+      CCommonSPI::begin();
+      cmd1(W25Q::WAKE);
+      delayMicroseconds(3); // delay tRES1 before next NCS low
+   } // init
+
+   void unlock (void) // Caveat : global!
+   {
+      cmd1(W25Q::WR_EN);
+      cmd1(W25Q::GL_UN);
+   } // unlock
+
+   int16_t dataRead (uint8_t b[], int16_t n, const UU32 addr) // UU32
+   {
+      if (n > 0)
+      {
+         start();
+         cmdAddrFrag(W25Q::RD_PG, addr);
+         read(b,n);
+         complete();
+         return(n);
+      }
+      return(0);
+   } // dataRead
+
+   int16_t dataWrite (const uint8_t b[], int16_t n, const UU32 addr) // UU32
+   {
+      if (n > 0)
+      {
+         if (n > 256) { n= 256; }
+         cmd1(W25Q::WR_EN);
+         start();
+         cmdAddrFrag(W25Q::WR_PG, addr);
+         write(b,n);
+         complete();
+      }
+      return(n);
+   } // dataWrite
+
+   // Page address and count (sector/block size) should be 4K sector aligned
+   // ... or else what??
+   uint16_t dataErase (uint16_t aP, const uint16_t nP=16)
+   {
+      W25Q::Cmd cmd;
+      if (aP & 0xF) { return(0); }
+      switch(nP)
+      {
+         case 16  : cmd= W25Q::EE_4K; break;  // sector
+         case 128 : cmd= W25Q::EE_32K; break; // half block
+         case 256 : cmd= W25Q::EE_64K; break; // block
+         default : return(0);
+      }
+      UU32 addr={(uint32_t)aP << 8};
+      cmd1(W25Q::WR_EN);
+      start();
+      cmdAddrFrag(cmd, addr);
+      complete();
+      return(nP);
+   } // dataErase
+
+   bool sync (uint32_t max=-1)
+   {
+      uint32_t i=0;
+      uint8_t s;
+      do
+      {
+         s= cmdRW1(W25Q::RD_ST1);
+         if (0 == (s & W25Q::BUSY)) { return(true); }
+      } while (++i < max);
+      return(false);
+   } // sync
+
+}; // CW25Q
+
+// Extended functionality for common problems
+class CW25QUtil : public CW25Q
+{
+public:
+   CW25QUtil (const uint8_t clkMHz=SPI_CLOCK_DEFAULT) : CW25Q(clkMHz) { ; }
+
+   // Check for unused storage (or some other constant value)
+   // without using a buffer
+   uint32_t scanEqual (const UU32 addr, uint32_t max=1<<16, const uint8_t v=0xFF)
+   {
+      uint32_t n=0;
+      uint8_t b;
+      start();
+      cmdAddrFrag(W25Q::RD_PG, addr);
+      do
+      {
+         b= HSPI.transfer(0x00);
+      } while ((v == b) && (++n < max));
+      complete();
+      return(n);
+   } // scanEqual
+
+}; // CW25QUtil
+
+class CW25QID : public CW25QUtil
+{
+   // DISPLACE:  where ? not very effective anyway...
+   int8_t scanID (const uint8_t id[], const int8_t max)
+   {
+      int8_t i= 0;
+      while ((0x00 != id[i]) && (0xFF != id[i]) && (i < max)) { ++i; }
+      return(i);
+   } // scanID
+
+public:
+   CW25QID (const uint8_t clkMHz=SPI_CLOCK_DEFAULT) : CW25QUtil(clkMHz) { ; }
 
    int8_t getMID (uint8_t mid[2])
    {
@@ -96,26 +215,12 @@ protected:
       return scanID(jid,3);
    } // getJID
 
-
    int8_t checkID (uint8_t id[5])
    {
       int8_t n= getMID(id);
       n+= getJID(id+n);
       return(n);
    } // checkID
-
-public:
-   CW25Q (const uint8_t clkMHz=42) // NB: full clock rate for (84MHz) STM32F4
-   {
-      spiSet= SPISettings(clkMHz*1000000, MSBFIRST, SPI_MODE0);
-   }
-
-   void init (void)
-   {
-      CCommonSPI::begin();
-      cmd1(W25Q::WAKE);
-      delayMicroseconds(3); // delay tRES1 before next NCS low
-   } // init
 
    int8_t identify (uint8_t b[], int8_t maxB=13)
    {
@@ -127,7 +232,7 @@ public:
          {
             start();
             HSPI.transfer(W25Q::RD_UID);
-            writeb(0x00,4);
+            writeb(0x00,4); // dummy 32clks for sync
             read(b+n,8);
             complete();
             n+= 8;
@@ -136,35 +241,7 @@ public:
       return(n);
    } // identify
 
-   void dataRead (uint8_t b[], int16_t n, UU32 addr) // UU32
-   {
-      start();
-      cmdAddrFrag(W25Q::RD_PG, addr);
-      read(b,n);
-      complete();
-   } // dataRead
-
-   void dataWrite (uint8_t b[], int16_t n, UU32 addr) // UU32
-   {
-      cmd1(W25Q::WR_EN);
-      start();
-      cmdAddrFrag(W25Q::WR_PG, addr);
-      write(b,n);
-      complete();
-   } // dataWrite
-
-   bool sync (uint8_t m=0)
-   {
-      uint8_t s;
-      do
-      {
-         s= cmdRd1(W25Q::RD_ST1);
-         s&= W25Q::BUSY;
-      } while (s && (0 == m));
-      return(0 == s);
-   } // sync
-
-}; // CW25Q
+}; // CW25QID
 
 // TODO: factor out [Bit-twiddling hacks]
 uint32_t bitCount32 (uint32_t v)
@@ -174,29 +251,42 @@ uint32_t bitCount32 (uint32_t v)
    return(((v + ((v >> 4) & 0xF0F0F0F)) * 0x1010101) >> 24);
 } // bitCount32
 
-class CW25QDbg : public CW25Q
+class CW25QDbg : public CW25QID
 {
 public:
+   uint8_t statf;
 
-   CW25QDbg (const uint8_t clkMHz) : CW25Q(clkMHz) { ; }
+   CW25QDbg (const uint8_t clkMHz) : CW25QID(clkMHz), statf{0} { ; }
 
-   void init (Stream& s)
+   void init (Stream& s, uint8_t f=0x1)
    {
       CW25Q::init();
       s.print("W25Q:SPI:NCS="); s.println(PIN_NCS);
-      identify(s);
+      if (identify(s))
+      {
+         statf= f ;
+         dumpStatus(s);
+      }
    } // init
 
    void dumpStatus (Stream& s)
    {
       uint8_t stat[3];
 
-      stat[0]= cmdRd1(W25Q::RD_ST1);
-      stat[1]= cmdRd1(W25Q::RD_ST2);
-      stat[2]= cmdRd1(W25Q::RD_ST3);
+      stat[0]= cmdRW1(W25Q::RD_ST1);
+      stat[1]= cmdRW1(W25Q::RD_ST2);
+      stat[2]= cmdRW1(W25Q::RD_ST3);
       s.print("W25Q:STAT:");
       dumpHexFmt(s, stat, 3);
-   } // status
+
+      s.print("\nprot: ");
+      if (0 == (stat[0] & W25Q::SEC)) { s.print('6'); }
+      s.print("4K, ");
+      if (0 == (stat[0] & W25Q::TB)) { s.print("top"); } else { s.print("bott"); }
+      s.print(", ");
+      s.print("BP=0x"); s.print((stat[0] >> W25Q::BPS) & 0x7, HEX);
+      s.println();
+   } // dumpStatus
 
    int16_t capacityMb (const uint8_t devID)
    {  // NB: Winbond encoding (not JEDEC)
@@ -206,11 +296,11 @@ public:
       return(-1);
    } // capacityMb
 
-   void identify (Stream& s)
+   bool identify (Stream& s)
    {
       int16_t c= -1;
-      uint8_t id[13], n;
-      n= CW25Q::identify(id,sizeof(id));
+      uint8_t id[16], n;
+      n= CW25QID::identify(id,sizeof(id));
       if (n > 0)
       {
          if (0xEF == id[0])
@@ -223,16 +313,17 @@ public:
          dumpHexFmt(s, id, n);//, fs);
          s.print('\n');
       }
+      return(n > 0);
    } // identify
 
-   uint16_t dumpPage (Stream& s, uint16_t nP)
+   uint16_t dumpPage (Stream& s, uint16_t aP)
    {
       uint8_t b[ W25Q::PAGE_BYTES ];
-      UU32 a={(uint32_t)nP << 8};
+      UU32 a={(uint32_t)aP << 8};
       uint16_t r=0;
       dataRead(b, sizeof(b), a);
       for (uint16_t i= 0; i < sizeof(b); i+= sizeof(uint32_t)) { r+= bitCount32(*(uint32_t*)(b+i)); }
-      s.print("W25Q:PAGE:"); s.println(nP);
+      s.print("W25Q:PAGE:"); s.println(aP);
       dumpHexTab(s, b, sizeof(b));
       s.print("bs="); s.println(r);
       return(r);
