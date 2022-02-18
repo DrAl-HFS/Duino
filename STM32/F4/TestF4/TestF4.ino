@@ -51,35 +51,7 @@ CW25QDbg gW25QDbg(21);
 uint16_t gIter=0;
 
 #ifdef ST_ANALOGUE_HPP
-#define NUM_CHAN  1 
-ADC gADC;
-uint16_t calF=0;
-uint8_t chan=0;
-
-void testADC (Stream& s, ADC& adc)
-{
-    float aV;
-
-    //adc.log(s);
-
-    adc.setSamplePeriod(ADC_FAST);
-    if (++chan >= NUM_CHAN) { chan=0; }
-    aV= adc.readSumN(chan,16) * (1.0/16) * adc.kD;
-    s.print(" CH"); s.print(chan); s.print('='); s.print(aV,4); s.print("V ");
-
-    //---
-    //if ((0 == adc.n) || 
-    if (gIter > (adc.ts+100))
-    {
-      calF+= !adc.debugCalibrate(s, gIter);
-      s.print(" calF="); s.print(calF);
-    }
-    adc.setSamplePeriod(ADC_SLOW);
-    float vR= adc.readVref();
-    float tC= adc.readTemp();
-    s.print(" tC="); s.print(tC,4); s.print("C vR="); s.print(vR,4); s.println('V');
-} // testADC
-
+ADCDbg gADC;
 #endif // ST_ANALOGUE_HPP
 
 void bootMsg (Stream& s)
@@ -144,9 +116,22 @@ void hackInit (Stream& s)
 } // hackInit
 
 
-void hackTest (Stream& s)
+void hackTest (Stream& s, uint16_t i)
 {
 #if 0
+  if (i < 1)
+  {
+    uint32_t *p= (uint32_t*)0x1FFFC000; // OPT 0x1FFF7800; // OTP 16*32= 512 (+16lk = 528)
+    s.println("OPT:"); //"OTP:");
+    for (uint8_t j=0; j<(16/4); j++)
+    {
+      uint32_t w= p[j];
+      //if ((w > 0) && (w < 0xFFFFFFFF))
+      {
+        s.print('['); s.print(j); s.print("] : "); s.println(w,HEX);
+      }
+    }
+  }
   uint32_t v[]={0x01234567,0x89abcdef};
   uint32_t nc= crc(v,sizeof(v)/sizeof(v[0]));
   DEBUG.print("crc="); DEBUG.println(nc);
@@ -166,13 +151,14 @@ void setup (void)
   interrupts();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
 
-#ifdef ST_ANALOGUE_HPP
-  gADC.pinSetup(PA0,NUM_CHAN); // PA0~7?
-#endif // ST_ANALOGUE_HPP
-
-  gW25QDbg.init(DEBUG);
+  gW25QDbg.init(DEBUG,0);
   gRTCDbg.init(DEBUG, __TIME__, __DATE__);
   hackInit(DEBUG);
+
+#ifdef ST_ANALOGUE_HPP
+  gADC.pinSetup(PA0,ADC_TEST_NUM_CHAN); // PA0~7?
+  gADC.clk(DEBUG);
+#endif // ST_ANALOGUE_HPP
 } // setup
 
 void loop (void)
@@ -182,7 +168,7 @@ void loop (void)
     uint8_t i= gIter & 0x1;
     digitalWrite(PIN_LED, i);
 
-    if ((gW25QDbg.statf & 0x1) && (gIter <= 0x10))
+    if ((0x3 == (gW25QDbg.statf & 0x3)) && (gIter <= 0x10))
     {
 static const uint16_t np[]={ 0x0 , (16<<10)-0x10 };
       uint16_t ap=0;
@@ -202,9 +188,10 @@ static const uint16_t np[]={ 0x0 , (16<<10)-0x10 };
       gRTCDbg.dump(DEBUG);
       //gW25QDbg.identify(DEBUG);
     }
-
+    hackTest(DEBUG,gIter);
 #ifdef ST_ANALOGUE_HPP
-    testADC(DEBUG,gADC);
+    //gADC.test1(DEBUG,gIter);
+    gADC.test2(DEBUG);
 #endif // ST_ANALOGUE_HPP
     gIter++;
   }
