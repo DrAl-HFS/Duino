@@ -243,13 +243,7 @@ public:
 
 }; // CW25QID
 
-// TODO: factor out [Bit-twiddling hacks]
-uint32_t bitCount32 (uint32_t v)
-{
-   v= v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
-   v= (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
-   return(((v + ((v >> 4) & 0xF0F0F0F)) * 0x1010101) >> 24);
-} // bitCount32
+#include "CMX_Util.hpp" // bitCount32
 
 class CW25QDbg : public CW25QID
 {
