@@ -60,6 +60,19 @@ uint8_t bcd4FromA (const char a[], int8_t nD)
    return(r);
 } // bcd4FromA
 
+// int -> -1,0,+1
+int sign (const int i) { return((i > 0) - (i < 0)); }
+
+// return sign of (a-b) : a<b -> -1, a=b -> 0, a>b -> +1
+int cmpBCD4 (const uint8_t a, const uint8_t b)
+{
+   int d= (int)(a >> 4) - (int)(b >> 4); // shifting avoids unwanted sign extension
+   if (0 == d) { d= (int)(a & 0xF) - (int)(b & 0xF); }
+   return sign(d);
+} // cmpBCD4
+
+bool isBCD4 (uint8_t bcd4) { return(cmpBCD4(bcd4, 0x99) <= 0); }
+
 // CAVEAT: Ignores any leading non-digit
 uint8_t bcd4FromASafe (const char a[], int8_t nA)
 {
@@ -77,21 +90,21 @@ uint8_t bcd4FromASafe (const char a[], int8_t nA)
    return(0);
 } // bcd4FromASafe
 
-uint8_t bcd4Add (const uint8_t a, const uint8_t b, const uint8_t c=0)
+uint8_t bcd4Add1 (const uint8_t a, const uint8_t b, const uint8_t c=0)
 {
    uint8_t r= a + b + c;
    if (r >= 0xA) { r= 0x10 + (r-0xA); }
    return(r);
-} // bcd4Add
+} // bcd4Add1
 
-uint8_t bcd8Add (uint8_t r[1], const uint8_t a, const uint8_t b)
+uint8_t bcd4Add2 (uint8_t r[1], const uint8_t a, const uint8_t b)
 {
    uint8_t t[2];
-   t[0]= bcd4Add(a&0xF, b&0xF); // lo digits -> sum + carry
-   t[1]= bcd4Add(a>>4, b>>4, t[0]>>4); // hi digits -> sum + carry
+   t[0]= bcd4Add1(a&0xF, b&0xF); // lo digits -> sum + carry
+   t[1]= bcd4Add1(a>>4, b>>4, t[0]>>4); // hi digits -> sum + carry
    r[0]= ((t[1] & 0xF) << 4) | (t[0] & 0xF); // mergi hi lo digits
    return(t[1]>>4); // return hi carry
-} // bcd8Add
+} // bcd4Add2
 
 /*
  DEPRECATE (?)
@@ -110,22 +123,22 @@ int hex2ChNU8 (char ch[], const int maxCh, const uint8_t b[], const int n)
 */
 //u8FromBCD4
 #define fromBCD4 bcd4ToU8   // transitional
-uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
+uint8_t bcd4ToU8 (uint8_t bcd4, int8_t n)
 {
-   uint8_t r= (bcd >> 4); // & 0xF;
-   if (n > 1) { r= 10 * r + (bcd & 0xF); }
+   uint8_t r= (bcd4 >> 4); // & 0xF;
+   if (n > 1) { r= 10 * r + (bcd4 & 0xF); }
    return(r);
 } // bcd4ToU8
 
 // return number of (output) digits
-int8_t bcd4FromU8 (uint8_t bcd[1], uint8_t u)
+int8_t bcd4FromU8 (uint8_t bcd4[1], uint8_t u)
 {
    if (u > 99) { return(-1); }
-   if (u <= 9) { bcd[0]= u; return(u>0); }
+   if (u <= 9) { bcd4[0]= u; return(u>0); }
    //else
    uint8_t q= u / 10;  // 1) division by small constant
    u-= 10 * q;          // 2) multiplication to synthesise remainder
-   bcd[0]= (q << 4) | u;
+   bcd4[0]= (q << 4) | u;
    return(2);
 } // bcd4FromU8
 
