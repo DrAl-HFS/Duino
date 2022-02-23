@@ -12,12 +12,54 @@
 #define F4HWRTC_EPOCH_BASELINE (946684800)   // 2000/1/1 (Sat) 00:00:00 = earliest hardware representable time
 #define F4HWRTC_DOW_MASK (0x7<<13) // day of week (3b 1..7)
 
-class F4HWRTC
+#ifndef RTC_CR_FMT_BIT
+#define RTC_CR_FMT_BIT 6
+#endif
+
+// DISPLACE -> ???
+// masked comparison
+int mcmp (const uint32_t a, const uint32_t b, const uint32_t m=0xFFFFFF) { return sign((a&m) - (b&m)); }
+
+bool dateValid (const UU32 dmy) // dd:mm:yy
+{
+   if (  (0 != dmy.u8[0]) && (0 != dmy.u8[0]) &&
+         (cmpBCD4(dmy.u8[0], 0x31) <= 0) &&
+         (cmpBCD4(dmy.u8[1], 0x12) <= 0) &&
+         isBCD4(dmy.u8[2]) )
+   {
+      switch(dmy.u8[1])
+      {
+         case 0x02 :
+         {
+            uint8_t y= bcd4ToU8(dmy.u8[2],2);
+            uint8_t d= 0x28 + (0 == (y % 4)); // leap year hack (imperfect Gegorian rule)
+            return(cmpBCD4(dmy.u8[0], d) <= 0);
+         } // break;
+         case 0x04 :
+         case 0x06 :
+         case 0x09 :
+         case 0x11 :
+            return(cmpBCD4(dmy.u8[0], 0x30) <= 0); // break;
+      }
+   }
+   return(false);
+} // dateValid
+
+bool timeValid (const UU32 smh, const uint8_t hrMax=0x24) // ss:mm:hh
+{
+   return( (cmpBCD4(smh.u8[0], 0x59) <= 0) &&
+            (cmpBCD4(smh.u8[1], 0x59) <= 0) &&
+            (cmpBCD4(smh.u8[2], hrMax) <= 0) );
+} // timeValid
+
+class F4HWRTC // CAVEAT : no error checking
 {
 protected:
+   bool mode12h (void) const { return *bb_perip(&RTC->CR, RTC_CR_FMT_BIT); }
+
    void setRawTime (uint32_t t)
-   {
-      if ((t & (0x1<<24)) || (((t >> 8) & 0x7FFF) >= 0x1200)) { t|= (0x1<<22); } // set pm flag
+   {  // if (((t >> 8) & 0x7FFF) >= 0x1200)
+      if (mode12h() && (t & (0x1<<24))) { t|= (0x1<<22); } // relocate pm flag
       RTC->TR= t & 0x7F7F7F; // mask off reserved bits
    } // setRawTime
 
@@ -46,17 +88,18 @@ protected:
       }
       rtc_enter_config_mode();
       RTC->PRER = (uint32_t)((0x7F << 16) + 0xFF);
-      if (t || d || ((getRawDate() & 0xFFFFFF) < 0x220000))
+      //if (0 == d) { d= 0x6220101; } // (Sat) 22/1/1
+      //if (0 == t) { t= 0x105923; } // 10:59:23
+      if (0 != d)
       {
-         if (0 == d) { d= 0x6220101; } // (Sat) 22/1/1
-         setRawDate(d);
-         if (0 == t) { t= 0x105923; } // 10:59:23
-         setRawTime(t);
+         int dd= mcmp(d,getRawDate());
+         if (dd > 0) { setRawDate(d); }
+         if ((dd >= 0) && (0 != t)) { setRawTime(t); }
       }
       //RCC->CR |= RTC_CR_BYPSHAD;
-      *bb_perip(&RTC->CR, RTC_CR_BYPSHAD_BIT)= 1; // enable shadow bypass (reduce update latency)
+      *bb_perip(&RTC->CR, RTC_CR_FMT_BIT)= 0;      // 24h time format
+      *bb_perip(&RTC->CR, RTC_CR_BYPSHAD_BIT)= 1;  // enable shadow bypass (reduce update latency)
       rtc_exit_config_mode();
-      
       bkp_disable_writes(); // leave it as you found it
       return(true);
    } // init
@@ -79,6 +122,16 @@ public:
       return(d);
    } // getRawDate
 
+   uint32_t *backup (uint8_t i)
+   {
+      if (i < 20)
+      {  // BKP0R undefined
+         uint32_t *p= ((uint32_t*)RTC)+(0x50>>2);
+         return(p+i);
+      } // else
+      return(NULL);
+   } // backup
+
 }; // F4HWRTC
 
 class RTCDebug : public F4HWRTC
@@ -90,20 +143,24 @@ public:
    bool init (Stream& s, const char *timeStr=NULL, const char *dateStr=NULL)
    {
       UU32 smh={0}, dmy={0};
-      //s.print("RTCDebug::init() ");
+
+      s.print("RTCDebug::init() - BKP[0]="); s.println(*backup(0),HEX);
+      //if (mode12h()) { s.println("RTCDebug::init() - 12hr fmt must be disabled..."); }
       if (timeStr)
-      { 
+      {
          bcd4FromTimeA(smh.u8, timeStr, 0);
          //s.print(timeStr); s.print(" -> "); s.println(smh.u32, HEX);
+         if (!timeValid(smh)) { smh.u32= 0; }
       }
       if (dateStr)
       {
          bcd4FromDateA(dmy.u8, dateStr, 0);
          //s.print(dateStr); s.print(" -> "); s.println(dmy.u32, HEX);
+         if (!dateValid(dmy)) { dmy.u32= 0; }
       }
       return F4HWRTC::init(smh.u32, dmy.u32);
    } //s.print("F4HWRTC:CR="); s.println(RTC->CR,HEX); return(r); }
-   
+
    void dump (Stream& s)
    {
      UU32 dt;
@@ -114,7 +171,7 @@ public:
      i= 3;
      while (i-- > 1)
      {
-       hexChFromU8(fs, dt.u8[i]); 
+       hexChFromU8(fs, dt.u8[i]);
        s.print(fs);
      }
      fs[2]= ' ';
@@ -129,11 +186,11 @@ static const char *dow[]={"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
      fs[2]= ':';
      dt.u32= getRawTime();
      //s.println(dt.u32,HEX);
-     if ((dt.u8[3] & 0x1) && (dt.u8[2] < 0x12)) { dt.u8[3]= bcd8Add(dt.u8+2, dt.u8[2], 0x12); } // pm -> 24hr
+     //if (mode12h() && (dt.u8[3] & 0x1) && (dt.u8[2] < 0x12)) { dt.u8[3]= bcd4Add2(dt.u8+2, dt.u8[2], 0x12); } // pm -> 24hr
      i= 3;
      while (i-- > 1)
      {
-       hexChFromU8(fs, dt.u8[i]); 
+       hexChFromU8(fs, dt.u8[i]);
        s.print(fs);
      }
      hexChFromU8(fs, dt.u8[0]);
