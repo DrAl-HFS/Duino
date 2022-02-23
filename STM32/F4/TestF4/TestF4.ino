@@ -45,7 +45,7 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif // STM32F4
 
 RTCDebug gRTCDbg;
-DNTimer gT(100); // 100ms -> 10Hz
+DNTimer gT(500); // 500ms -> 2Hz
 CW25QDbg gW25QDbg(21);
 
 uint16_t gIter=0;
@@ -67,7 +67,7 @@ void bootMsg (Stream& s)
 #define SCAN_BLOCKS 256
 void hackInit (Stream& s)
 {
-  gADC.log(s,0x11);
+  gADC.log(s,0x81);
   if (gW25QDbg.statf & 0x1)
   {
     uint16_t aP= 0x0000;
@@ -118,6 +118,7 @@ void hackInit (Stream& s)
 
 void hackTest (Stream& s, uint16_t i)
 {
+  //__QADD(); asm("QADD");
 #if 0
   if (i < 1)
   {
@@ -157,6 +158,7 @@ void setup (void)
 
 #ifdef ST_ANALOGUE_HPP
   gADC.pinSetup(PA0,ADC_TEST_NUM_CHAN); // PA0~7?
+  gADC.init(DEBUG);
   gADC.clk(DEBUG);
 #endif // ST_ANALOGUE_HPP
 } // setup
@@ -190,8 +192,10 @@ static const uint16_t np[]={ 0x0 , (16<<10)-0x10 };
     }
     hackTest(DEBUG,gIter);
 #ifdef ST_ANALOGUE_HPP
+    gADC.setSamplePeriod(ADC_FAST);
     //gADC.test1(DEBUG,gIter);
-    gADC.test2(DEBUG);
+    gADC.test2(DEBUG,gIter);
+    if (2 == (gIter & 0xF)) { gADC.log(DEBUG,0x6); }
 #endif // ST_ANALOGUE_HPP
     gIter++;
   }

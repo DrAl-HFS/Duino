@@ -27,6 +27,7 @@
 #define ADC_ID ADC1
 
 #include "../CMX_Util.hpp"
+#include "ST_Util.hpp"
 
 #if 0
 #include <Arduino.h>
@@ -34,70 +35,22 @@
 #include <libmaple/adc.h>
 #include <boards.h>
 #endif
-#include <libmaple/rcc.h>
-#ifndef PERIPH_BASE
-#define PERIPH_BASE  ((uint32_t)0x40000000)
-#endif
-#ifndef RCC_BASE
-#define RCC_BASE     ((rcc_reg_map*)(PERIPH_BASE + 0x23800))
-#endif
-
-// DISPLACE -> ?
-class F4RCC
-{
-protected:
-
-   uint8_t shClkDivAHB (const uint32_t cfgr)
-   {  // bits 4..7 = HPRE (AHB prescaler)
-      const uint8_t ahbdb= (cfgr >> 4) & 0xF;
-      if (ahbdb < 8) { return(0); } // else
-      // codes 8..15 -> divider 2, 4, 8, 16, 64, 128, 256, 512
-      uint8_t sh= ahbdb - 7;
-      sh+= (sh >= 5); // 32 skipped
-      return(sh);
-   } // shClkDivAHB
-   
-   uint8_t shClkDivAPB2 (const uint32_t cfgr)
-   {  // bits 13..15 = PPRE2 (APB2 high speed prescaler)
-      const uint8_t apb2db= (cfgr >> 13) & 0x7;
-      if (apb2db < 4) { return(0); } // else
-      // codes 4..7 -> divider 2, 4, 8, 16
-      return(apb2db - 3);
-   } // shClkDivAPB2
-   
-public:
-   F4RCC (void) { ; }
-   
-   uint32_t clkDivAPB2 (void)
-   {
-      uint32_t cfgr= RCC_BASE->CFGR;
-      return((uint32_t)1 << ( shClkDivAHB(cfgr) + shClkDivAPB2(cfgr) ) ); //return(((uint16_t)1 << ahbsh) * (1 << apb2sh));
-   } // clkDivAPB2
-   
-}; // F4RCC
-
-class F4RCCDbg : public F4RCC
-{
-public:
-   F4RCCDbg (void) : F4RCC() { ; }
-   
-   uint32_t clkDivAPB2 (Stream& s)
-   {
-      uint32_t cfgr= RCC_BASE->CFGR;
-      uint8_t sa= shClkDivAHB(cfgr);
-      uint8_t sb= shClkDivAPB2(cfgr);
-      s.print("F4RCC: cfgr="); s.print(cfgr,HEX);
-      s.print(" shClkDiv* AHB="); s.print(sa); s.print(" APB2="); s.print(sb); s.println(" :F4RCC");
-      return((uint32_t)1 << ( sa + sb ) ); //return(((uint16_t)1 << sa) * (1 << sb));
-   } // clkDivAPB2
-
-}; // F4RCCDbg
 
 #ifndef VREFIN_CAL
 #define VREFIN_CAL 1.2
 // hack VREFIN_CAL 0.7
 #endif
 
+namespace ADCProf {
+   enum FMS : uint16_t { // flag, mask & shift definitions
+      CHAN_M= 0x1F,     // Channel (0..18) mask (19..31 invalid)
+      RJCT_M= 0x7,      // Reject count (0..7) mask = 0xE>>RJCT_S 
+      RJCT_S= 5,        // Reject mask shift
+      NCNT_F= 0x8000,   // no continuous *???*
+      NMDS_F= 0x4000,   // no mode switch *DEPRECATE*
+      NARJ_F= 0x2000    // no auto-reject
+   };
+}; // namespace ADCProf
 
 class VCal // calibration
 {
@@ -143,11 +96,60 @@ public:
 // Extend functionality of driver for STM32 built-in 12bit ADC
 class ADC : public VCal, public STM32ADC
 {
+// private utility code
+struct ADCMode // profile ?
+{ 
+   volatile uint32_t *pMBCCR;
+   uint8_t  chan, rej;
+
+   ADCMode (uint16_t prof)
+   {
+      uint8_t vc;
+      chan= vc= prof & ADCProf::CHAN_M;
+      if (chan > 21) { chan-= 6; }
+      else if (chan > 18) { chan-= 3; }
+      ASSERT(chan <= 18);
+      // default continuous conversion
+      if (0 == (prof & ADCProf::NCNT_F)) { adc_start_continuous_convert(ADC_ID, chan); }
+      rej= (prof >> ADCProf::RJCT_S) & ADCProf::RJCT_M;
+      if (vc > 18) // virtual channels: special modes enabled
+      {  // TSVREFE (bit22) for 19..21 versus, VBATE (bit23) for 22..24
+         pMBCCR= CMX::bbp((void*)&(ADC_COMMON_BASE->CCR), 22 + (vc > 21));
+         if (0 == *pMBCCR)
+         {  // default auto reject on mode change
+            if (0 == (prof & ADCProf::NARJ_F)) { rej+= (rej <= 0); }
+            *pMBCCR= 1;
+            return;
+         }
+      } // else 
+      pMBCCR= NULL;
+   } // ADCMode
+   
+   ~ADCMode (void)
+   {
+      adc_clear_continuous(ADC_ID);
+      if (pMBCCR) { *pMBCCR= 0; }
+   } // ~ADCMode
+
+   // doesn't particularly belong here...
+   uint16_t syncGetData (void) const
+   {
+      while ( !adc_is_end_of_convert(ADC_ID) ); // spin
+      return adc_get_data(ADC_ID);  
+   } // syncGetData
+
+}; // ADCMode
+
+   
 //static const normScale ???
 public:
    float kR, kD, kB;
 
-   ADC (void) : VCal(), STM32ADC(ADC_ID) { setK(); }
+   ADC (void) : VCal(), STM32ADC(ADC_ID)
+   {
+      setK(); 
+      setSamplePeriod(ADC_FAST);
+   }
 
    void pinSetup (uint8_t pn, uint8_t n)
    {
@@ -161,37 +163,31 @@ public:
       kB= vB * ADC_NORM_SCALE;
    }
 
-   uint8_t readMultiRaw (uint16_t raw[], const uint8_t n, const uint8_t crm)
+   uint8_t readRawN (uint16_t raw[], const uint8_t n, const uint16_t prof)
    {
-      const uint8_t rej= crm >> 5, chan= crm & 0x1F; 
-      if (chan <= 18)
+      const ADCMode mode(prof); 
+
+      const uint32_t max= n + mode.rej;
+      uint32_t j=0;
+      for (uint32_t i=0; i<max; i++)
       {
-         volatile uint32_t *pCCR= NULL; //CMX::bbp((void*)&(ADC_COMMON_BASE->CCR));
-         uint8_t eb= 0;
-         if (chan >= 16)
-         {  //rej++;
-            //adc_set_sampling_time(ADC_ID,ADC_SLOW);
-            pCCR= CMX::bbp((void*)&(ADC_COMMON_BASE->CCR));
-            eb= 22 + (18 == chan); // TSVREFE for 16&17, VBATE for 18
-            pCCR[eb]= 1;
-         }
-         adc_start_continuous_convert(ADC_ID,chan);
-         for (uint8_t i=0; i<rej; i++)
-         {
-            while ( !adc_is_end_of_convert(ADC_ID) ); // spin
-            adc_get_data(ADC_ID); // reject
-         }
-         for (uint8_t i=0; i<n; i++)
-         {
-            while ( !adc_is_end_of_convert(ADC_ID) ); // spin
-            raw[i]= adc_get_data(ADC_ID);
-         }
-         if (pCCR) { pCCR[eb]= 0; }
-         return(n);
+         raw[j]= mode.syncGetData(); // overwrite until rejection complete
+         j+= (i >= mode.rej);
       }
-      return(0);
-   } // readMultiRaw
+      return(n);
+   } // readRawN
    
+   uint32_t readRawSumN (const uint8_t n, const uint16_t prof)
+   {
+      const ADCMode mode(prof); 
+      
+      uint32_t s;
+      uint8_t  i=0;
+      do { s= mode.syncGetData(); } while (i++ < mode.rej); // overwrite until rejection complete
+      for (i=1; i<n; i++) { s+= mode.syncGetData(); }
+      return(s);
+   } // readRawSumN
+
 #ifdef ARDUINO_ARCH_STM32F4
    uint16 rawCal[3];
    bool calibrate (uint16_t t=0)
@@ -241,21 +237,6 @@ public:
    bool calibrate (uint16_t t=0) { STM32ADC::calibrate(); return(true); }
 #endif // ARDUINO_ARCH_STM32F4
 
-   uint32_t readSumN (uint8_t chan, uint8_t n)
-   {
-      uint32_t s;
-      adc_start_continuous_convert(ADC_ID,chan);
-      while ( !adc_is_end_of_convert(ADC_ID) ); // spin
-      s= adc_get_data(ADC_ID);
-      for (uint8_t i=1; i<n; i++)
-      {
-         while ( !adc_is_end_of_convert(ADC_ID) ); // spin
-         s+= adc_get_data(ADC_ID);
-      }
-      resetContinuous();
-      return(s);
-   } // readSumN
-
    // return result bits
    uint8_t setSamplePeriod (adc_smp_rate r)
    {
@@ -279,22 +260,48 @@ class ADCDbg : public ADC
 {
 private:
    uint16_t calF;
-   uint8_t chan;
+   uint8_t chan1,chan2,rej,dne; // Hacky test state variables
+   
+   // ADC clock PreScaler Data Bits -> clock divider value
+   uint8_t decodePSDB (uint8_t psdb) // CAVEAT: GIGO
+   {  // 3..0 -> 8, 6, 4, 2
+      if (0x2 == psdb) { return(6); } //else
+      psdb+= psdb < 0x2;
+      return(1 << psdb);
+   } // decodeClkDiv
    
 public:
-   ADCDbg (void) : ADC() { chan=15; calF=0; setSamplePeriod(ADC_FAST); }
+   ADCDbg (void) : ADC()
+   {
+      chan1=0; chan2=15; rej=0; dne=0; calF=0;
+   }
+   
+   void init (Stream& s, uint8_t cd=0x2) { s.print("ADCDbg() - clkDiv="); s.println(setClkDiv(cd)); }
    
    void log (Stream& s, uint8_t m=0x10)
    {
-      if (m & 0x1)
+      if (m & 0xF)
       {
          s.print("ADC1: 0x"); s.print((uint32_t)ADC1_BASE,HEX); 
-         //const volatile uint32_t *p= CMX::bbp((void*)&(ADC1_BASE->CR2));
-         //volatile uint32 *p= bb_perip((void*)&(ADC1_BASE->CR2),0);
-         //s.print(" bbp: 0x"); s.print((uint32_t)p); s.print("->"); s.print(*p);
-         s.print(" SR=0x"); s.print(ADC1_BASE->SR,HEX);
-         s.print(" CR1=0x"); s.print(ADC1_BASE->CR1,HEX);
-         s.print(" CR2=0x"); s.print(ADC1_BASE->CR2,HEX);
+         if (m & 0x1)
+         {
+            s.print(" SR=0x"); s.print(ADC1_BASE->SR,HEX);
+            s.print(" CR1=0x"); s.print(ADC1_BASE->CR1,HEX);
+            s.print(" CR2=0x"); s.print(ADC1_BASE->CR2,HEX);
+         }
+         if (m & 0x2)
+         {
+            s.print(" SMPR1="); dumpBits(s, ADC1_BASE->SMPR1, (3<<5)|9);
+            s.print(" SMPR2="); dumpBits(s, ADC1_BASE->SMPR2, (3<<5)|9);
+         }
+         if (m & 0x4)
+         {
+            s.print(" SQR1="); dumpBits(s, ADC1_BASE->SQR1 & 0xFFFFFF, (5<<5)|5);
+            s.print(" SQR2="); dumpBits(s, ADC1_BASE->SQR2, (5<<5)|6);
+            s.print(" SQR3="); dumpBits(s, ADC1_BASE->SQR2, (5<<5)|6);
+            s.print(" JSQR="); dumpBits(s, ADC1_BASE->JSQR & 0x3FFFFF, (5<<5)|6);
+         }
+         //if (m & 0x8) { }
          s.println(" :ADC1");
       }
       if (m & 0x10)
@@ -305,7 +312,7 @@ public:
          s.print(" CDR=0x"); s.print(ADC_COMMON_BASE->CDR,HEX);
          s.println(" :ADC*");
       }
-      if (m & 0x2)
+      if (m & 0x80)
       {
          s.print("rawCal: "); 
          s.print(" Ch16=0x"); s.print(rawCal[0],HEX);
@@ -328,9 +335,9 @@ public:
    {
       float aV;
       //log(s);
-      if (++chan >= ADC_TEST_NUM_CHAN) { chan=0; }
-      aV= readSumN(chan,16) * (1.0/16) * kD;
-      s.print(" CH"); s.print(chan); s.print('='); s.print(aV,4); s.print("V ");
+      if (++chan1 >= ADC_TEST_NUM_CHAN) { chan1=0; }
+      aV= readRawSumN(16,chan1) * (1.0/16) * kD;
+      s.print(" CH"); s.print(chan1); s.print('='); s.print(aV,4); s.print("V ");
 
        //---
        //if ((0 == adc.n) || 
@@ -344,35 +351,57 @@ public:
       s.print(" tC="); s.print(tC,4); s.print("C vR="); s.print(vR,4); s.println('V');
    } // test1
 
-   void test2 (Stream& s)
+   void test2 (Stream& s, uint16_t iter)
    {
-      uint16_t r[20];
-      if (++chan > 18) { chan=16; }
-      int8_t n= readMultiRaw(r, 20, (1<<5)|chan);
+      uint16_t r[16], m;
+      uint32_t sum;
+      if (++chan2 > 24) { chan2=15; dne^= 0x40; }
+      int8_t n= readRawN(r, 16, ((uint16_t)dne<<8)|rej|chan2);
       if (n > 0)
       {
-         s.print("RMR["); s.print(chan); s.print("]: "); s.print(r[0]);
-         for (int8_t i=1; i<n; i++) { s.print(','); s.print(r[i]); }
+         s.print("RMR["); s.print(chan2); s.print("]: "); 
+         s.print(r[0]);
+         sum= r[0];
+         for (int8_t i=1; i<n; i++) { s.print(','); s.print(r[i]); sum+= r[i]; }
+         m= sum/n;
+         s.print("; M="); s.println(m);
+         s.print("DIFF:");
+         s.print(r[0]-m); for (int8_t i=1; i<n; i++) { s.print(','); s.print(r[i]-m); }
          s.println(" :RMR");
       }
    } // test2
    
-   uint8_t clkDiv (void)
-   {  // 3..0 -> 8, 6, 4, 2
-      uint8_t psdb= (ADC_COMMON_BASE->CCR >> 16) & 0x3;
-      if (0x2 == psdb) { return(6); } //else
-      psdb+= psdb < 0x2;
-      return(1 << psdb);
-   } // clkDiv 
+   // ADC input clock divider (relative to APB2 clock rate)
+   uint32_t getClkDiv (bool global=false) 
+   {
+      uint32_t d= decodePSDB((ADC_COMMON_BASE->CCR >> 16) & 0x3);
+      if (global)
+      {
+         F4RCC rcc;
+         d*= rcc.clkDivAPB2();
+      }
+      return(d);
+   } // getClkDiv
    
+   uint8_t setClkDiv (uint8_t psdb)
+   {
+      uint32_t ccr= ADC_COMMON_BASE->CCR;
+      if ((psdb & 0x3) != psdb) { psdb= (ccr >> 16) & 0x3; }
+      else
+      {
+         ccr&= ~(0x3 << 16);
+         ccr|= psdb << 16;
+         ADC_COMMON_BASE->CCR= ccr;
+      }
+      return decodePSDB(psdb);
+   } // setClkDiv
+
+   // Determine ADC clock rate from the clock divider hierarchy: AHB - APB2 (HS) - ADC.
    uint32_t clk (Stream& s)
-   {  // PCLK2 (=APB2?) / PSD
-      F4RCCDbg rcc;
-      uint16_t a= rcc.clkDivAPB2(s);
-      uint8_t  b= clkDiv();
-      uint32_t d= a * b;
-      uint32_t c= 84000000 / d;
-      s.print("clkDiv="); s.print(a); s.print('*');s.print(b); s.print("="); s.println(d);
+   {
+      uint32_t d= getClkDiv(true);
+      uint32_t c= ST_CORE_CLOCK / d;
+      s.print("clkDiv="); s.println(d);
       s.print("ADClk="); s.print(c * 1E-6); s.println("MHz");
       return(c);
    }
