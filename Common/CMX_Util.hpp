@@ -12,15 +12,31 @@
 // bb_perip(a,b)
 #endif
 
-// [Bit-twiddling hack]
-// Suitable for any CPU with fast 32bit shift & mask.
-// Doesn't really belong here...
+// [Bit-twiddling hacks]
+// Routines suitable for any CPU with fast 32bit shift & mask (& mult) - don't really belong here...
+
+// Count bits set in a 32bit word (12 ops inc. mult)
 uint32_t bitCount32 (uint32_t v)
 {
    v= v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
    v= (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
-   return(((v + ((v >> 4) & 0xF0F0F0F)) * 0x1010101) >> 24);
+   return(((v + (v >> 4) & 0x0F0F0F0F) * 0x01010101) >> 24);
 } // bitCount32
+
+// Assemble unaligned bytes as a (little endian) 32bit word
+// NB: simple but not efficient due to 4 memory accesses!
+uint32_t rdble (const uint8_t b[], const int n)
+{
+   uint32_t w= 0;
+   if (n > 0)
+   {
+      w= b[0];
+      for (int i=1; i<n; i++) { w|= b[i] << (i<<3); }
+   }
+   return(w);
+} // rdble
+
+//
 
 namespace CMX {
 

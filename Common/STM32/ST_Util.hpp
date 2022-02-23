@@ -6,6 +6,8 @@
 #ifndef ST_UTIL_HPP
 #define ST_UTIL_HPP
 
+#include "../CMX_Util.hpp"
+
 // Reset & Clock Control doodahs (temporarily dumped here)
 
 #define ST_CORE_CLOCK  84000000  // STM32F4x1 hacky
@@ -70,6 +72,61 @@ public:
    } // clkDivAPB2
 
 }; // F4RCCDbg
+
+
+#ifndef CRC_BASE
+//NB: <libmaple/crc.h> doesn't exist
+typedef struct crc_reg_map { uint32_t CRC_DR, CRC_IDR, CRC_CR; } crc_reg_map;
+#define CRC_BASE  ((crc_reg_map*)(PERIPH_BASE + 0x23000))
+#endif
+
+class F4HWCRC
+{
+public:
+   F4HWCRC (bool on=true) { if (on) { power(); reset(); } }
+
+   void power (uint8_t on=1) { *CMX::bbp((void*)&(RCC_BASE->AHB1ENR), 12)= on; }
+
+   void reset (void) { *CMX::bbp((void*)&(CRC_BASE->CRC_CR))= 1; }
+
+   uint32_t add (const uint32_t v)
+   {
+      CRC_BASE->CRC_DR= v;
+      // No input buffer on F4 so must delay 4+ AHB clks to avoid bus stall
+      return bitCount32(v); // slower than necessary but an additional sanity check is welcome
+   } // add (uint32
+
+   uint32_t add (const uint32_t v[], const int n)
+   {
+      uint32_t t= 0;
+      for (int i=0; i<n; i++) { t+= add(v[i]); }
+      return(t);
+   } // add (uint32*
+
+   uint32_t add (const uint8_t b[], int n)
+   {
+      uint32_t t= 0;
+      if (n > 0)
+      {
+#if 1
+         t= add((const uint32_t*)b, n>>2);
+#else
+         uint32_t o= 0x3 & (uint32_t)b;
+         if (0 == o) { t= add((const uint32_t*)b, n>>2); }
+         else
+         {  // unaligned :(
+            for (int i=0; i<n; i+= 4) { t+= add( rdble(b+i,4) ); }
+         }
+#endif
+         // residual (trailing) bytes, zero padded
+         uint32_t r= 0x3 & n;
+         if (r) { t+= add(rdble(b+n-r,r)); }
+      }
+      return(t);
+   } // add (uint8*
+
+   uint32_t get (void) { return(CRC_BASE->CRC_DR); }
+}; // F4HWCRC
 
 
 /* Hardware ID & calibration stuff */

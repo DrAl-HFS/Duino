@@ -17,28 +17,7 @@
 #endif
 
 #ifndef RCC_BASE
-#define RCC_BASE     (rcc_reg_map*)(PERIPH_BASE + 0x23800)
-#endif
-
-#ifdef TEST_CRC
-void crcEnable (rcc_reg_map *pR= RCC_BASE) { pR->AHB1ENR|= 0x1000; } // seems OK
-//NB: <libmaple/crc.h> doesn't exist
-#define CRC_BASE  (crc_reg_map*)(PERIPH_BASE + 0x23000)
-typedef struct crc_reg_map { uint32_t CRC_DR, CRC_IDR, CRC_CR; } crc_reg_map;
-
-// TODO figure out why this kills everything...
-// No input buffer on F4 - bus stall ?
-uint32_t crc (const uint32_t v[], const int n)
-{
-   crc_reg_map *pR= CRC_BASE;
-   
-   pR->CRC_CR= 0x1; // reset
-   for (int i=0; i<n; i++)
-   {
-      pR->CRC_DR= v[i]; // 4 AHB clks
-   }
-   return(pR->CRC_DR);
-} // crc
+#define RCC_BASE     ((rcc_reg_map*)(PERIPH_BASE + 0x23800))
 #endif
 
 
