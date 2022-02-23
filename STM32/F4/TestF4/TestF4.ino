@@ -142,22 +142,27 @@ void hackTest (Stream& s, uint16_t i)
 #ifdef TEST_CRC
   if (i <= 2)
   {
-    uint8_t  b1[]={0x00,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,0x00,0x00,0x00};
-    uint8_t  b2[]={0x00,0x67,0x45,0x23,0x01,0xef,0xcd,0xab,0x89,0x00,0x00,0x00};
     uint32_t w[]={0x01234567,0x89abcdef};
+    uint8_t  b[]={0x00,0x67,0x45,0x23,0x01,0xef,0xcd,0xab,0x89,0x00,0x00,0x00};
+    char  cs[]="123456789abcdef";
     uint32_t t;
     t= crc.add(w,sizeof(w)/sizeof(w[0]));
-    s.print("CRC: crc=0x"); s.print(crc.get(),HEX);
+    s.print("CRC: 0x"); s.print(w[0],HEX);
+    s.print(", 0x"); s.print(w[1],HEX);
+    s.print(" -> 0x"); s.print(crc.get(),HEX);
     s.print(", t="); s.println(t);
     
-    t= crc.add(b1+1,8);
-    s.print("CRC: crc=0x"); s.print(crc.get(),HEX);
+    t= crc.add(b+1,8);
+    s.print("CRC: 0x"); s.print(*(uint32_t*)(b+1),HEX);
+    s.print(", 0x"); s.print(*(uint32_t*)(b+5),HEX);
+    s.print(" -> 0x"); s.print(crc.get(),HEX);
     s.print(", t="); s.println(t);
-
-    t= crc.add(b2+1,8);
-    s.print("CRC: crc=0x"); s.print(crc.get(),HEX);
+#if 1
+    t= crc.add((uint8_t*)cs,sizeof(cs)-1);
+    //s.print("CRC: 0x"); s.print(*(uint32_t*)(b+1),HEX);
+    s.print(" -> 0x"); s.print(crc.get(),HEX);
     s.print(", t="); s.println(t);
-    
+#endif
     s.println(" :CRC");
   }
 #endif

@@ -128,9 +128,11 @@ public:
    uint32_t get (bool rst=true)
    {
       uint32_t r= CRC_BASE->CRC_DR;
+      //uint32_t d= bitCount32(r);
       if (rst) { reset(); }
-      return(r);
-   }
+      return(r^-1);
+   } // get
+
 }; // F4HWCRC
 
 
