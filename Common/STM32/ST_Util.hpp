@@ -125,7 +125,12 @@ public:
       return(t);
    } // add (uint8*
 
-   uint32_t get (void) { return(CRC_BASE->CRC_DR); }
+   uint32_t get (bool rst=true)
+   {
+      uint32_t r= CRC_BASE->CRC_DR;
+      if (rst) { reset(); }
+      return(r);
+   }
 }; // F4HWCRC
 
 

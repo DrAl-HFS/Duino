@@ -14,6 +14,7 @@
 
 // [Bit-twiddling hacks]
 // Routines suitable for any CPU with fast 32bit shift & mask (& mult) - don't really belong here...
+extern "C" {
 
 // Count bits set in a 32bit word (12 ops inc. mult)
 uint32_t bitCount32 (uint32_t v)
@@ -36,7 +37,8 @@ uint32_t rdble (const uint8_t b[], const int n)
    return(w);
 } // rdble
 
-//
+}; // extern "C"
+// [Bit-twiddling hacks]
 
 namespace CMX {
 
