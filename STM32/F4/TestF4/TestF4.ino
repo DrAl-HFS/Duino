@@ -13,11 +13,13 @@
 typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif
 
+#define TEST_CRC 1
+
 //#include "Common/DN_Util.hpp"
 #include "Common/dateTimeUtil.hpp"
 #include "Common/STM32/ST_Util.hpp"
 #include "Common/STM32/ST_Analogue.hpp"
-//include "Common/STM32/ST_HWH.hpp"
+#include "Common/STM32/ST_HWH.hpp"
 #include "Common/STM32/ST_F4HWRTC.hpp"
 #include <SPI.h>
 #include "Common/CW25Q.hpp"
@@ -53,6 +55,10 @@ uint16_t gIter=0;
 #ifdef ST_ANALOGUE_HPP
 ADCDbg gADC;
 #endif // ST_ANALOGUE_HPP
+
+#ifdef TEST_CRC
+F4HWCRC crc;
+#endif
 
 void bootMsg (Stream& s)
 {
@@ -104,7 +110,6 @@ void hackInit (Stream& s)
   }
 #endif
   //revTest(DEBUG,0xA050);
-  //crcEnable();
   //dumpRCCReg(DEBUG);
 #if 0
   uint8_t v[]={0x11, 0x12, 0x00, 0x00};
@@ -133,9 +138,28 @@ void hackTest (Stream& s, uint16_t i)
       }
     }
   }
-  uint32_t v[]={0x01234567,0x89abcdef};
-  uint32_t nc= crc(v,sizeof(v)/sizeof(v[0]));
-  DEBUG.print("crc="); DEBUG.println(nc);
+#endif
+#ifdef TEST_CRC
+  if (i <= 2)
+  {
+    uint8_t  b1[]={0x00,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,0x00,0x00,0x00};
+    uint8_t  b2[]={0x00,0x67,0x45,0x23,0x01,0xef,0xcd,0xab,0x89,0x00,0x00,0x00};
+    uint32_t w[]={0x01234567,0x89abcdef};
+    uint32_t t;
+    t= crc.add(w,sizeof(w)/sizeof(w[0]));
+    s.print("CRC: crc=0x"); s.print(crc.get(),HEX);
+    s.print(", t="); s.println(t);
+    
+    t= crc.add(b1+1,8);
+    s.print("CRC: crc=0x"); s.print(crc.get(),HEX);
+    s.print(", t="); s.println(t);
+
+    t= crc.add(b2+1,8);
+    s.print("CRC: crc=0x"); s.print(crc.get(),HEX);
+    s.print(", t="); s.println(t);
+    
+    s.println(" :CRC");
+  }
 #endif
   //for (uint8_t i=1; i<=5; i++) { dumpTimReg(DEBUG, i); }
 } // hackTest
