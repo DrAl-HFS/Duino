@@ -71,10 +71,15 @@ protected:
       RTC->DR= d & 0xFFFF3F; // mask off reserved bits
    } // setRawDate
 
-   bool init (uint32_t t=0, uint32_t d=0)
+   uint8_t init (uint32_t t=0, uint32_t d=0)
    {
+      uint8_t f;
+
       bkp_init();             // Enable PWR clock.
       bkp_enable_writes();    // PWR_CR:DBP control bit
+
+      f= *backup(0) > 0;
+      if (0 == f) { *backup(0)= 0x1; }
 
       // Ensure LSE mode (external 32.768kHz source)
       if (RCC_BDCR_RTCSEL_LSE != (RCC->BDCR & RCC_BDCR_RTCSEL_MASK))
@@ -85,24 +90,49 @@ protected:
          int32_t c= 8<<20; // avoid hang <0.5s
          while ((0 == (RCC->BDCR & RCC_BDCR_LSERDY)) && (c > 0)) { --c; }
          //if (c <= 0) { error(); }
+         f|= 0x08;
       }
       rtc_enter_config_mode();
       RTC->PRER = (uint32_t)((0x7F << 16) + 0xFF);
       //if (0 == d) { d= 0x6220101; } // (Sat) 22/1/1
       //if (0 == t) { t= 0x105923; } // 10:59:23
-      if (0 != d)
-      {
-         int dd= mcmp(d,getRawDate());
-         if (dd > 0) { setRawDate(d); }
-         if ((dd >= 0) && (0 != t)) { setRawTime(t); }
+      if (0 == (0x1 & f))
+      {  // must set clock
+         if (0 != d) { setRawDate(d); f|= 0x20; }
+         if (0 != t) { setRawTime(t); f|= 0x40; }
+      }
+      else
+      {  // update?
+         int dd= 0;
+         f|= 0x10;
+         if (0 != d)
+         {
+            dd= mcmp(d,getRawDate());
+            if (dd > 0) { setRawDate(d); f|= 0x20; }
+         }
+         if ((0 != t) && (dd > 0))
+         {
+            dd= mcmp(t,getRawTime());
+            if (0 != dd) { setRawTime(t); f|= 0x40; }
+         }
       }
       //RCC->CR |= RTC_CR_BYPSHAD;
       *bb_perip(&RTC->CR, RTC_CR_FMT_BIT)= 0;      // 24h time format
       *bb_perip(&RTC->CR, RTC_CR_BYPSHAD_BIT)= 1;  // enable shadow bypass (reduce update latency)
       rtc_exit_config_mode();
       bkp_disable_writes(); // leave it as you found it
-      return(true);
+      return(f);
    } // init
+
+   uint32_t *backup (uint8_t i)
+   {
+      if (i < 20)
+      {  // Neither RTC_BKP0R nor BKP0R are defined
+         uint32_t *p= ((uint32_t*)RTC)+(0x50>>2);
+         return(p+i);
+      } // else
+      return(NULL);
+   } // backup
 
 public:
    F4HWRTC (void) { ; }
@@ -122,16 +152,6 @@ public:
       return(d);
    } // getRawDate
 
-   uint32_t *backup (uint8_t i)
-   {
-      if (i < 20)
-      {  // BKP0R undefined
-         uint32_t *p= ((uint32_t*)RTC)+(0x50>>2);
-         return(p+i);
-      } // else
-      return(NULL);
-   } // backup
-
 }; // F4HWRTC
 
 class RTCDebug : public F4HWRTC
@@ -144,7 +164,6 @@ public:
    {
       UU32 smh={0}, dmy={0};
 
-      s.print("RTCDebug::init() - BKP[0]="); s.println(*backup(0),HEX);
       //if (mode12h()) { s.println("RTCDebug::init() - 12hr fmt must be disabled..."); }
       if (timeStr)
       {
@@ -158,8 +177,10 @@ public:
          //s.print(dateStr); s.print(" -> "); s.println(dmy.u32, HEX);
          if (!dateValid(dmy)) { dmy.u32= 0; }
       }
-      return F4HWRTC::init(smh.u32, dmy.u32);
-   } //s.print("F4HWRTC:CR="); s.println(RTC->CR,HEX); return(r); }
+      uint8_t f= F4HWRTC::init(smh.u32, dmy.u32);
+      s.print("RTCDebug::init() - f=0b"); s.println(f,BIN);
+      return(true);
+   } // init
 
    void dump (Stream& s)
    {
@@ -196,7 +217,7 @@ static const char *dow[]={"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
      hexChFromU8(fs, dt.u8[0]);
      fs[2]= 0x0; // '\n';
      s.println(fs);
-   } // dumpRTC
+   } // dump
 
 }; // RTCDebug
 

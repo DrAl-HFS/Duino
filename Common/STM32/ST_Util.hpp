@@ -20,7 +20,7 @@
 #define RCC_BASE     ((rcc_reg_map*)(PERIPH_BASE + 0x23800))
 #endif
 
-class F4RCC
+class F4RCC // Different from F103 ??
 {
 protected:
 
@@ -75,31 +75,41 @@ public:
 
 
 #ifndef CRC_BASE
-//NB: <libmaple/crc.h> doesn't exist
+// NB: <libmaple/crc.h> doesn't exist. Same addresses for F103 && F4x1
 typedef struct crc_reg_map { uint32_t CRC_DR, CRC_IDR, CRC_CR; } crc_reg_map;
 #define CRC_BASE  ((crc_reg_map*)(PERIPH_BASE + 0x23000))
 #endif
 
-class F4HWCRC
+class HWCRC // Almost same for F103 && F4x1 ?
 {
 public:
-   F4HWCRC (bool on=true) { if (on) { power(); reset(); } }
+   HWCRC (bool on=true) { if (on) { power(); reset(); } }
 
-   void power (uint8_t on=1) { *CMX::bbp((void*)&(RCC_BASE->AHB1ENR), 12)= on; }
+   void power (uint8_t state=1)
+   {
+      #if 1 // F4x1
+      *CMX::bbp((void*)&(RCC_BASE->AHB1ENR), 12)= state;
+      #else // F103
+      *CMX::bbp((void*)&(RCC_BASE->AHBENR), 6)= state;
+      #endif
+   } // power
 
    void reset (void) { *CMX::bbp((void*)&(CRC_BASE->CRC_CR))= 1; }
 
-   uint32_t add (const uint32_t v)
-   {
-      CRC_BASE->CRC_DR= v;
+   uint32_t idr (void) { return(CRC_BASE->CRC_IDR); }
+
+   uint32_t add (const uint32_t w)
+   {  // NB: IETF CRC32 input is bit reversed (?)
+      CRC_BASE->CRC_DR= w; // bitRev32(w);
       // No input buffer on F4 so must delay 4+ AHB clks to avoid bus stall
-      return bitCount32(v); // slower than necessary but an additional sanity check is welcome
+      // May as well perform an additional sanity check
+      return bitCount32(w); // Slower than necessary on 84MHz core? Still adequate on 168MHz?
    } // add (uint32
 
-   uint32_t add (const uint32_t v[], const int n)
+   uint32_t add (const uint32_t w[], const int n)
    {
       uint32_t t= 0;
-      for (int i=0; i<n; i++) { t+= add(v[i]); }
+      for (int i=0; i<n; i++) { t+= add(w[i]); }
       return(t);
    } // add (uint32*
 
@@ -108,9 +118,8 @@ public:
       uint32_t t= 0;
       if (n > 0)
       {
-#if 1
-         t= add((const uint32_t*)b, n>>2);
-#else
+         t= add((const uint32_t*)b, n>>2); // CM3&4 support unaligned access :)
+#if 0
          uint32_t o= 0x3 & (uint32_t)b;
          if (0 == o) { t= add((const uint32_t*)b, n>>2); }
          else
@@ -125,15 +134,15 @@ public:
       return(t);
    } // add (uint8*
 
+   // NB: need extra delay between add() and get()
    uint32_t get (bool rst=true)
    {
-      uint32_t r= CRC_BASE->CRC_DR;
-      //uint32_t d= bitCount32(r);
+      uint32_t r= CRC_BASE->CRC_DR; //bitRev32(CRC_BASE->CRC_DR);
       if (rst) { reset(); }
-      return(r^-1);
+      return(r);
    } // get
 
-}; // F4HWCRC
+}; // HWCRC
 
 
 /* Hardware ID & calibration stuff */

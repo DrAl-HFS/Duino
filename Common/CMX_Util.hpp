@@ -21,11 +21,32 @@ uint32_t bitCount32 (uint32_t v)
 {
    v= v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
    v= (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
-   return(((v + (v >> 4) & 0x0F0F0F0F) * 0x01010101) >> 24);
+   return((((v + (v >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24); // bracket + to prevent compiler grumble
 } // bitCount32
 
-// Assemble unaligned bytes as a (little endian) 32bit word
+uint8_t bitRev32 (uint32_t v)
+{
+   v= ((v >> 1) & 0x55555555) | ((v & 0x55555555) << 1);
+   // swap consecutive pairs
+   v= ((v >> 2) & 0x33333333) | ((v & 0x33333333) << 2);
+   // swap nibbles ...
+   v= ((v >> 4) & 0x0F0F0F0F) | ((v & 0x0F0F0F0F) << 4);
+   // swap bytes
+   v= ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
+   // swap 2-byte long pairs
+   return((v >> 16) | (v << 16));
+} // bitRev32
+
+#if 0 // ???
+uint8_t bitRev8 (uint8_t b)
+{
+   return((b * 0x0802LU & 0x22110LU) | (b * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16;
+} // bitRev8
+#endif
+
+// Read Bytes Little Endian : assemble unaligned bytes LSB to MSB as an unsigned 32bit word
 // NB: simple but not efficient due to 4 memory accesses!
+// Can be done in 2 accesses but risks accessing
 uint32_t rdble (const uint8_t b[], const int n)
 {
    uint32_t w= 0;
