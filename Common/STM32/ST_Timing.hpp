@@ -81,7 +81,7 @@ public:
 
 #if 1 // clock
 
-#include "dateTimeUtil.h"
+#include "../dateTimeUtil.hpp"
 
 #include <RTClock.h>
 
@@ -98,7 +98,7 @@ void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aSt
 } // u8bcd4FromA
 void u8bcd4ToA (char a[], const uint8_t u[], const int8_t n, const uint8_t aStride=3) const
 {
-   for (int8_t i=0; i<n; i++) { hex2ChU8( a+(i*aStride), bin2bcd(u[i]) ); }
+   for (int8_t i=0; i<n; i++) { hexChFromU8( a+(i*aStride), bin2bcd(u[i]) ); }
 } // u8bcd4ToA
 
    // CAVEAT: Hacky assumption of element ordering...
@@ -160,7 +160,7 @@ public:
       setTime(makeTime(*this));
    }
 
-   void print (Stream& s, uint8_t opt=0x00)
+   void print (Stream& s, uint8_t opt=0x02)
    {
       getTime(*this);
       DateTime::print(s,opt);

@@ -5,7 +5,8 @@
 
 #define DEBUG Serial1
 
-#include "CMifare.hpp"
+//#include "CMifare.hpp"
+#include "Common/STM32/ST_Util.hpp"
 #include "Common/STM32/ST_Timing.hpp"
 
 
@@ -20,14 +21,21 @@
 
 CClock gClock;
 CTimer gT;
-CHackMFRC522 gRC522;
+//CHackMFRC522 gRC522;
 
 void tickFunc (void) { gT.nextIvl(); }
+
+void bootMsg (Stream& s)
+{
+  s.println("\n---");
+  s.print("TestST " __DATE__ " ");
+  s.println(__TIME__);
+  dumpID(s);
+} // bootMsg
 
 void setup (void)
 {
   noInterrupts();
-  DEBUG.begin(DEBUG_BAUD);
   
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, 0);
@@ -39,10 +47,9 @@ void setup (void)
   gT.start(tickFunc);
 
   interrupts();
-  DEBUG.print("TestST " __DATE__ " ");
-  DEBUG.println(__TIME__);
+  if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   
-  gRC522.init();
+  //gRC522.init();
   gT.dbgPrint(DEBUG);
 } // setup
 
@@ -55,7 +62,7 @@ void loop (void)
   {
     digitalWrite(PIN_LED, 1);
     gClock.print(DEBUG);
-    gRC522.hack(DEBUG);
+    //gRC522.hack(DEBUG);
     gT.retire(1000);
     c= 100;
   }

@@ -146,15 +146,110 @@ public:
 
    uint32_t getRawDate (void)
    {
-      uint32_t d= RTC->DR & 0xFFFF3F; // mask off reserved bits
+      uint32_t d= RTC->DR & 0xFFFF3F;  // mask off reserved bits
       d|= (d & F4HWRTC_DOW_MASK) << 11; // shift DOW into top byte and
-      d&= ~F4HWRTC_DOW_MASK;           // remove from original location
+      d&= ~F4HWRTC_DOW_MASK;            // remove from original location
       return(d);
    } // getRawDate
 
 }; // F4HWRTC
 
-class RTCDebug : public F4HWRTC
+class RTCUtil : public F4HWRTC
+{
+protected:
+   // sum of products (inner/dot product)
+   uint32_t dotBCD4 (const uint8_t bcd4[], const uint32_t w[], int n)
+   {
+      if (n > 0)
+      {
+         uint32_t s= w[0] * fromBCD4(bcd4[0],2);
+         for (int i=1; i<n; i++) { s+= w[i] * fromBCD4(bcd4[i],2); }
+         return(s);
+      }
+      return(0);
+   } // dotBCD4
+
+public:
+   //RTCUtil () { }
+
+   uint32_t timeStamp (const UU32 bcd4, uint8_t epoch=0)
+   {
+      //uint32_t t=0;
+      return(0);
+   }
+}; // RTCUtil
+
+// ASCII translation
+class RTCUtilA : public RTCUtil
+{
+public:
+   //RTCUtilA (const char *timeStr=NULL, const char *dateStr=NULL) { }
+
+   uint32_t timeFromStr (const char *s)
+   {
+      UU32 smh={0};
+      if (s)
+      {
+         bcd4FromTimeA(smh.u8, s, 0);
+         if (timeValid(smh)) { return(smh.u32); }
+      }
+      return(0);
+   } // timeFromStr
+
+   uint32_t dateFromStr (const char *s)
+   {
+      UU32 dmy={0};
+      if (s)
+      {
+         bcd4FromDateA(dmy.u8, s, 0);
+         if (dateValid(dmy)) { return(dmy.u32); }
+      }
+      return(0);
+   } // dateFromStr
+
+   void printTime (Stream& s, const UU32 bcd4, const char end=' ')
+   {
+      char fs[4]="00:";
+      int8_t i;
+
+      i= 3;
+      while (i-- > 1)
+      {
+       hexChFromU8(fs, bcd4.u8[i]);
+       s.print(fs);
+      }
+      hexChFromU8(fs, bcd4.u8[0]);
+      fs[2]= end;
+      s.print(fs);
+   } // printTime
+
+   void printDOW (Stream& s, uint8_t dow)
+   {
+      static const char *dowa[]={"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
+      dow&= 0x7;
+      dow-= (dow>0);
+      s.print(dowa[dow]);
+   } // printDOW
+
+   void printDate (Stream& s, const UU32 bcd4, const char end=' ')
+   {
+      char fs[4]="00/";
+      int8_t i;
+      //dumpHexFmt(s, bcd4.u8, 3, fs); // wrong order, trailing '/'
+      i= 3;
+      while (i-- > 1)
+      {
+         hexChFromU8(fs, bcd4.u8[i]);
+         s.print(fs);
+      }
+      fs[2]= end;
+      hexChFromU8(fs, bcd4.u8[0]);
+      s.print(fs);
+   } // printDate
+
+}; // RTCUtilA
+
+class RTCDebug : public RTCUtilA
 {
 public:
    RTCDebug (void) { ; }
@@ -162,61 +257,21 @@ public:
    //using F4HWRTC::init;
    bool init (Stream& s, const char *timeStr=NULL, const char *dateStr=NULL)
    {
-      UU32 smh={0}, dmy={0};
-
-      //if (mode12h()) { s.println("RTCDebug::init() - 12hr fmt must be disabled..."); }
-      if (timeStr)
-      {
-         bcd4FromTimeA(smh.u8, timeStr, 0);
-         //s.print(timeStr); s.print(" -> "); s.println(smh.u32, HEX);
-         if (!timeValid(smh)) { smh.u32= 0; }
-      }
-      if (dateStr)
-      {
-         bcd4FromDateA(dmy.u8, dateStr, 0);
-         //s.print(dateStr); s.print(" -> "); s.println(dmy.u32, HEX);
-         if (!dateValid(dmy)) { dmy.u32= 0; }
-      }
-      uint8_t f= F4HWRTC::init(smh.u32, dmy.u32);
+      uint8_t f= F4HWRTC::init(timeFromStr(timeStr), dateFromStr(timeStr));
       s.print("RTCDebug::init() - f=0b"); s.println(f,BIN);
       return(true);
    } // init
 
    void dump (Stream& s)
    {
-     UU32 dt;
-     int8_t i;
-     char fs[4]="00/";
-     dt.u32= getRawDate();
-     //s.println(dt.u32,HEX);
-     i= 3;
-     while (i-- > 1)
-     {
-       hexChFromU8(fs, dt.u8[i]);
-       s.print(fs);
-     }
-     fs[2]= ' ';
-     hexChFromU8(fs, dt.u8[0]);
-     s.print(fs);
-     i= dt.u8[3] & 0x7;
-     if (i > 0)
-     {
-static const char *dow[]={"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
-        s.print("("); s.print(dow[i-1]); s.print(") ");
-     }
-     fs[2]= ':';
-     dt.u32= getRawTime();
-     //s.println(dt.u32,HEX);
-     //if (mode12h() && (dt.u8[3] & 0x1) && (dt.u8[2] < 0x12)) { dt.u8[3]= bcd4Add2(dt.u8+2, dt.u8[2], 0x12); } // pm -> 24hr
-     i= 3;
-     while (i-- > 1)
-     {
-       hexChFromU8(fs, dt.u8[i]);
-       s.print(fs);
-     }
-     hexChFromU8(fs, dt.u8[0]);
-     fs[2]= 0x0; // '\n';
-     s.println(fs);
+      UU32 bcd4;
+      //s.println(dt.u32,HEX);
+      //if (mode12h() && (dt.u8[3] & 0x1) && (dt.u8[2] < 0x12)) { dt.u8[3]= bcd4Add2(dt.u8+2, dt.u8[2], 0x12); } // pm -> 24hr
+      bcd4.u32= getRawDate();
+      printDate(s, bcd4, ' ');
+      s.print('('); printDOW(s,bcd4.u8[3]); s.print(") ");
+      bcd4.u32= getRawTime();
+      printTime(s, bcd4, '\n');
    } // dump
 
 }; // RTCDebug

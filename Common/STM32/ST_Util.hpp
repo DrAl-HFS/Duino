@@ -87,9 +87,10 @@ public:
 
    void power (uint8_t state=1)
    {
-      #if 1 // F4x1
+      #ifdef ARDUUINO_ARCH_STM32F4 // F4x1
       *CMX::bbp((void*)&(RCC_BASE->AHB1ENR), 12)= state;
-      #else // F103
+      #endif
+      #ifdef ARDUUINO_ARCH_STM32F1
       *CMX::bbp((void*)&(RCC_BASE->AHBENR), 6)= state;
       #endif
    } // power
@@ -185,8 +186,13 @@ void dumpBits (Stream& s, const uint32_t u, const uint16_t fown)
 //typedef struct { const UID *pUID; const uint16_t *pFlashKB; } HWID;
 bool dumpID (Stream& s)
 {
-   //s.print("STM32F1");
-   s.print("STM32F4");
+   s.print("STM32F");
+#ifdef ARDUINO_ARCH_STM32F1
+  s.print('1');
+#endif
+#ifdef ARDUINO_ARCH_STM32F4
+  s.print('4');
+#endif
    s.print(" UID:");
    s.print(UID_BASE->id[0],HEX);
    for (int i=1; i<3; i++) { s.print(':'); s.print(UID_BASE->id[i],HEX);  }
