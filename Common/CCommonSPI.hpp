@@ -11,6 +11,22 @@
 #define HSPI SPI
 #endif
 
+#ifndef PIN_NCS
+#define PIN_NCS   SS
+#endif
+
+#ifdef ARDUINO_ARCH_STM32F1
+#define SPI_CLOCK_DEFAULT  36 // MHz
+#endif
+
+#ifdef ARDUINO_ARCH_STM32F4
+#define SPI_CLOCK_DEFAULT  42 // MHz
+#endif
+
+#ifndef SPI_CLOCK_DEFAULT
+#define SPI_CLOCK_DEFAULT 8
+#endif
+
 // General abstraction of device hard/soft states
 namespace Device
 {

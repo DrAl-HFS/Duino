@@ -9,9 +9,6 @@
 #include "DN_Util.hpp"
 #include "CCommonSPI.hpp"
 
-#ifndef SPI_CLOCK_DEFAULT
-#define SPI_CLOCK_DEFAULT 42  // MHz
-#endif //
 
 namespace W25Q
 {
