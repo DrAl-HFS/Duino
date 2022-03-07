@@ -5,9 +5,17 @@
 
 #define DEBUG Serial1
 
-//#include "CMifare.hpp"
+#if 0
+//#include "Common/MBD/mbdDef.h" // UU16/32
+#else
+typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
+#endif
+
 #include "Common/STM32/ST_Util.hpp"
 #include "Common/STM32/ST_Timing.hpp"
+#include <SPI.h>
+#include "Common/CW25Q.hpp"
+#include "Common/MFDHacks.hpp"
 
 
 /***/
@@ -21,9 +29,13 @@
 
 CClock gClock;
 CTimer gT;
-//CHackMFRC522 gRC522;
-
 void tickFunc (void) { gT.nextIvl(); }
+
+CW25QDbg gW25QDbg(21);
+#ifdef TEST_CRC
+HWCRC crc;
+#endif
+
 
 void bootMsg (Stream& s)
 {
@@ -51,8 +63,12 @@ void setup (void)
   
   //gRC522.init();
   gT.dbgPrint(DEBUG);
+  
+  gW25QDbg.init(DEBUG);
+  gW25QDbg.dataEraseDirty(0xD000,0x4000); // 1MB
 } // setup
 
+W25Q::PageScan scan(0xD000);
 uint16_t last=0;
 uint8_t c=0;
 void loop (void)
@@ -65,6 +81,7 @@ void loop (void)
     //gRC522.hack(DEBUG);
     gT.retire(1000);
     c= 100;
+    scan.next(DEBUG,gW25QDbg);
   }
   if (d != last)
   {
