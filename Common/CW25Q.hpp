@@ -79,6 +79,7 @@ protected:
    // CAVEAT : no checking of address or command!
    void erase (const UU32 addr, const W25Q::Cmd cmd)
    {
+      sync();
       cmd1(W25Q::WR_EN);
       start();
       cmdAddrFrag(cmd, addr);
@@ -150,6 +151,7 @@ public:
       if (n > 0)
       {
          if (n > 256) { n= 256; }
+         sync();
          cmd1(W25Q::WR_EN);
          start();
          cmdAddrFrag(W25Q::WR_PG, addr);
@@ -169,7 +171,6 @@ public:
          {
             UU32 addr={ (uint32_t)aP << 8 };
 
-            sync();
             erase(addr,m.cmd);
             aP+= m.nP;
             eP+= m.nP;
@@ -214,24 +215,31 @@ public:
       return(n);
    } // scanEqual
 
-   uint32_t writeMulti (const UU32 addr, const uint8_t *pp[], const uint8_t b[], const int n)
+   // Gathered fragment write :
+   // Write fragments as a contiguous block, limited to 256bytes (write buffer size)
+   uint32_t writeMultiLim (const UU32 addr, const uint8_t *pp[], const uint16_t b[], const int n)
    {
-      if (n <= 0) { return(0); }
       int i=0;
-      uint32_t t=0;
-      
-      start();
-      cmdAddrFrag(W25Q::WR_PG, addr);
-      do
+      uint16_t t=0;
+      if (n > 0)
       {
-         uint8_t c= b[i];
-         if (t+c > 256) { c= 256 - t; }
-         t+= write(pp[i], c);
-      } while ((++i < n) && (t < 256));
-      complete();
+         sync();
+         cmd1(W25Q::WR_EN);
+         start();
+         cmdAddrFrag(W25Q::WR_PG, addr);
+         do
+         {
+            uint16_t c= b[i];
+            if (t+c > 256) { c= 256 - t; }
+            t+= write(pp[i], c);
+            i+= (c == b[i]);
+         } while ((i < n) && (t < 256));
+         complete();
+      }
       return(t);
-   } // writeMulti
+   } // writeMultiLim
 
+// DISPLACE -> CW25QUtilA ???
    uint32_t pageDump (Stream& s, const uint16_t aP=0x0000)
    {
       UU32 a={(uint32_t)aP << 8};
@@ -417,16 +425,15 @@ namespace W25Q
          uint16_t r[16];
          if (i < max)
          {
+            if ((i+n) >= max) { n= max - (1+i); }
             t[0]= millis();
-            if ((i+n) > max) { n= max - i; }
             do
             {
                r[j]= d.scanEqual(a,size);
                a.u32+= size;
-            } while ((r[j] >= size) && (j++ < n));
+            } while ((j++ < n) && (r[j] >= size));
             t[1]= millis();
-            n= j + (j < n); // Advance by 1 extra
-            i+= n;
+            n= j; i+= n;
             s.print("0x"); s.print( addr.u32, HEX); s.print(':'); // 24bit address BB:SP:bb = (64k) Block, (4k) Sector, Page, byte
             for (j=0; j<n; j++) { s.print(' '); s.print(r[j]); }
             s.print(" dt="); s.println( t[1] - t[0] );

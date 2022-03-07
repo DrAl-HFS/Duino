@@ -114,36 +114,41 @@ protected:
    // Beware of sending "dummy" bytes for reading: some devices
    // may interpret certain bytes as a command e.g. causing a reset
 
-   uint16_t read (uint8_t b[], const uint16_t n, const uint8_t w=0xAA)
+   uint16_t read (uint8_t b[], const int16_t n, const uint8_t w=0xAA)
    {
-      for (uint16_t i=0; i<n; i++) { b[i]= HSPI.transfer(w); }
-      return(n);
+      int16_t i;
+      for (i=0; i<n; i++) { b[i]= HSPI.transfer(w); }
+      return(i);
    } // write
 
    // Reverse (byte-endian) order
-   uint16_t readRev (uint8_t b[], const uint16_t n, const uint8_t w=0xAA)
+   int16_t readRev (uint8_t b[], const int16_t n, const uint8_t w=0xAA)
    {
-      uint16_t i= n;
+      if (n <= 0) { return(0); }
+      int16_t i= n;
       while (i-- > 0) { b[i]= HSPI.transfer(w); }
       return(n);
    } // write
 
-   uint16_t writeb (const uint8_t b, const uint16_t n=1)
+   int16_t writeb (const uint8_t b, const int16_t n=1)
    {
-      for (uint16_t i=0; i<n; i++) { HSPI.transfer(b); }
-      return(n);
+      int16_t i= 0;
+      for (; i<n; i++) { HSPI.transfer(b); }
+      return(i);
    } // writeb
 
-   uint16_t write (const uint8_t b[], const uint16_t n)
+   int16_t write (const uint8_t b[], const int16_t n)
    {
-      for (uint16_t i=0; i<n; i++) { HSPI.transfer(b[i]); }
-      return(n);
+      int16_t i= 0;
+      for (; i<n; i++) { HSPI.transfer(b[i]); }
+      return(i);
    } // write
 
    // Reverse (endian) order
-   uint16_t writeRev (const uint8_t b[], const uint16_t n)
+   int16_t writeRev (const uint8_t b[], const int16_t n)
    {
-      uint16_t i= n;
+      if (n <= 0) { return(0); }
+      int16_t i= n;
       while (i-- > 0) { HSPI.transfer(b[i]); }
       return(n);
    } // write

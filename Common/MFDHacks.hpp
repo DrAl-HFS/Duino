@@ -12,9 +12,12 @@
 // Compact File Chunk declarations: a "simple" DIY approach to reliable, flexible and
 // efficient data storage (log, archive etc.) on flash memory devices having capacity
 // in the 8M~1Gbit range.
-// Size of a data chunk is expected to be block-header= 65536-8 = 65528 bytes
+// Size of a fragment payload is expected to be block-header= 65536-8 = 65528 bytes
 // or less. So file size is limited to 65528*4095= 255.9 MBytes.
+
+// DEPRECATE : better design needed
 extern "C" {
+
 // Header storage byte layout (msb to lsb)
 // *Hdr0 is the general wrapper to allow simple chunk scanning
 // 1011iiii jjjjjjjj jjjjjjjj kxxxrrrr = 0xBIJJJJXR
@@ -23,14 +26,14 @@ extern "C" {
 // "k" is the payload checksum flag (inverted ie. 0=true)
 // "x" are extension flag bits (reserved, default to 0x7)
 // "r" are CRC4 computed over the preceding 28 bits
+// Object id=0 is reserved, so valid range 0x0001..0xFFFF
 typedef union { uint32_t w; struct { uint8_t hi, jl, jh, xr; } s; } UCFCHdr0;
 //---
-// Immediately following *Hdr0, *Hdr1 describes an object fragment
+// Immediately following *Hdr0, *Hdr1 describes an object chunk/fragment
 // ssssssss ssssssss ffffffff ffffrrrr = 0xSSSSFFFR
 // "s" bits are chunk payload size in bytes (l+h forms LE uint16_t) or 0xFFFF where no payload exists
 // "f" l+h form LE "uint12" fragment id
 // "r" are CRC4 computed over the preceding 28 bits
-// Object id=0 is reserved, so valid range 0x0001..0xFFFF
 // Chunk id=0 is reserved for the file object descriptor, 0x001..0xFFF are data chunks
 typedef union { uint32_t w; struct { uint8_t sl, sh, fl, fhr; } s; } UCFCHdr1;
 //---
