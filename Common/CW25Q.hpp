@@ -49,6 +49,8 @@ namespace W25Q
 // Basic access "toolkit"
 class CW25Q : public CCommonSPI
 {
+   struct EraseParam { uint16_t nP; int8_t nE; W25Q::Cmd cmd; };
+
 protected:
    // hex addr fmt : 0xKKSPYY (blocK, Sector, Page, bYte)
    void cmdAddrFrag (const W25Q::Cmd c, const UU32 addr)
@@ -73,6 +75,43 @@ protected:
       complete();
       return(r);
    } // cmdRW1
+
+   // CAVEAT : no checking of address or command!
+   void erase (const UU32 addr, const W25Q::Cmd cmd)
+   {
+      cmd1(W25Q::WR_EN);
+      start();
+      cmdAddrFrag(cmd, addr);
+      complete();
+   } // erase
+
+   // Require page address and count (sector/block size) to be 4K sector aligned
+   bool validErase (EraseParam& m, const uint16_t aP, const uint16_t nP)
+   {
+      m.nE= 0;
+      if ((0 == (aP & 0xF)) && (0 == (nP & 0xF)))
+      {  // Faster to erase more with a single command?
+         if (nP >= 256)
+         {
+            m.nP= 256;
+            m.nE= (nP >> 8) & 0x7F;
+            m.cmd= W25Q::EE_64K; // full block
+         }
+         else if (nP >= 128)
+         {
+            m.nP= 128;
+            m.nE= nP >> 7; // irrelevant
+            m.cmd= W25Q::EE_32K; // half block
+         }
+         else if (nP >= 16)
+         {
+            m.nP= 16;
+            m.nE= nP >> 4;
+            m.cmd= W25Q::EE_4K; // sector
+         }
+      }
+      return(m.nE > 0);
+   } // validErase
 
 public:
    CW25Q (const uint8_t clkMHz=SPI_CLOCK_DEFAULT) // NB: full clock rate for (84MHz) STM32F4
@@ -120,25 +159,23 @@ public:
       return(n);
    } // dataWrite
 
-   // Page address and count (sector/block size) should be 4K sector aligned
-   // ... or else what??
    uint16_t dataErase (uint16_t aP, const uint16_t nP=16)
    {
-      W25Q::Cmd cmd;
-      if (aP & 0xF) { return(0); }
-      switch(nP)
+      EraseParam m;
+      uint16_t eP=0;
+      while ((eP < nP) && validErase(m,aP,nP))
       {
-         case 16  : cmd= W25Q::EE_4K; break;  // sector
-         case 128 : cmd= W25Q::EE_32K; break; // half block
-         case 256 : cmd= W25Q::EE_64K; break; // block
-         default : return(0);
+         do
+         {
+            UU32 addr={ (uint32_t)aP << 8 };
+
+            sync();
+            erase(addr,m.cmd);
+            aP+= m.nP;
+            eP+= m.nP;
+         } while (--m.nE);
       }
-      UU32 addr={(uint32_t)aP << 8};
-      cmd1(W25Q::WR_EN);
-      start();
-      cmdAddrFrag(cmd, addr);
-      complete();
-      return(nP);
+      return(eP);
    } // dataErase
 
    bool sync (uint32_t max=-1)
@@ -344,6 +381,18 @@ public:
       return(n > 0);
    } // identify
 
+   uint16_t dataEraseDirty (uint16_t aP, const uint16_t nP=16)
+   {
+      UU32 addr={ (uint32_t)aP << 8 };
+      uint16_t r= 0;
+      if (scanEqual(addr,256,0xFF) < 256)
+      {
+         r= dataErase(aP,nP);
+         sync();
+      }
+      return(r);
+   } // dataEraseDirty
+
 }; // CW25QDbg
 
 // additional test/debug utils
@@ -353,11 +402,13 @@ namespace W25Q
    class PageScan
    {
       public:
-         UU32      addr;
+         UU32      base, limit, addr;
          uint32_t i, max;
 
-      PageScan (uint32_t n, uint32_t aP=0x0000) { addr.u32= aP << 8; i= 0; max= n; }
+      PageScan (uint32_t aP=0x0000, uint32_t bP=0xFFFF) { base.u32= aP << 8; limit.u32= bP << 8; max= bP - aP; reset(); }
       
+      void reset (void) { addr= base; i= 0; }
+
       void next (Stream& s, CW25QUtil& d)
       {
          const uint32_t size=0x100;
@@ -367,23 +418,23 @@ namespace W25Q
          if (i < max)
          {
             t[0]= millis();
-            if ((i+n) > max) { n= max-i; }
+            if ((i+n) > max) { n= max - i; }
             do
             {
                r[j]= d.scanEqual(a,size);
                a.u32+= size;
             } while ((r[j] >= size) && (j++ < n));
             t[1]= millis();
-            n= j;
+            n= j + (j < n); // Advance by 1 extra
             i+= n;
-            s.print("0x"); s.print( addr.u32, HEX); s.print(':'); 
+            s.print("0x"); s.print( addr.u32, HEX); s.print(':'); // 24bit address BB:SP:bb = (64k) Block, (4k) Sector, Page, byte
             for (j=0; j<n; j++) { s.print(' '); s.print(r[j]); }
-            s.println();
             s.print(" dt="); s.println( t[1] - t[0] );
             addr= a;
-            if (r[j] < size)
+            if (r[n-1] < size) // && dump
             {
                a.u32-= size;
+               if (n > 1) { s.print("0x"); s.print( a.u32, HEX); s.println(':'); }
                d.pageDump(s, a);
             }
          }
