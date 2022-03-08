@@ -45,6 +45,14 @@ void bootMsg (Stream& s)
   dumpID(s);
 } // bootMsg
 
+void dump (Stream& s)
+{ // check packing
+  s.print("CFC header size:");
+  s.print(sizeof(CFCHdrJ0)); s.print(", ");
+  s.print(sizeof(CFCHdrD0)); s.print(", ");
+  s.print(sizeof(CFCHdrR0)); s.println();
+}
+
 void setup (void)
 {
   noInterrupts();
@@ -66,6 +74,8 @@ void setup (void)
   
   gW25QDbg.init(DEBUG);
   gW25QDbg.dataEraseDirty(0xD000,0x4000); // 1MB
+  
+  dump(DEBUG);
 } // setup
 
 W25Q::PageScan scan(0xD000);

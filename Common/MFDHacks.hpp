@@ -15,9 +15,43 @@
 // Size of a fragment payload is expected to be block-header= 65536-8 = 65528 bytes
 // or less. So file size is limited to 65528*4095= 255.9 MBytes.
 
-// DEPRECATE : better design needed
 extern "C" {
 
+// A generic chunk micro header & footer allow simple scanning with error checking
+// The object micro-payload includes a storage reservation for more efficient allocation and search.
+// 1011ssss iiiixxxx [micro-payload] qqqqrrrr ssss1101 = 0xBSIX ... QRSD
+// "s" bits give number of bytes to skip between end of header to start of footer, coding TBD.
+// "x" are extension flag bits (reserved, default to 0xF)
+// "i" bits are chunk id code 
+// DEPRECATE: "q" are CRC4 computed over i,x
+// "r" are CRC8 computed over the header (?) & payload bytes
+// header & size bits are repeated (swapped) at end of footer to further help identify errors
+typedef struct { uint8_t hs, xi; } CFCUH; // micro header
+typedef struct { uint8_t rr, sh; } CFCUF; // micro footer
+// 3 header payload types:
+// Object with storage reservation (allocated)
+// jjjjjjjj jjjjjjjj uvvvvvvv
+// "j" bits are object ID l+h (LE uint16_t)
+// "u" is size unit: 1=page (256Byte), 0= block (64kByte)
+// "v" is reservation count (number of size units measured from start of enclosing unit, no other valid object permitted within this region)
+typedef struct { uint8_t jl, jh, uv; } CFCJ0; // Data obJect, reservation (unit & value)
+
+// Data fragment header ID & size, both LE uint16_t, extension flags eg. data payload CRC32
+// ffffffff ffffffff ssssssss ssssssss xxxxxxxx
+typedef struct { uint8_t fl, fh, sl, sh, xx; } CFCD0; // Data payload fRagment-ID & size
+
+// Redirect an expected fragment-ID -> target-ID
+// ffffffff ffffffff tttttttt tttttttt
+typedef struct { uint8_t fl, fh, tl, th; } CFCR0;
+
+// Complete headers (packed)
+typedef struct { CFCUH h; CFCJ0 j; CFCUF f; } CFCHdrJ0;
+typedef struct { CFCUH h; CFCD0 d; CFCUF f; } CFCHdrD0;
+typedef struct { CFCUH h; CFCR0 r; CFCUF f; } CFCHdrR0;
+// Object header precedes one or more fragments and/or redirects
+// (all expected to lie within reserved storage).
+
+// DEPRECATED : initial (weak) design.
 // Header storage byte layout (msb to lsb)
 // *Hdr0 is the general wrapper to allow simple chunk scanning
 // 1011iiii jjjjjjjj jjjjjjjj kxxxrrrr = 0xBIJJJJXR
