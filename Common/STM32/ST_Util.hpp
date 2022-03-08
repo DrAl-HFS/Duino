@@ -17,7 +17,12 @@
 #define PERIPH_BASE  ((uint32_t)0x40000000)
 #endif
 #ifndef RCC_BASE
+#ifdef ARDUINO_ARCH_STM32F4
 #define RCC_BASE     ((rcc_reg_map*)(PERIPH_BASE + 0x23800))
+#endif
+#ifdef ARDUINO_ARCH_STM32F1
+#define RCC_BASE     ((rcc_reg_map*)(PERIPH_BASE + 0x21000))
+#endif
 #endif
 
 class F4RCC // Different from F103 ??
@@ -145,7 +150,59 @@ public:
 
 }; // HWCRC
 
+void testCRC (Stream& s, HWCRC& crc)
+{
+static const uint32_t wl[]={0x01234567,0x89abcdef};
+static const uint8_t  bl[]={0x00,0x67,0x45,0x23,0x01,0xef,0xcd,0xab,0x89,0x00,0x00,0x00};
+static const uint8_t  bb[]={0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef};
+static const char  cs[]="0123456789abcdef";
+    uint32_t r, t;
+    const uint32_t *p;
+    s.print("CRC: "); s.println(crc.idr());
 
+    //s.println((int)crc.get());
+    p= (uint32_t*)(bl+1);
+    t= crc.add((uint8_t*)p,8);
+    s.print("bl 0x"); s.print(p[0],HEX);
+    s.print(", 0x"); s.print(p[1],HEX);
+    r= crc.get();
+    s.print(" -> 0x"); s.print(r,HEX);
+    s.print("(0x"); s.print(r^-1,HEX);
+    s.print("), t="); s.println(t);
+
+    //s.println((int)crc.get());
+    p= wl;
+    t= crc.add(p,2);
+    s.print("wl 0x"); s.print(p[0],HEX);
+    s.print(", 0x"); s.print(p[1],HEX);
+    r= crc.get();
+    s.print(" -> 0x"); s.print(r,HEX);
+    s.print("(0x"); s.print(r^-1,HEX);
+    s.print("), t="); s.println(t);
+
+    //s.println((int)crc.get());
+    p= (uint32_t*)bb;
+    t= crc.add((uint8_t*)p,8);
+    s.print("bb 0x"); s.print(p[0],HEX);
+    s.print(", 0x"); s.print(p[1],HEX);
+    r= crc.get();
+    s.print(" -> 0x"); s.print(r,HEX);
+    s.print("(0x"); s.print(r^-1,HEX);
+    s.print("), t="); s.println(t);
+
+#if 1
+    s.println((int)crc.get());
+    int n= sizeof(cs)-1; // exclude nul
+    t= crc.add((uint8_t*)cs,n);
+    s.print("cs["); s.print(n); s.print("]="); s.print(cs);
+    r= crc.get();
+    s.print(" -> 0x"); s.print(r,HEX);
+    s.print("(0x"); s.print(r^-1,HEX);
+    s.print("), t="); s.println(t);
+#endif
+    s.println(" :CRC");
+} // testCRC
+    
 /* Hardware ID & calibration stuff */
 
 typedef struct { uint32_t id[3]; } UID;

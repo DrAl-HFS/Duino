@@ -411,15 +411,21 @@ namespace W25Q
    {
       public:
          UU32      base, limit, addr;
-         uint32_t i, max;
+         uint32_t i, max, size;
 
-      PageScan (uint32_t aP=0x0000, uint32_t bP=0xFFFF) { base.u32= aP << 8; limit.u32= bP << 8; max= bP - aP; reset(); }
+      PageScan (uint32_t aP=0x0000, uint32_t gB=0x100, uint32_t bP=0xFFFF)
+      {
+         base.u32= aP << 8;
+         size= gB;
+         limit.u32= bP << 8;
+         max= (limit.u32 - base.u32) / size;
+         reset();
+      }
       
       void reset (void) { addr= base; i= 0; }
 
       void next (Stream& s, CW25QUtil& d)
       {
-         const uint32_t size=0x100;
          UU32 a= addr;
          uint32_t t[2], n=16, j=0;
          uint16_t r[16];
@@ -431,14 +437,14 @@ namespace W25Q
             {
                r[j]= d.scanEqual(a,size);
                a.u32+= size;
-            } while ((j++ < n) && (r[j] >= size));
+            } while ((r[j] >= size) && (++j < n));
             t[1]= millis();
             n= j; i+= n;
             s.print("0x"); s.print( addr.u32, HEX); s.print(':'); // 24bit address BB:SP:bb = (64k) Block, (4k) Sector, Page, byte
             for (j=0; j<n; j++) { s.print(' '); s.print(r[j]); }
             s.print(" dt="); s.println( t[1] - t[0] );
             addr= a;
-            if (r[n-1] < size) // && dump
+            if ((r[n-1] < size) && (0x100 == size)) // && dump
             {
                a.u32-= size;
                if (n > 1) { s.print("0x"); s.print( a.u32, HEX); s.println(':'); }
