@@ -4,6 +4,7 @@
 // (c) Project Contributors Feb-Mar 2021
 
 #define DEBUG Serial1
+//define TEST_CRC
 
 #if 0
 //#include "Common/MBD/mbdDef.h" // UU16/32
@@ -31,9 +32,10 @@ CClock gClock;
 CTimer gT;
 void tickFunc (void) { gT.nextIvl(); }
 
-CW25QDbg gW25QDbg(21);
+CW25QDbg gW25QDbg(36);
+MFDHack mfd;
 #ifdef TEST_CRC
-HWCRC crc;
+HWCRC gCRC;
 #endif
 
 
@@ -75,10 +77,15 @@ void setup (void)
   gW25QDbg.init(DEBUG);
   gW25QDbg.dataEraseDirty(0xD000,0x4000); // 1MB
   
-  dump(DEBUG);
+  //dump(DEBUG);
+  
+#ifdef TEST_CRC
+  testCRC(DEBUG,gCRC);
+#endif
+  mfd.test(DEBUG,gW25QDbg);
 } // setup
 
-W25Q::PageScan scan(0xD000);
+W25Q::PageScan scan(0x1000,1<<12);
 uint16_t last=0;
 uint8_t c=0;
 void loop (void)

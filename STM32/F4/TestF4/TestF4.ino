@@ -57,7 +57,7 @@ ADCDbg gADC;
 #endif // ST_ANALOGUE_HPP
 
 #ifdef TEST_CRC
-HWCRC crc;
+HWCRC gCRC;
 #endif
 
 void bootMsg (Stream& s)
@@ -124,7 +124,7 @@ void hackInit (Stream& s)
 void hackTest (Stream& s, uint16_t i)
 {
   //__QADD(); asm("QADD");
-#if 0
+#if 0gCRC
   if (i < 1)
   {
     uint32_t *p= (uint32_t*)0x1FFFC000; // OPT 0x1FFF7800; // OTP 16*32= 512 (+16lk = 528)
@@ -142,55 +142,7 @@ void hackTest (Stream& s, uint16_t i)
 #ifdef TEST_CRC
   if (i <= 2)
   {
-static const uint32_t wl[]={0x01234567,0x89abcdef};
-static const uint8_t  bl[]={0x00,0x67,0x45,0x23,0x01,0xef,0xcd,0xab,0x89,0x00,0x00,0x00};
-static const uint8_t  bb[]={0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef};
-static const char  cs[]="0123456789abcdef";
-    uint32_t r, t;
-    const uint32_t *p;
-    s.print("CRC: "); s.println(crc.idr());
-
-    //s.println((int)crc.get());
-    p= (uint32_t*)(bl+1);
-    t= crc.add((uint8_t*)p,8);
-    s.print("bl 0x"); s.print(p[0],HEX);
-    s.print(", 0x"); s.print(p[1],HEX);
-    r= crc.get();
-    s.print(" -> 0x"); s.print(r,HEX);
-    s.print("(0x"); s.print(r^-1,HEX);
-    s.print("), t="); s.println(t);
-
-    //s.println((int)crc.get());
-    p= wl;
-    t= crc.add(p,2);
-    s.print("wl 0x"); s.print(p[0],HEX);
-    s.print(", 0x"); s.print(p[1],HEX);
-    r= crc.get();
-    s.print(" -> 0x"); s.print(r,HEX);
-    s.print("(0x"); s.print(r^-1,HEX);
-    s.print("), t="); s.println(t);
-
-    //s.println((int)crc.get());
-    p= (uint32_t*)bb;
-    t= crc.add((uint8_t*)p,8);
-    s.print("bb 0x"); s.print(p[0],HEX);
-    s.print(", 0x"); s.print(p[1],HEX);
-    r= crc.get();
-    s.print(" -> 0x"); s.print(r,HEX);
-    s.print("(0x"); s.print(r^-1,HEX);
-    s.print("), t="); s.println(t);
-
-#if 1
-    s.println((int)crc.get());
-    int n= sizeof(cs)-1; // exclude nul
-    t= crc.add((uint8_t*)cs,n);
-    s.print("cs["); s.print(n); s.print("]="); s.print(cs);
-    r= crc.get();
-    s.print(" -> 0x"); s.print(r,HEX);
-    s.print("(0x"); s.print(r^-1,HEX);
-    s.print("), t="); s.println(t);
-#endif
-    s.println(" :CRC");
+    testCRC(s,gCRC);
   }
 #endif
   //for (uint8_t i=1; i<=5; i++) { dumpTimReg(DEBUG, i); }
