@@ -6,8 +6,7 @@
 #ifndef SERMUX_HPP
 #define SERMUX_HPP
 
-// ASCII cstring length-until
-int8_t lentil (const char s[], const char end=0x00) { int8_t i=0; while (end != s[i]) { ++i; } return(i); }
+#include "DN_Util.hpp"
 //int8_t readN (uint8_t b[], const int8_t n, Stream& s) { for (int8_t i=0; i<n; i++) { b[i]= s.read(); } return(n); }
 
 // insert hdr byte: 0b10eennnn, e=endpoint/channel/stream id, n= number of payload bytes following

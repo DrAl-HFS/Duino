@@ -27,6 +27,9 @@
 #define SERIAL_DELAY_STEP 30  // *20=600ms, long delay for USB-serial sync
 #endif
 
+// ASCII cstring length-until
+int8_t lentil (const char s[], const char end=0x00) { int8_t i=0; while (end != s[i]) { ++i; } return(i); }
+
 // Low 4 bits (nybble) hex char
 char hexChFromL4 (uint8_t x, const char a='a')
 {
@@ -178,14 +181,24 @@ void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end=
 {
    if (n > 0)
    {
-      int16_t m=n, i=0;
+      int16_t m=n, i=0, t=n, u=0;
       char sx[4];
       sx[2]= sep;
       sx[3]= 0x00;
-      if ((w > 0) && (w < m)) { m= w; }
+      if (w > 0)
+      {
+         t= n % w;
+         u= w - t;
+         t= n - t;
+         if (w < m) { m= w; }
+      }
       do
       {
          dumpHexFmt(s, b+i, m-i, sx);
+         if (i >= t)
+         {  // trailing partial row alignment padding
+            for (int16_t j=0; j<u; j++) { s.print("   "); }
+         }
          s.print('\t');
          dumpCharFmt(s, b+i, m-i);
          i= m;

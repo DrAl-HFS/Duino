@@ -30,6 +30,7 @@ extern "C" {
 // user data but rather attribute information such as the file name. Thus a file created
 // empty would contain fragment zero followed by a redirect F1->F0, marking the end of file.
 // (Thus fragment ID F0 is equivalent to NULL.)
+// Attributes embedded within fragment zero are prefixed by token & count: 0xHTNN
 
 // A generic chunk micro header & footer allow simple scanning with error checking
 // The object micro-payload includes a storage reservation for more efficient allocation and search.
@@ -58,6 +59,9 @@ typedef struct { uint8_t fl, fh, sl, sh, xx; } CFCD0; // Data payload fRagment-I
 // Redirect an expected fragment-ID -> target-ID
 // ffffffff ffffffff tttttttt tttttttt
 typedef struct { uint8_t fl, fh, tl, th; } CFCR0;
+
+// Token 1110tttt = 0xET, nn
+typedef struct { uint8_t ht, nn; } CFCTok;
 
 // Complete headers (packed)
 typedef struct { CFCUH h; CFCJ0 j; CFCUF f; } CFCHdrJ0;
@@ -283,23 +287,34 @@ public:
 
    void test (Stream& s, CW25QUtil& d)
    {
-      uint8_t hb[20], l[2], n;
+      char name[]="test.dat";
+      uint8_t b[32], lv[2], n;
+      CFCTok t;
       
-      n= genObjFragHdr(hb,1,0,4,900);
-      s.print("MFD hdrs ["); s.print(n); s.print("]:");
-      char f[4]="   ";
-      dumpHexFmt(s,hb,n,f,1);
-      s.println();
+      t.ht= 0xEF; // String (ascii) token
+      t.nn= lentil(name);
+      n= genObjFragHdr(b,1,0,sizeof(t)+t.nn,230);
+      
+      b[n++]= t.ht; b[n++]= t.nn;
+      for (uint8_t i=0; i<t.nn; i++) { b[n+i]= name[i]; }
+      n+= t.nn;
+       
+      s.print("MFD hdrs ["); s.print(n); s.println("]:");
+      dumpHexTab(s,b,n); // ,"\n",' ',8);
+      //char f[4]="   ";
+      //dumpHexFmt(s,b,n,f,1);
+      //s.println();
+      
       s.print("validate:");
-      l[0]= validate(hb+0,sizeof(hb));
+      lv[0]= validate(b+0,sizeof(b));
       //logVI(s);
-      if (l[0] > 0)
+      if (lv[0] > 0)
       {
-         l[1]= validate(hb+l[0],sizeof(hb)-l[0]);
+         lv[1]= validate(b+lv[0],sizeof(b)-lv[0]);
          //logVI(s);
       }
-      s.print(" l[0]="); s.print(l[0]);
-      s.print(" l[1]="); s.print(l[1]);
+      s.print(" lv[0]="); s.print(lv[0]);
+      s.print(" lv[1]="); s.print(lv[1]);
       s.println();
    } // test
 
