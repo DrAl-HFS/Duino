@@ -92,46 +92,83 @@ public:
 
 // Doesn't belong in class, but uses a method (erroneous declaration)
 // Scan n packed bcd4 digit pairs at locations spaced by ASCII stride
+/*
 void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aStride=3) const
 {
    for (int8_t i=0; i<n; i++) { u[i]= bcd2bin( bcd4FromA(a+(i*aStride), 2) ); }
 } // u8bcd4FromA
-void u8bcd4ToA (char a[], const uint8_t u[], const int8_t n, const uint8_t aStride=3) const
-{
-   for (int8_t i=0; i<n; i++) { hexChFromU8( a+(i*aStride), bin2bcd(u[i]) ); }
-} // u8bcd4ToA
+*/
+   void u8ToBCD4ToA (char a[], const uint8_t u[], const int8_t n, const uint8_t aStride=3) const // TODO : factor out
+   {
+      for (int8_t i=0; i<n; i++)
+      {
+         uint8_t bcd;
+         bcd4FromU8(&bcd, u[i]);
+         hexChFromU8( a+(i*aStride), bcd);
+      }
+   } // u8ToBCD4ToA
+
+   int getBCD4 (uint8_t bcd[6])
+   {
+      bcd4FromU8(bcd+0, (year + 1970) % 100);
+      bcd4FromU8(bcd+1, month);
+      bcd4FromU8(bcd+2, day);
+      bcd4FromU8(bcd+3, hour);
+      bcd4FromU8(bcd+4, minute);
+      bcd4FromU8(bcd+5, second);
+      return(6);
+   }
 
    // CAVEAT: Hacky assumption of element ordering...
    // Assumes hh:mm:ss format. No parse/check!
-   void hmsFromA (const char a[]) { u8bcd4FromA(&hour,3,a); }
-   void yFromA (const char a[]) { int y= atoi(a); if (y > 1970) { year= y-1970; } }
-   void mFromA (const char a[]) { int8_t m= monthNumJulian(a); if (m > 0) { month= m; } }
-   void dFromA (const char a[]) { day= bcd2bin(bcd4FromASafe(a,2)); }
+   void hmsFromA (const char a[]) { u8FromTimeA(&hour,a); } // u8bcd4FromA(&hour,3,a); }
+   //void yFromA (const char a[]) { int y= atoi(a); if (y > 1970) { year= y-1970; } }
+   //void mFromA (const char a[]) { int8_t m= monthNumJulian(a); if (m > 0) { month= m; } }
+   //void dFromA (const char a[]) { day= bcd2bin(bcd4FromASafe(a,2)); }
 
-   void mdyFromA (const char a[]) { mFromA(a); dFromA(a+5); yFromA(a+7); }
+   void mdyFromA (const char a[]) // { mFromA(a); dFromA(a+5); yFromA(a+7); }
+   {
+      uint8_t u[3];
+      u8FromDateA(u,a);
+      year= atoi(a+7)-1970;
+      month= u[1];
+      day=  u[2];
+   } // mdyFromA
 
    int strHMS (char s[], const int m, const signed char endCh=0) const
-   // { return snprintf(s, m, "%02u:%02u:%02u%c", hour, minute, second, endCh);  }
    {
       const int n= 8+(endCh>0);
       if (m >= n)
       {
-         u8bcd4ToA(s, &hour, 3, 3);
-#if 0
-         hex2ChU8(s+0,bin2bcd(hour));
-         hex2ChU8(s+3,bin2bcd(minute));
-         hex2ChU8(s+6,bin2bcd(second));
-#endif
+         u8ToBCD4ToA(s, &hour, 3, 3);
          s[2]= s[5]= ':';
          s[8]= endCh;
-         if (n > 8) { s[n]= 0; }
+         if (n < m) { s[n]= 0x00; }
          return(n);
       }
       return(0);
    } // strHMS
    
-   int strYMD (char s[], const int m, const char endCh=0) const
-      { return snprintf(s, m, "%u/%u/%u%c", 1970+year, month, day, endCh);  }
+   int strYMD (char s[], const int m, const char endCh=0) const // return snprintf(s, m, "%u/%u/%u%c", 1970+year, month, day, endCh);
+   {
+      const int n= 8+(endCh>0);
+      if (m >= n)
+      {
+         uint8_t bcd[3];
+         //bcd4FromU16(bcd+0, year+1970 );
+         bcd4FromU8(bcd+0, (year+1970) % 100 );
+         bcd4FromU8(bcd+1, month);   // TODO : iterative versions?
+         bcd4FromU8(bcd+2, day);
+         hexChFromU8(s+0, bcd[0]);
+         hexChFromU8(s+3, bcd[1]);
+         hexChFromU8(s+6, bcd[2]);
+         s[2]= s[5]= '/';
+         s[8]= endCh;
+         if (n < m) { s[n]= 0x00; }
+         return(n);
+      }
+      return(0);
+   } // strYMD
 
    void print (Stream& s, uint8_t opt=0x00) const
    {
@@ -146,6 +183,7 @@ static const char endCh[]={' ','\t','\n',0x00};
       strHMS(b, sizeof(b)-1, endCh[opt&0x3]);
       s.print(b);
    } // printTime
+
 }; // DateTime
 
 class CClock : public RTClock, public DateTime
@@ -160,11 +198,19 @@ public:
       setTime(makeTime(*this));
    }
 
-   void print (Stream& s, uint8_t opt=0x02)
+   // yymmddhhmmss
+   int getBCD4 (uint8_t bcd[6])
+   {
+      getTime(*this);
+      return DateTime::getBCD4(bcd);
+   }
+
+   void print (Stream& s, uint8_t opt=0x82)
    {
       getTime(*this);
       DateTime::print(s,opt);
    }
+
 }; // CClock
 
 #endif // clock

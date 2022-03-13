@@ -6,45 +6,6 @@
 #ifndef M0_UTIL
 #define M0_UTIL
 
-/* -> DN_Util.hpp : hexChFrom*
- *  COMMON - TODO : factor out to common (cross-arch) header
-// Return ASCII hex for low 4 bits (nybble)
-// NB - also useful for bcd -> char
-char hexCharL4 (uint8_t u)
-{
-   u&= 0xF;
-   if (u < 0xa) { return('0' + u); } else { return('a'-9 + u); }
-} // hexCharL4
-
-int8_t hexCharU8 (char c[2], uint8_t u)
-{
-   c[1]= hexCharL4(u);
-   c[0]= hexCharL4(u >> 4);
-   return(2);
-} // hexCharU8
-
-uint8_t bcd4FromChar (const char ch[2], int8_t n)
-{
-   uint8_t r= 0;
-   if (n > 0)
-   {
-      r= 0xF & (ch[0] - '0');
-      if (n > 1)
-      {
-         r= (r<<4) | (0xF & (ch[1] - '0'));
-      }
-   }
-   return(r);
-} // bcd4FromChar
-
-uint8_t bcd4ToU8 (uint8_t bcd, int8_t n)
-{
-   uint8_t r= (bcd >> 4); // & 0xF;
-   if (n > 1) { r= 10 * r + (bcd & 0xF); }
-   return(r);
-} // bcd4ToU8*/
-
-
 // TODO : assess mod&div performance on NRF51 (no HW div on Cortex-M0+)
 // Compute numerator / divisor, store quotient & return remainder,.
 uint32_t divmod32 (uint32_t& q, const uint32_t n, const uint32_t d) { q= n / d; return(n % d); }

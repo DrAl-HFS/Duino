@@ -50,6 +50,13 @@ int8_t bcd4FromDateA (uint8_t bcd[3], const char *a, uint8_t ymd=2)
    return(3);
 } // bcd4FromDateA
 
+int8_t u8FromDateA (uint8_t u[3], const char a[], uint8_t ymd=2)
+{
+   int8_t r= bcd4FromDateA(u, a, ymd);
+   for (int8_t i=0; i<r; i++) { u[i]= fromBCD4(u[i],2); }
+   return(r);
+} // u8FromTimeA
+
 int findCh (const char c, const char a[], const int n)
 {
    int i= 0;

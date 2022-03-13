@@ -285,26 +285,31 @@ public:
       return(0);
    } // append
 
-   void test (Stream& s, CW25QUtil& d)
+   void test (Stream& s, CW25QUtil& d, CClock& c)
    {
       char name[]="test.dat";
-      uint8_t b[32], lv[2], n;
+      uint8_t b[64], lv[2], n;
       CFCTok t;
-      
+
       t.ht= 0xEF; // String (ascii) token
       t.nn= lentil(name);
       n= genObjFragHdr(b,1,0,sizeof(t)+t.nn,230);
-      
+
       b[n++]= t.ht; b[n++]= t.nn;
       for (uint8_t i=0; i<t.nn; i++) { b[n+i]= name[i]; }
       n+= t.nn;
-       
+      t.ht= 0xEE; // BCD (string) token
+      t.nn= 6; // bytes = 12digits
+      b[n++]= t.ht; b[n++]= 0x00; // dummy length
+      t.nn= c.getBCD4(b+n); b[n-1]= t.nn; // actual length
+      n+= t.nn;
+
       s.print("MFD hdrs ["); s.print(n); s.println("]:");
       dumpHexTab(s,b,n); // ,"\n",' ',8);
       //char f[4]="   ";
       //dumpHexFmt(s,b,n,f,1);
       //s.println();
-      
+
       s.print("validate:");
       lv[0]= validate(b+0,sizeof(b));
       //logVI(s);
