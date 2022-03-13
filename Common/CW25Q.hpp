@@ -52,12 +52,6 @@ class CW25Q : public CCommonSPI
    struct EraseParam { uint16_t nP; int8_t nE; W25Q::Cmd cmd; };
 
 protected:
-   // hex addr fmt : 0xKKSPYY (blocK, Sector, Page, bYte)
-   void cmdAddrFrag (const W25Q::Cmd c, const UU32 addr)
-   {
-      HSPI.transfer(c);
-      writeRev(addr.u8,3);
-   } // cmdAddrFrag
 
    void cmd1 (const W25Q::Cmd c)
    {
@@ -76,13 +70,30 @@ protected:
       return(r);
    } // cmdRW1
 
-   // CAVEAT : no checking of address or command!
-   void erase (const UU32 addr, const W25Q::Cmd cmd)
+   // hex addr fmt : 0xKKSPYY (blocK, Sector, Page, bYte)
+   void cmdAddrFrag (const UU32 addr, const W25Q::Cmd c)
+   {
+      start();
+      HSPI.transfer(c);
+      writeRev(addr.u8,3);
+   } // cmdAddrFrag
+
+   void startWrite (const UU32 addr, const W25Q::Cmd cmd)
    {
       sync();
       cmd1(W25Q::WR_EN);
-      start();
-      cmdAddrFrag(cmd, addr);
+      //start();
+      cmdAddrFrag(addr,cmd);
+   }
+
+   // CAVEAT : no checking of address or command!
+   void erase (const UU32 addr, const W25Q::Cmd cmd)
+   {
+      //sync();
+      //cmd1(W25Q::WR_EN);
+      //start();
+      //cmdAddrFrag(cmd, addr);
+      startWrite(addr,cmd);
       complete();
    } // erase
 
@@ -137,8 +148,8 @@ public:
    {
       if (n > 0)
       {
-         start();
-         cmdAddrFrag(W25Q::RD_PG, addr);
+         //start();
+         cmdAddrFrag(addr, W25Q::RD_PG);
          read(b,n);
          complete();
          return(n);
@@ -151,10 +162,11 @@ public:
       if (n > 0)
       {
          if (n > 256) { n= 256; }
-         sync();
-         cmd1(W25Q::WR_EN);
-         start();
-         cmdAddrFrag(W25Q::WR_PG, addr);
+         //sync();
+         //cmd1(W25Q::WR_EN);
+         //start();
+         //cmdAddrFrag(W25Q::WR_PG, addr);
+         startWrite(addr, W25Q::WR_PG);
          write(b,n);
          complete();
       }
@@ -205,8 +217,8 @@ public:
    {
       uint32_t n=0;
       uint8_t b;
-      start();
-      cmdAddrFrag(W25Q::RD_PG, addr);
+      //start();
+      cmdAddrFrag(addr,W25Q::RD_PG);
       do
       {
          b= HSPI.transfer(0x00);
@@ -223,10 +235,11 @@ public:
       uint16_t t=0;
       if (n > 0)
       {
-         sync();
-         cmd1(W25Q::WR_EN);
-         start();
-         cmdAddrFrag(W25Q::WR_PG, addr);
+         //sync();
+         //cmd1(W25Q::WR_EN);
+         //start();
+         //cmdAddrFrag
+         startWrite(addr, W25Q::WR_PG);
          do
          {
             uint16_t c= b[i];
@@ -440,15 +453,21 @@ namespace W25Q
             } while ((r[j] >= size) && (++j < n));
             t[1]= millis();
             n= j; i+= n;
-            s.print("0x"); s.print( addr.u32, HEX); s.print(':'); // 24bit address BB:SP:bb = (64k) Block, (4k) Sector, Page, byte
-            for (j=0; j<n; j++) { s.print(' '); s.print(r[j]); }
+            s.print("0x"); s.print( addr.u32, HEX); s.print(": "); // 24bit address BB:SP:bb = (64k) Block, (4k) Sector, Page, byte
+            s.print(r[0]);
+            for (j=1; j<n; j++) { s.print(' '); s.print(r[j]); }
             s.print(" dt="); s.println( t[1] - t[0] );
             addr= a;
-            if ((r[n-1] < size) && (0x100 == size)) // && dump
+            if (r[n-1] < size)
             {
-               a.u32-= size;
-               if (n > 1) { s.print("0x"); s.print( a.u32, HEX); s.println(':'); }
-               d.pageDump(s, a);
+               if (n > 1) { s.print("0x"); s.print( a.u32, HEX); s.print(':'); }
+               if ((0x100 == size) || (r[n-1] < 0x100))
+               {
+                  s.println();
+                  a.u32-= size;
+                  d.pageDump(s, a);
+               }
+               //else { s.println(r[j]); }
             }
          }
       } // next
