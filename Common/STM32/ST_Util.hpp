@@ -10,7 +10,12 @@
 
 // Reset & Clock Control doodahs (temporarily dumped here)
 
-#define ST_CORE_CLOCK  84000000  // STM32F4x1 hacky
+#ifdef ARDUUINO_ARCH_STM32F4
+#define ST_CORE_CLOCK  84000000  // STM32F401
+#endif
+#ifdef ARDUUINO_ARCH_STM32F1
+#define ST_CORE_CLOCK  72000000  // STM32F103
+#endif
 
 #include <libmaple/rcc.h>
 #ifndef PERIPH_BASE
@@ -205,7 +210,7 @@ static const char  cs[]="0123456789abcdef";
 #endif
     s.println(" :CRC");
 } // testCRC
-
+    
 /* Hardware ID & calibration stuff */
 
 typedef struct { uint32_t id[3]; } UID;
@@ -248,7 +253,7 @@ uint32_t ramScan (Stream& s, uint32_t wh=0x1400)
 {  // NB system hangs on read outside supported RAM (exception?)
    const uint32_t *pS= (uint32_t*)(RAM_BASE);
    for (uint32_t i= wh-0xF; i <= wh; i++) // 20K ?
-   {
+   { 
       s.print(i,HEX); s.print(':'); s.println(pS[i],HEX); // s.print(' ');
    }
 } // ramScan

@@ -16,7 +16,7 @@
 // Routines suitable for any CPU with fast 32bit shift & mask (& mult) - don't really belong here...
 extern "C" {
 
-// Count bits set in a 32bit word (12 ops inc. mult)
+// Count bits set in a 32bit word (12 ops inc. mult and 4 lg + 4 sm const.) ~25clks on M3
 uint32_t bitCount32 (uint32_t v)
 {
    v= v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
@@ -58,6 +58,17 @@ uint32_t rdble (const uint8_t b[], const int n)
    return(w);
 } // rdble
 
+// Processor Core internal "peripheral" devices
+#ifndef SYST_BASE
+typedef union { uint32_t reg[4]; struct { uint32_t CSR, RVR, CVR, CALIB; }; } syst_reg_map;
+#define SYST_BASE  ((volatile syst_reg_map*)0xE000E010)
+#endif
+//#define SYST_RVR ((uint32_t*)0xE000E014)
+//#define SYST_CVR ((uint32_t*)0xE000E018)
+#ifndef BIT_MASK
+#define BIT_MASK(b) ((1<<(b))-1)
+#endif
+
 }; // extern "C"
 // [Bit-twiddling hacks]
 
@@ -82,31 +93,28 @@ volatile uint32_t *bbp (volatile void *p, const uint8_t b=0)
    return((uint32_t*)w);
 } // bbp
 
-#define SYST_CVR ((uint32_t*)0xE000E018)
-#ifndef BIT_MASK
-#define BIT_MASK(b) ((1<<(b))-1)
-#endif
 
-class SysTickIvl
+class SysTick
 {
    uint32_t last;
 
-   uint32_t read (void) { return(BIT_MASK(24) & *SYST_CVR); }
-
+   uint32_t read (uint32_t i=0x2) { return(BIT_MASK(24) & SYST_BASE->reg[i]); }
+   
 public:
-   SysTickIvl (void) { last= read(); }
-
+   SysTick (void) { last= read(); }
+   
    uint32_t delta (void)
    {
       uint32_t d, t= read();
-
+      
       if (last > t) { d= last - t; }  // NB: countdown
-      else { d= last + (1 << 24) - t; } // wrap
+      else { d= last + read(0x1) - t; } // wrap
       last= t;
       return(d);
    } // delta
-
-}; // class SysTickIvl
+   
+   uint32_t rvr (void) { return read(0x1); }
+}; // class SysTick
 
 }; // namespace CMX
 

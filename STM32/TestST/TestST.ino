@@ -12,6 +12,8 @@
 typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif
 
+//include "Common/DN_Util.hpp"
+#include "Common/STM32/ST_HWH.hpp"
 #include "Common/STM32/ST_Util.hpp"
 #include "Common/STM32/ST_Timing.hpp"
 #include <SPI.h>
@@ -75,24 +77,36 @@ void setup (void)
   gT.dbgPrint(DEBUG);
   
   gW25QDbg.init(DEBUG);
-  gW25QDbg.dataEraseDirty(0xD000,0x4000); // 1MB
+  gW25QDbg.dataEraseDirty(0x2900,0x1000); // 1MB
   
   //dump(DEBUG);
   
-#ifdef TEST_CRC
-  testCRC(DEBUG,gCRC);
-#endif
-  mfd.test(DEBUG,gW25QDbg);
+  mfd.test(DEBUG,gW25QDbg,gClock);
 } // setup
 
-W25Q::PageScan scan(0x1000,1<<12);
+W25Q::PageScan scan(0x0000,1<<12);
+
+volatile uint32_t r=0, v=0xFF0F01;
 uint16_t last=0;
 uint8_t c=0;
+
 void loop (void)
 {
   const uint16_t d= gT.diff();
   if (d >= 1000)
   {
+#ifdef TEST_CRC
+    testCRC(DEBUG,gCRC);
+#else
+    CMX::SysTick sysTick;
+    r= bitCount32(v);
+    r= bitCount32(v);
+    r= bitCount32(v);
+    r= bitCount32(v);
+    uint32_t dt= sysTick.delta();
+    DEBUG.print("dt="); DEBUG.println(dt);
+    //DEBUG.println(sysTick.rvr());
+#endif
     digitalWrite(PIN_LED, 1);
     gClock.print(DEBUG);
     //gRC522.hack(DEBUG);
