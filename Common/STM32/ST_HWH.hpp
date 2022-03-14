@@ -7,10 +7,10 @@
 #define ST_HWH_HPP
 
 #include <libmaple/rcc.h>
-#include <libmaple/rtc.h>
 #include <libmaple/timer.h>
 #include <libmaple/spi.h>
 #include <libmaple/bitband.h>
+//include <libmaple/rtc.h>
 
 #ifndef PERIPH_BASE
 #define PERIPH_BASE  ((uint32_t)0x40000000)
@@ -154,6 +154,23 @@ void dumpTimReg (Stream& s, uint8_t n)
    if (1 == n) { dumpATimReg(s); }
    else if ((n >= 2) && (n <= 5)) { dumpGTimReg(s, TIMER2_BASE+(n-2)); }
 } // dumpTimReg
+
+#if 0 // F107
+#ifndef ETH_BASE  // eth_reg_map
+#define ETH_BASE     ((uint32_t*)(PERIPH_BASE + 0x28000))
+#endif
+
+#include "../CMX_Util.hpp"
+
+uint32_t ethHack (Stream& s)
+{
+   uint32_t *pMACCR= ETH_BASE;
+   *CMX::bbp((void*)&(RCC_BASE->AHBENR), 14)= 1;
+   s.print("MACCR"); 
+   delay(1);
+   s.println(*pMACCR,HEX);
+} // ethHack
+#endif
 
 #if 0
 

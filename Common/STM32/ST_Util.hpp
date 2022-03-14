@@ -24,6 +24,9 @@
 #define RCC_BASE     ((rcc_reg_map*)(PERIPH_BASE + 0x21000))
 #endif
 #endif
+#ifndef RAM_BASE
+#define RAM_BASE  ((uint32_t)0x20000000)
+#endif
 
 class F4RCC // Different from F103 ??
 {
@@ -202,7 +205,7 @@ static const char  cs[]="0123456789abcdef";
 #endif
     s.println(" :CRC");
 } // testCRC
-    
+
 /* Hardware ID & calibration stuff */
 
 typedef struct { uint32_t id[3]; } UID;
@@ -240,7 +243,27 @@ void dumpBits (Stream& s, const uint32_t u, const uint16_t fown)
    }
 } // dumpBits
 
-//typedef struct { const UID *pUID; const uint16_t *pFlashKB; } HWID;
+#if 0
+uint32_t ramScan (Stream& s, uint32_t wh=0x1400)
+{  // NB system hangs on read outside supported RAM (exception?)
+   const uint32_t *pS= (uint32_t*)(RAM_BASE);
+   for (uint32_t i= wh-0xF; i <= wh; i++) // 20K ?
+   {
+      s.print(i,HEX); s.print(':'); s.println(pS[i],HEX); // s.print(' ');
+   }
+} // ramScan
+#endif
+
+uint32_t ramSizeKB (void)
+{
+#ifdef ARDUINO_ARCH_STM32F1
+   return(20);
+#endif
+#ifdef ARDUINO_ARCH_STM32F4
+   return(64);
+#endif
+} // ramSizeKB
+
 bool dumpID (Stream& s)
 {
    s.print("STM32F");
@@ -253,7 +276,8 @@ bool dumpID (Stream& s)
    s.print(" UID:");
    s.print(UID_BASE->id[0],HEX);
    for (int i=1; i<3; i++) { s.print(':'); s.print(UID_BASE->id[i],HEX);  }
-   s.print("\nFlash:"); s.print(*FLAKB_BASE); s.println("KB");
+   s.print("\nFlash: "); s.print(*FLAKB_BASE); s.print("KB, ");
+   s.print("RAM: "); s.print(ramSizeKB()); s.println("KB");
    return(true);
 } // ident
 

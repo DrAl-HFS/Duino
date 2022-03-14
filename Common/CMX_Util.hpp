@@ -82,6 +82,32 @@ volatile uint32_t *bbp (volatile void *p, const uint8_t b=0)
    return((uint32_t*)w);
 } // bbp
 
+#define SYST_CVR ((uint32_t*)0xE000E018)
+#ifndef BIT_MASK
+#define BIT_MASK(b) ((1<<(b))-1)
+#endif
+
+class SysTickIvl
+{
+   uint32_t last;
+
+   uint32_t read (void) { return(BIT_MASK(24) & *SYST_CVR); }
+
+public:
+   SysTickIvl (void) { last= read(); }
+
+   uint32_t delta (void)
+   {
+      uint32_t d, t= read();
+
+      if (last > t) { d= last - t; }  // NB: countdown
+      else { d= last + (1 << 24) - t; } // wrap
+      last= t;
+      return(d);
+   } // delta
+
+}; // class SysTickIvl
+
 }; // namespace CMX
 
 #endif // CMX_UTIL

@@ -282,4 +282,14 @@ public:
    }
 }; // DNTimer
 
+#if 0
+extern "C" {   // symbols not recognised
+extern char _sdata;
+extern char _estack;
+
+uint32_t ramSize (void) { return(&_estack - &_sdata); }
+
+}; // extern "C"
+#endif
+
 #endif // DN_UTIL_HPP
