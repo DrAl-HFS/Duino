@@ -24,6 +24,7 @@ uint32_t bitCount32 (uint32_t v)
    return((((v + (v >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24); // bracket + to prevent compiler grumble
 } // bitCount32
 
+// Reverse bit order in a 32bit word (23 ops and 4 lg + 5 sm const) ~27clks on M3
 uint8_t bitRev32 (uint32_t v)
 {
    v= ((v >> 1) & 0x55555555) | ((v & 0x55555555) << 1);
