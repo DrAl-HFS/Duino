@@ -4,7 +4,7 @@
 // (c) Project Contributors Feb-Mar 2021
 
 #define DEBUG Serial1
-//define TEST_CRC
+//#define TEST_CRC
 
 #if 0
 //#include "Common/MBD/mbdDef.h" // UU16/32
@@ -38,6 +38,15 @@ CW25QDbg gW25QDbg(36);
 MFDHack mfd;
 #ifdef TEST_CRC
 HWCRC gCRC;
+/*  No sign of life. Fake F103C8T6 likely.
+/*  No sign of life. Fake F103C8T6 likely.
+  DEBUG.print("RCC_BASE->AHBENR: 0x");
+  DEBUG.println(RCC_BASE->AHBENR, HEX);
+  gCRC.power();
+  gCRC.reset();
+  DEBUG.print("RCC_BASE->AHBENR: 0x");
+  DEBUG.println(RCC_BASE->AHBENR, HEX);
+*/
 #endif
 
 
@@ -99,10 +108,10 @@ void loop (void)
     testCRC(DEBUG,gCRC);
 #else
     CMX::SysTick sysTick;
-    r= bitCount32(v);
-    r= bitCount32(v);
-    r= bitCount32(v);
-    r= bitCount32(v);
+    r= bitRev32(v);
+    r= bitRev32(v);
+    r= bitRev32(v);
+    r= bitRev32(v);
     uint32_t dt= sysTick.delta();
     DEBUG.print("dt="); DEBUG.println(dt);
     //DEBUG.println(sysTick.rvr());
