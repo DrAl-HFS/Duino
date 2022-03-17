@@ -108,6 +108,8 @@ void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aSt
       }
    } // u8ToBCD4ToA
 
+   int bytesBCD4 (void) { return(6); } // yy/mm/dd,hh:mm:ss 12digits = 6bytes
+   
    int getBCD4 (uint8_t bcd[6])
    {
       bcd4FromU8(bcd+0, (year + 1970) % 100);

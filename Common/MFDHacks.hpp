@@ -51,9 +51,9 @@ typedef struct { uint8_t rr, sh; } CFCUF; // micro footer
 // other valid object permitted within this region)
 typedef struct { uint8_t jl, jh, uv; } CFCJ0; // Data obJect, reservation (unit & value)
 
-// Data fragment header ID & size, both LE uint16_t, extension flags eg. data payload CRC32
+// Data fragment header ID & size, both LE uint16_t, extension flags eg. data payload CRC presence&type
 // ffffffff ffffffff ssssssss ssssssss xxxxxxxx
-typedef struct { uint8_t fl, fh, sl, sh, xx; } CFCD0; // Data payload fRagment-ID & size
+typedef struct { uint8_t fl, fh, sl, sh, xx; } CFCD0; // Data payload fragment-ID & size
 
 // Redirect an expected fragment-ID -> target-ID
 // ffffffff ffffffff tttttttt tttttttt
@@ -248,11 +248,10 @@ protected:
 public:
    MFDHeader (void) { ; }
 
-   uint32_t genObjFragHdr (uint8_t hb[16], const uint16_t objID, const uint16_t fragID, const uint16_t s0, uint32_t sx=0)
+   uint32_t genObjFragHdr (uint8_t hb[16], const uint16_t objID, const uint16_t fragID, const uint16_t s0, const uint32_t usx=0)
    {
-      uint32_t i=0, s= s0+16;
-      if (s > sx) { sx= s; }
-      s= genObjHdr(hb, objID, encodeRV(sx));
+      uint32_t i=0, s= s0 + sizeof(CFCHdrJ0) + sizeof(CFCHdrD0);
+      s= genObjHdr(hb, objID, encodeRV(s+usx));
       if (s > 0)
       {
          i+= s; 
@@ -264,52 +263,58 @@ public:
 
 }; // class MFDHeader
 
-#define MAX_BB 32
+#define MAX_BB 32 // KISS
 class BBuff
 {
 protected:
-   uint8_t bb[MAX_BB], i;
+   uint8_t bb[MAX_BB], iB;
 
 public:
-   BBuff (void) : i{0} { ; }
+   BBuff (void) : iB{0} { ; }
 
-   void reset (void) { i= 0; }
+   void reset (void) { iB= 0; }
    
-   uint8_t avail (void) const { return(MAX_BB - i); }
+   int avail (void) const { return(MAX_BB - (int)iB); }
+   int bytes (void) { return(iB); }
    
-   uint8_t *claim (const uint8_t n)
+   uint8_t *claim (const int n)
    {
       uint8_t *p= NULL;
       if ((n > 0) && (avail() >= n))
       {
-         p= bb+i;
-         i+= n;
+         p= bb+iB;
+         iB+= n;
       }
       return(p);
    } // claim
    
+   // if (i < MAX_BB)
+   uint8_t& operator [] (uint8_t i) { return bb[i]; }
 }; // BBuff
 
 #define MAX_FRAG 8
 class FragAsm : public BBuff
 {
 protected:
-   const uint8_t *pF[MAX_FRAG]; // CONSIDER: uint16_t index (+RAM_BASE)
-   uint16_t       lF[MAX_FRAG];
-   uint8_t iF;
-   uint8_t flag;  // whether last fragment is in BBuff
+   const uint8_t *pF[MAX_FRAG]; // NB: pointer needed for device commit()
+   uint8_t        lF[MAX_FRAG];
+   uint8_t iF;    // CONSIDER: merge index & flag
+   uint8_t flag;  // = whether last fragment is in BBuff
 
-   bool empty (const uint8_t i=0) const { return ((i < MAX_FRAG) && (NULL == pF[i]) && (0 == lF[i])); }
+   // PARANOID: (i < MAX_FRAG) && 
+   bool nonEmpty (const uint8_t i=0) const { return ((NULL != pF[i]) && (0 != lF[i])); }
 
    bool newFrag (const uint8_t *p, uint16_t n)
    {
-      iF+= !empty(iF);
+      iF+= nonEmpty(iF);
       if (iF >= MAX_FRAG) { return(false); }
       //else
       pF[iF]= p; lF[iF]= n;
       return(true);
    } // newFrag
 
+   void extend (const uint8_t n) { lF[iF]+= n; }
+      
 public:
    FragAsm (void) { reset(); }
 
@@ -321,37 +326,37 @@ public:
       for (uint8_t i=0; i<MAX_FRAG; i++) { pF[i]= NULL; lF[i]= 0; }
    } // reset
 
-   uint8_t *claim (const uint8_t n)
+   uint8_t *claim (const uint8_t n, const uint8_t brkbf= 0)
    {
       uint8_t *p= BBuff::claim(n);
       if (p)
       {
-         if (flag > 0) { newFrag(p,n); flag= 0; } 
-         else { lF[iF]+= n; } // tack on end
+         if ((flag|brkbf) > 0) { newFrag(p,n); flag=0; }
+         else { extend(n); } // tack on end
       }
       return(p);
    } // claim
 
    uint8_t append (const uint8_t *p, const uint8_t n)
    {
-      if ((NULL != p) && (n > 0) && newFrag(p,n))
-      {
-         flag= 1;
-         return(n);
-      }
+      //if ((NULL != p) && (n > 0) && : PARANOID
+      if (newFrag(p,n)) { flag= 1; return(n); }
+      //else
       return(0);
    } // add
    
-   uint16_t sumBytesFromFragIdx (const uint8_t i0=0)
+   uint16_t sumBytesFromIdx (const uint8_t i0=0)
    { 
       uint16_t s= lF[i0];
       for (uint8_t i= i0+1; i<=iF; i++) { s+= lF[i]; } 
       return(s);
-   } // sumBytesFromFragIdx
+   } // sumBytesFromIdx
 
+   uint8_t count (void) { return(iF + nonEmpty(iF)); }
+   
    uint32_t commit (UU32 addr, CW25QUtil& dev)
    {
-      return dev.writeMultiLim(addr, pF, lF, iF+(NULL != pF[iF]));
+      return dev.writeMultiLim(addr, pF, lF, count());
    }
 }; // FragAsm
 
@@ -379,7 +384,48 @@ public:
    }
 }; // FragAsm
 
-class MFDHack : public MFDHeader
+class MFDAsm : public MFDHeader
+{
+public:
+   MFDAsm (void) { ; }
+   
+   uint32_t create (FragAsm& fa, const char *name, CClock *pC, const uint16_t id, const uint32_t usx)
+   {
+      uint8_t bH= sizeof(CFCHdrJ0) + sizeof(CFCHdrD0);
+      uint8_t *pH= fa.claim(bH);
+      if (pH)
+      {
+         uint8_t brkbf=0x1; // force break at start of F0 payload to simplify totalling (otherwise first token is merged into header)
+         //s.print("fa.claim() : pH="); s.print((uint32_t)pH,HEX); s.print(", bH="); s.println(bH);
+         if (name)
+         {
+            CFCTok *pCFC= (CFCTok*)fa.claim(sizeof(*pCFC),brkbf);
+            if  (pCFC)
+            {
+               brkbf= 0x0;
+               pCFC->ht= 0xEF;            // String (ascii) token
+               pCFC->nn= lentil(name);
+               fa.append( (uint8_t*)name, pCFC->nn);
+            }
+         }
+         if (pC)
+         {
+            CFCTok *pCFC= (CFCTok*)fa.claim(sizeof(*pCFC)+pC->bytesBCD4(),brkbf);
+            if (pCFC)
+            {
+               brkbf= 0x0;
+               pCFC->ht= 0xEE;            // BCD (string) token
+               pCFC->nn= pC->getBCD4((uint8_t*)(pCFC+1));
+            }
+         }
+         return genObjFragHdr(pH, id, 0, fa.sumBytesFromIdx(1), usx);
+      }      
+      return(0);
+   } // create
+   
+}; // MFDAsm
+
+class MFDHack : public MFDAsm
 {
 public:
    MFDHack (void) { ; }
@@ -401,44 +447,26 @@ public:
 
    void test (Stream& s, CW25QUtil& d, CClock& c)
    {
-      char name[]="test.dat";
-      CFCTok *pCFC;
-      uint8_t *pH, bH, n;
       FragAsmDbg fa(s);
-
-      bH= sizeof(CFCHdrJ0) + sizeof(CFCHdrD0);
-      pH= fa.claim(bH);
-      s.print("fa.claim() : pH="); s.print((uint32_t)pH,HEX); s.print(", bH="); s.println(bH);
-
-      pCFC= (CFCTok*)fa.claim(sizeof(*pCFC));
-      if  (pCFC)
-      {
-         pCFC->ht= 0xEF;            // String (ascii) token
-         pCFC->nn= lentil(name);
-         fa.append( (uint8_t*)name, pCFC->nn);
-      }
-
-      pCFC= (CFCTok*)fa.claim(sizeof(*pCFC)+6); // yy/mm/dd,hh:mm:ss 12digits = 6bytes
-      if (pCFC)
-      {
-         pCFC->ht= 0xEE;            // BCD (string) token
-         pCFC->nn= c.getBCD4((uint8_t*)(pCFC+1));
-      }
-      if (pH)
-      {
-         n= genObjFragHdr(pH, 1, 0, fa.sumBytesFromFragIdx(1), 230);
-      }      
-
-      s.print("MFD hdrs ["); s.print(fa.sumFrom()); s.println("]:");
+      uint32_t n= MFDAsm::create(fa, "test.dat", &c, 1, 230);
+      uint8_t *pH= &(fa[0]);
+      s.print("MFD hdrs ["); s.print(fa.sumBytesFromIdx()); s.println("]:");
       fa.dump();
 
-      int lv[2];
+      int lv[2], nH= fa.bytes();
       s.print("validate:");
-      lv[0]= validate(pH+0,MAX_BB);
+      lv[0]= validate(pH,nH);
       //logVI(s);
       if (lv[0] > 0)
       {
-         lv[1]= validate(pH+lv[0],MAX_BB-lv[0]);
+         pH+= lv[0];
+         nH-= lv[0];
+         lv[1]= validate(pH,nH);
+         if (lv[1] > 0)
+         {
+            const CFCD0 *pD= (CFCD0*)(pH+sizeof(CFCUH));
+            s.print("fl,sl:"); s.print(pD->fl); s.print(','); s.println(pD->sl);
+         }
          //logVI(s);
       }
       s.print(" lv[0]="); s.print(lv[0]);
