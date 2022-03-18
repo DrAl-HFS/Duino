@@ -26,11 +26,14 @@ extern "C" {
 // A "last fragment" marker is needed to terminate the fragment search process but this
 // marker has to be easily deleted when a new fragment is appended. A redirect is used for
 // this purpose: this contains the next expected fragment ID and gives a target fragment ID
-// of zero (F0, the first possible fragment ID). Fragment zero is special: it does not contain
-// user data but rather attribute information such as the file name. Thus a file created
-// empty would contain fragment zero followed by a redirect F1->F0, marking the end of file.
-// (Thus fragment ID F0 is equivalent to NULL.)
-// Attributes embedded within fragment zero are prefixed by token & count: 0xHTNN
+// of zero (F0, the first possible fragment ID). Fragment zero is special: it typically does
+// not contain user data but rather attribute information such as the file name. Thus a file
+// created empty would contain fragment zero followed by a redirect F1->F0, marking the end
+// of file. (Thus fragment ID F0 is equivalent to NULL.)
+// Any fragment may contain attribute information, signalled by a flag in the fragment header.
+// When signalled, the fragment *must* begin with an attribute token. For a regular data
+// fragment this typically would be an encapsulation (255 bytes max) so that multiple attribute
+// tokens can be unambiguously discriminated from data bytes.
 
 // A generic chunk micro header & footer allow simple scanning with error checking
 // The object micro-payload includes a storage reservation for more efficient allocation and search.
@@ -59,9 +62,6 @@ typedef struct { uint8_t fl, fh, sl, sh, xx; } CFCD0; // Data payload fragment-I
 // ffffffff ffffffff tttttttt tttttttt
 typedef struct { uint8_t fl, fh, tl, th; } CFCR0;
 
-// Token 1110tttt = 0xET, nn
-typedef union { uint8_t a[2]; struct { uint8_t ht, nn; }; } CFCTok;
-
 // Complete headers (packed)
 typedef struct { CFCUH h; CFCJ0 j; CFCUF f; } CFCHdrJ0;
 typedef struct { CFCUH h; CFCD0 d; CFCUF f; } CFCHdrD0;
@@ -69,7 +69,38 @@ typedef struct { CFCUH h; CFCR0 r; CFCUF f; } CFCHdrR0;
 // Object header precedes one or more fragments and/or redirects
 // (all expected to lie within reserved storage).
 
-// DEPRECATED : initial (inflexible, weak) design.
+// Token 1110tttt = 0xET,XX where XX bits are typically a byte count for subsequent data
+typedef union { uint8_t a[2]; struct { uint8_t ht, xx; }; } CFCTok0;
+
+#define HDR_OJDF_BYTES (sizeof(CFCHdrJ0)+sizeof(CFCHdrD0))
+
+// The file object descriptor (F0) is expected to include user-friendly features such as
+// an ASCII name to associate with the object ID. A two byte header is used to identify
+// such data: <token><length><data...> where the token byte is given a distinctive 4bit
+// prefix to avoid possible confusion. The length counts data bytes (ie. excluding the
+// two byte header).
+// 1110tttt = 0xET where T is:
+//     0x0 .. 0x9 = reserved values, treat as "ignore"
+//     0xA = character string, assume ASCII (without BOM)
+//     0xB = bcd4 string
+//     0xC = CRC8/16/32 *special arg format*
+//     0xD = ???
+//     0xE = encapsulation, used within data bearing fragments to avoid ambiguity
+//     0xF = reserved value, treat as "ignore"
+// e.g. a file might appear as
+//    [HdrJ:J1][HdrD:F0,18][0xEF,0x07,"log.dat"][0xEE,0x03,0x11,0x28,0x31]  7+9+9+5=30bytes
+//    [HdrD:F1][DataChunk1]
+//    [HdrJ:J1][HdrD:F2][DataChunk2]
+
+// CRC: <token><arg><crc> = 0xEC,<kinnnnnn>,<rrrrrrrr>
+//    k : 0->CRC8, 1->CRC32
+//    i : 0->preceding, 1->succeeding (direction of data on which calculated).
+//          Calculation always excludes <crc> bytes but includes <token><arg>
+//          (with implicit pre/post directional zero padding for CRC32) 
+//    nnnnnn : 1..63 -> number of (1 or 4 byte) elements in addition to <token><arg> or 0->all in scope (encapsulation/fragment).
+
+//--------------------------------------------
+// *** DEPRECATED : unsatisfactory design.
 // Size of a fragment payload is expected to be block-header= 65536-8 = 65528 bytes
 // or less. So file size is limited to 65528*4095= 255.9 MBytes.
 
@@ -102,22 +133,8 @@ typedef union { uint32_t w; struct { uint8_t sl, sh, fl, fhr; } s; } UCFCHdr1;
 // "r" are CRC4 computed over the preceding 28 bits
 typedef union { uint32_t w; struct { uint8_t tl, thx, fl, fhr; } s; } UCFCLnk1;
 //---
-// The file object descriptor is expected to include user-friendly features such as
-// an ASCII name to associate with the object ID. Also efficiency improvements such
-// as declaring reserved regions for faster search (skipping). A two byte header is
-// used to identify such data: <token><length><data...> where the token byte is given
-// a distinctive 4bit prefix to avoid possible confusion. The length counts data bytes
-// (ie. excluding the two byte header).
-// 1110tttt = 0xET
-// T : 0xF = string, assume ASCII (without BOM)
-//     0xE = reservation: (reserved sizes encompass all headers & data ie. total footprint on disk)
-//       first data byte = uunnnnnn : (1+n) * 16^(1+u) bytes (1+n) << ((1+u) << 2)
-//       "u" is size unit (16,256,4K,64K bytes),
-//       "n" is number of units (<=64, zero -> one)
-// e.g. a file might appear as
-//    [Hdr0][Hdr1:J1,F0][0xEF,0x07,"log.dat"][0xEE,0x01,0x48]  4+4+9+3=20bytes
-//    [Hdr0][Hdr1:J1,F1][DataChunk1]
-//    [Hdr0][Hdr1:J1,F2][DataChunk2]
+// DEPRECATED ***
+
 
 }; // extern "C"
 
@@ -232,7 +249,7 @@ protected:
       return genMicroFtr(hb,i);
    } // genObjHdr
 
-   uint32_t genFragHdr (uint8_t hb[9], const uint16_t id, const uint16_t s)
+   uint32_t genFragHdr (uint8_t hb[9], const uint16_t id, const uint16_t s, const uint8_t extf=0xFF)
    {
       uint32_t i= genMicroHdr(hb,0xE);
 
@@ -240,7 +257,7 @@ protected:
       hb[i++]= id >> 8;
       hb[i++]= s; // & 0xFF;
       hb[i++]= s >> 8;
-      hb[i++]= 0xFF; // dummy ext flags
+      hb[i++]= extf; // extension flags
 
       return genMicroFtr(hb,i);
     } // genFragHdr
@@ -248,9 +265,9 @@ protected:
 public:
    MFDHeader (void) { ; }
 
-   uint32_t genObjFragHdr (uint8_t hb[16], const uint16_t objID, const uint16_t fragID, const uint16_t s0, const uint32_t usx=0)
+   uint32_t genObjFragHdr (uint8_t hb[HDR_OJDF_BYTES], const uint16_t objID, const uint16_t fragID, const uint16_t s0, const uint32_t usx=0)
    {
-      uint32_t i=0, s= s0 + sizeof(CFCHdrJ0) + sizeof(CFCHdrD0);
+      uint32_t i=0, s= s0 + HDR_OJDF_BYTES;
       s= genObjHdr(hb, objID, encodeRV(s+usx));
       if (s > 0)
       {
@@ -292,6 +309,7 @@ public:
    uint8_t& operator [] (uint8_t i) { return bb[i]; }
 }; // BBuff
 
+// TODO : find alternate name to avoid confusion with file object fragments
 #define MAX_FRAG 8
 class FragAsm : public BBuff
 {
@@ -352,6 +370,15 @@ public:
       return(s);
    } // sumBytesFromIdx
 
+   uint8_t crc8FromIdx (const uint8_t i0=0)
+   {
+      CRC8 crc8;
+      uint8_t c= 0xFF;
+      // deduct 1 from length of last 
+      for (uint8_t i= i0; i<=iF; i++) { c= crc8.compute(pF[i], lF[i]-(i==iF), c); }
+      return(c); 
+   } // crc8FromIdx
+   
    uint8_t count (void) { return(iF + nonEmpty(iF)); }
    
    uint32_t commit (UU32 addr, CW25QUtil& dev)
@@ -364,18 +391,35 @@ class FragAsmDbg : public FragAsm
 {
 protected:
    Stream& dbg;
-   
+
 public:
    FragAsmDbg (Stream& s) : dbg(s) { ; }
-   
+
+/*
    uint8_t *claim (const uint8_t n)
    {
       uint8_t *p= FragAsm::claim(n);
       dbg.print("claim("); dbg.print(n); dbg.print(") ->"); dbg.println((uint32_t)p,HEX);
       return(p);
    }
-   
-   void dump (void)
+*/
+   int dump (uint8_t b[], const int max) // flatten
+   {
+      int k= 0;
+      for (uint8_t i=0; i<=iF; i++)
+      {
+         const uint8_t n= lF[i], *p= pF[i];
+         for (uint8_t j=0; j < lF[i]; j++)
+         {
+            b[k]= p[j];
+            k+= (k<max);
+         }
+      }
+      dumpHexTab(dbg, b, k);
+      return(k);
+   } // dump
+
+   void dump (void) //Stream& dbg)
    {
       for (uint8_t i=0; i<=iF; i++)
       { dbg.print("0x"); dbg.print((uint32_t)(pF[i])-RAM_BASE,HEX); dbg.print('['); dbg.print(lF[i]); dbg.println(']'); }
@@ -391,34 +435,43 @@ public:
    
    uint32_t create (FragAsm& fa, const char *name, CClock *pC, const uint16_t id, const uint32_t usx)
    {
-      uint8_t bH= sizeof(CFCHdrJ0) + sizeof(CFCHdrD0);
-      uint8_t *pH= fa.claim(bH);
+      uint8_t *pH= fa.claim(HDR_OJDF_BYTES);
       if (pH)
       {
+         
          uint8_t brkbf=0x1; // force break at start of F0 payload to simplify totalling (otherwise first token is merged into header)
          //s.print("fa.claim() : pH="); s.print((uint32_t)pH,HEX); s.print(", bH="); s.println(bH);
          if (name)
          {
-            CFCTok *pCFC= (CFCTok*)fa.claim(sizeof(*pCFC),brkbf);
+            CFCTok0 *pCFC= (CFCTok0*)fa.claim(sizeof(CFCTok0),brkbf);
             if  (pCFC)
             {
                brkbf= 0x0;
-               pCFC->ht= 0xEF;            // String (ascii) token
-               pCFC->nn= lentil(name);
-               fa.append( (uint8_t*)name, pCFC->nn);
+               pCFC->ht= 0xEA;            // String (ascii) token
+               pCFC->xx= lentil(name);
+               fa.append( (uint8_t*)name, pCFC->xx);
             }
          }
          if (pC)
          {
-            CFCTok *pCFC= (CFCTok*)fa.claim(sizeof(*pCFC)+pC->bytesBCD4(),brkbf);
+            CFCTok0 *pCFC= (CFCTok0*)fa.claim(sizeof(CFCTok0)+pC->bytesBCD4(),brkbf);
             if (pCFC)
             {
                brkbf= 0x0;
-               pCFC->ht= 0xEE;            // BCD (string) token
-               pCFC->nn= pC->getBCD4((uint8_t*)(pCFC+1));
+               pCFC->ht= 0xEB;            // BCD (string) token
+               pCFC->xx= pC->getBCD4((uint8_t*)(pCFC+1));
             }
          }
-         return genObjFragHdr(pH, id, 0, fa.sumBytesFromIdx(1), usx);
+         uint8_t nab= fa.sumBytesFromIdx(1);
+         if (0 == brkbf)
+         { // generate CRC8 for attributes
+            CFCTok0 *pCFC= (CFCTok0*)fa.claim(sizeof(CFCTok0)+1);
+            pCFC->ht= 0xEC;
+            if ((nab & 0x3F) == nab) { pCFC->xx= nab; } else { pCFC->xx= 0x00; }
+            pCFC->a[2]= fa.crc8FromIdx(1);
+            nab+= 3;
+         }
+         return(nab + genObjFragHdr(pH, id, 0, nab, usx));
       }      
       return(0);
    } // create
@@ -449,9 +502,17 @@ public:
    {
       FragAsmDbg fa(s);
       uint32_t n= MFDAsm::create(fa, "test.dat", &c, 1, 230);
-      uint8_t *pH= &(fa[0]);
-      s.print("MFD hdrs ["); s.print(fa.sumBytesFromIdx()); s.println("]:");
-      fa.dump();
+      uint8_t *pH= &(fa[0]), flattened[64];
+      
+      //uint8_t n= fa.sumBytesFromIdx();
+      s.print("MFD hdrs ["); s.print(n); s.println("]:");
+      
+      if (fa.dump(flattened, sizeof(flattened)) == n)
+      {
+         CRC8 crc8;
+         uint8_t i= n-2, r= crc8.compute( flattened+HDR_OJDF_BYTES, flattened[i]+2 );
+         s.print("CRC8: ["); s.print(i); s.print("] -> "); s.println(r,HEX);
+      }
 
       int lv[2], nH= fa.bytes();
       s.print("validate:");
