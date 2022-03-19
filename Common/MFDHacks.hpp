@@ -40,17 +40,20 @@ extern "C" {
 // 1011ssss xxxxiiii [micro-payload] rrrrrrrr ssss1101 = 0xBSIX ... RRSD
 // "s" bits give number of bytes to skip between end of header to start of footer, coding TBD.
 // "x" are extension bits (reserved, default to 0xF) CONSIDER: sequence number?
-// "i" bits are chunk id code 
+// "i" bits are chunk id code
 // "r" are CRC8 computed over the header (?) & payload bytes (footer is excluded)
 // header & size bits are repeated (swapped) at end of footer to further help identify errors
 typedef struct { uint8_t hs, xi; } CFCUH; // micro header
 typedef struct { uint8_t rr, sh; } CFCUF; // micro footer
+
+#define HDR_UHF_BYTES (sizeof(CFCUH)+sizeof(CFCUF))
+
 // 3 header payload types:
 // Object with storage reservation (allocated)
 // jjjjjjjj jjjjjjjj uvvvvvvv
 // "j" bits are object ID l+h (LE uint16_t)
 // "u" is size unit: 1=page (256Byte), 0= block (64kByte)
-// "v" is reservation count (number of size units measured from start of enclosing unit, no 
+// "v" is reservation count (number of size units measured from start of enclosing unit, no
 // other valid object permitted within this region)
 typedef struct { uint8_t jl, jh, uv; } CFCJ0; // Data obJect, reservation (unit & value)
 
@@ -123,7 +126,7 @@ typedef union { uint32_t w; struct { uint8_t hi, jl, jh, xr; } s; } UCFCHdr0;
 // Chunk id=0 is reserved for the file object descriptor, 0x001..0xFFF are data chunks
 typedef union { uint32_t w; struct { uint8_t sl, sh, fl, fhr; } s; } UCFCHdr1;
 //---
-// Immediately following *Hdr0, *Lnk1 describes a fragment link, so that a gap in the 
+// Immediately following *Hdr0, *Lnk1 describes a fragment link, so that a gap in the
 // fragment ID sequence may be efficiently skipped. This simplifies truncation and may
 // help in the efficient implementation of circular log buffer storage.
 // tttttttt ttttxxxx ffffffff ffffrrrr = 0xTTTXFFFR
@@ -207,31 +210,41 @@ protected:
 
 public:
    MFDMicro (void) { ; }
-   
-   uint32_t validate (const uint8_t b[], const uint32_t n)
+
+   uint32_t decodeRV (uint8_t rv)
+   {
+      uint32_t b= rv & 0x7F;
+      if (rv & 0x80) { return(b * 0x100); } // 256Byte pages
+      //else
+      return(b * 0x10000); // 64K blocks
+   } // decodeRV
+
+   int validate (const uint8_t b[], const int n, const CFCUH **pp=NULL)
    {
       ValInf vi;
-      if (n >= 4)
+      if ((n > HDR_UHF_BYTES) &&    // min size (reject no payload) and
+         (0xB0 == (b[0] & 0xF0)))   // start mark
       {
-         vi.s= b[0] & 0x0F;
-         if (vi.s < (n-4))
+         vi.s= b[0] & 0x0F; // size 
+         if ((vi.s+HDR_UHF_BYTES) <= n) // ensure complete
          {
-            const uint8_t i= sizeof(CFCUH) + vi.s + sizeof(CFCUF)-1; // index of end mark
-            if (  ((b[i] >> 4) == vi.s) &&
-                  (0xB0 == (b[0] & 0xF0)) &&
-                  (0x0D == (b[i] & 0x0F))   )
-            {
+            const uint8_t i= vi.s + HDR_UHF_BYTES - 1; // index of end mark
+            if ( ((b[i] >> 4) == vi.s) &&   // match size and
+                 (0x0D == (b[i] & 0x0F)) )  // end code
+            {  // now verify CRC
                vi.crc= CRC8::compute(b, sizeof(CFCUH)+vi.s);
                if (b[i-1] == vi.crc)   // CRC precedes end mark
                {
-                  return(vi.s + sizeof(CFCUH) + sizeof(CFCUF));
+                  if (pp) { *pp= (const CFCUH*)b; }
+                  return(vi.s);
                }
+               return(-vi.s); // bad CRC
             }
          }
       }
       return(0);
    } // validate
-   
+
 }; // class MFDMicro
 
 class MFDHeader : public MFDMicro
@@ -271,13 +284,48 @@ public:
       s= genObjHdr(hb, objID, encodeRV(s+usx));
       if (s > 0)
       {
-         i+= s; 
+         i+= s;
          s= genFragHdr(hb+i, fragID, s0);
          if (s > 0) { i+= s; }
       }
       return(i);
    } // genObjFragHdr
 
+   int dissect (const uint8_t b[], const int n, Stream& s)
+   {
+      const CFCUH *p=NULL;
+      int r= validate(b,n,&p);
+      if (r > 0)
+      {
+         switch(p->xi & 0x0F)
+         {
+            case 0xF :
+               if (3 == r)
+               {
+                  const CFCJ0 *pJ= (const CFCJ0*)(p+1);
+                  s.print('J'); s.print(pJ->jl); s.print(','); s.print(decodeRV(pJ->uv)); s.print('B');
+               }
+               break;
+            case 0xE :
+               if (5 == r)
+               {
+                  const CFCD0 *pF= (const CFCD0*)(p+1);
+                  s.print('F'); s.print(pF->fl); s.print(','); s.print(pF->sl); s.print('B');
+               }
+               break;
+            case 0xD :
+               if (4 == r)
+               {
+                  const CFCR0 *pR= (const CFCR0*)(p+1);
+                  s.print('R'); s.print(pR->fl); s.print("->"); s.print(pR->tl);
+               }
+               break;
+            default : s.print('?');
+         }
+         s.print(';');
+         return(r + HDR_UHF_BYTES);
+      }
+   }
 }; // class MFDHeader
 
 #define MAX_BB 32 // KISS
@@ -290,10 +338,10 @@ public:
    BBuff (void) : iB{0} { ; }
 
    void reset (void) { iB= 0; }
-   
+
    int avail (void) const { return(MAX_BB - (int)iB); }
    int bytes (void) { return(iB); }
-   
+
    uint8_t *claim (const int n)
    {
       uint8_t *p= NULL;
@@ -304,7 +352,7 @@ public:
       }
       return(p);
    } // claim
-   
+
    // if (i < MAX_BB)
    uint8_t& operator [] (uint8_t i) { return bb[i]; }
 }; // BBuff
@@ -362,11 +410,11 @@ public:
       //else
       return(0);
    } // add
-   
+
    uint16_t sumBytesFromIdx (const uint8_t i0=0)
-   { 
+   {
       uint16_t s= lF[i0];
-      for (uint8_t i= i0+1; i<=iF; i++) { s+= lF[i]; } 
+      for (uint8_t i= i0+1; i<=iF; i++) { s+= lF[i]; }
       return(s);
    } // sumBytesFromIdx
 
@@ -374,13 +422,13 @@ public:
    {
       CRC8 crc8;
       uint8_t c= 0xFF;
-      // deduct 1 from length of last 
+      // deduct 1 from length of last
       for (uint8_t i= i0; i<=iF; i++) { c= crc8.compute(pF[i], lF[i]-(i==iF), c); }
-      return(c); 
+      return(c);
    } // crc8FromIdx
-   
+
    uint8_t count (void) { return(iF + nonEmpty(iF)); }
-   
+
    uint32_t commit (UU32 addr, CW25QUtil& dev)
    {
       return dev.writeMultiLim(addr, pF, lF, count());
@@ -432,13 +480,12 @@ class MFDAsm : public MFDHeader
 {
 public:
    MFDAsm (void) { ; }
-   
+
    uint32_t create (FragAsm& fa, const char *name, CClock *pC, const uint16_t id, const uint32_t usx)
    {
       uint8_t *pH= fa.claim(HDR_OJDF_BYTES);
       if (pH)
       {
-         
          uint8_t brkbf=0x1; // force break at start of F0 payload to simplify totalling (otherwise first token is merged into header)
          //s.print("fa.claim() : pH="); s.print((uint32_t)pH,HEX); s.print(", bH="); s.println(bH);
          if (name)
@@ -472,10 +519,10 @@ public:
             nab+= 3;
          }
          return(nab + genObjFragHdr(pH, id, 0, nab, usx));
-      }      
+      }
       return(0);
    } // create
-   
+
 }; // MFDAsm
 
 class MFDHack : public MFDAsm
@@ -503,10 +550,10 @@ public:
       FragAsmDbg fa(s);
       uint32_t n= MFDAsm::create(fa, "test.dat", &c, 1, 230);
       uint8_t *pH= &(fa[0]), flattened[64];
-      
+
       //uint8_t n= fa.sumBytesFromIdx();
       s.print("MFD hdrs ["); s.print(n); s.println("]:");
-      
+
       if (fa.dump(flattened, sizeof(flattened)) == n)
       {
          CRC8 crc8;
@@ -516,22 +563,14 @@ public:
 
       int lv[2], nH= fa.bytes();
       s.print("validate:");
-      lv[0]= validate(pH,nH);
+      lv[0]= dissect(pH,nH,s);
       //logVI(s);
       if (lv[0] > 0)
       {
          pH+= lv[0];
          nH-= lv[0];
-         lv[1]= validate(pH,nH);
-         if (lv[1] > 0)
-         {
-            const CFCD0 *pD= (CFCD0*)(pH+sizeof(CFCUH));
-            s.print("fl,sl:"); s.print(pD->fl); s.print(','); s.println(pD->sl);
-         }
-         //logVI(s);
+         lv[1]= dissect(pH,nH,s);
       }
-      s.print(" lv[0]="); s.print(lv[0]);
-      s.print(" lv[1]="); s.print(lv[1]);
       s.println();
    } // test
 
