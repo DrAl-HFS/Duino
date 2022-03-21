@@ -466,7 +466,7 @@ public:
    {
       const int nF= count(), nB= sumFragBytesFI();
       int r= dev.writeMultiLim(addr, pF, lF, nF);
-      if (r >= nB) { return(nB); } // ?> weird?
+      if (r >= nB) { return(nB); } // ?> weird catch-all?
       // else
       if (r < 0) { return(r); } // err
       // else

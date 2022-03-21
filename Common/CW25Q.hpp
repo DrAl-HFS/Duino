@@ -84,7 +84,7 @@ protected:
       cmd1(W25Q::WR_EN);
       //start();
       cmdAddrFrag(addr,cmd);
-   }
+   } // startWrite
 
    // CAVEAT : no checking of address or command!
    void erase (const UU32 addr, const W25Q::Cmd cmd)
@@ -144,7 +144,7 @@ public:
       cmd1(W25Q::GL_UN);
    } // unlock
 
-   int16_t dataRead (uint8_t b[], int16_t n, const UU32 addr) // UU32
+   int dataRead (uint8_t b[], int n, const UU32 addr) // UU32
    {
       if (n > 0)
       {
@@ -157,7 +157,7 @@ public:
       return(0);
    } // dataRead
 
-   int16_t dataWrite (const uint8_t b[], int16_t n, const UU32 addr) // UU32
+   int dataWrite (const uint8_t b[], int n, const UU32 addr) // UU32
    {
       if (n > 0)
       {
@@ -173,10 +173,10 @@ public:
       return(n);
    } // dataWrite
 
-   uint16_t dataErase (uint16_t aP, const uint16_t nP=16)
+   int dataErase (uint16_t aP, const int nP=16)
    {
       EraseParam m;
-      uint16_t eP=0;
+      int eP=0;
       while ((eP < nP) && validErase(m,aP,nP))
       {
          do
@@ -213,9 +213,9 @@ public:
 
    // Check for unused storage (or some other constant value)
    // without using a buffer
-   uint32_t scanEqual (const UU32 addr, uint32_t max=1<<16, const uint8_t v=0xFF)
+   int32_t scanEqual (const UU32 addr, int32_t max=1<<16, const uint8_t v=0xFF)
    {
-      uint32_t n=0;
+      int32_t n=0;
       uint8_t b;
       //start();
       cmdAddrFrag(addr,W25Q::RD_PG);
