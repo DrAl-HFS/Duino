@@ -229,10 +229,9 @@ public:
 
    // Gathered fragment write :
    // Write fragments as a contiguous block, limited to 256bytes (write buffer size)
-   uint32_t writeMultiLim (const UU32 addr, const uint8_t *pp[], const uint8_t b[], const int n)
+   int writeMultiLim (const UU32 addr, const uint8_t * const pp[], const uint8_t l[], const int n)
    {
-      int i=0;
-      uint16_t t=0;
+      int i=0, t=0;
       if (n > 0)
       {
          //sync();
@@ -242,7 +241,7 @@ public:
          startWrite(addr, W25Q::WR_PG);
          do
          {
-            uint16_t c= b[i];
+            int16_t c= l[i];
             if (t+c > 256) { c= 256 - t; }
             t+= write(pp[i], c);
             //i+= (c == b[i]); irrelevant

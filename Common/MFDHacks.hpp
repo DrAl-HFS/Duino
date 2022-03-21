@@ -181,7 +181,7 @@ protected:
       return(0);
    } // encodeRV
 
-   uint32_t genMicroHdr (uint8_t uh[2], const uint8_t t, const uint8_t x=0xF)
+   int genMicroHdr (uint8_t uh[2], const uint8_t t, const uint8_t x=0xF)
    {
       uint32_t i= 0;
       if (t <= 0xF)
@@ -192,7 +192,7 @@ protected:
       return(i);
    } // genMicroHdr
 
-   uint32_t genMicroFtr (uint8_t h[], uint32_t i)
+   int genMicroFtr (uint8_t h[], uint32_t i)
    {
       if (i >= sizeof(CFCUH))
       {
@@ -251,9 +251,9 @@ class MFDHeader : public MFDMicro
 {
 protected:
 
-   uint32_t genObjHdr (uint8_t hb[7], const uint16_t id, const uint8_t rv=0)
+   int genObjHdr (uint8_t hb[7], const uint16_t id, const uint8_t rv=0)
    {
-      uint32_t i= genMicroHdr(hb,0xF);
+      int i= genMicroHdr(hb,0xF);
 
       hb[i++]= id; // & 0xFF;
       hb[i++]= id >> 8;
@@ -262,9 +262,9 @@ protected:
       return genMicroFtr(hb,i);
    } // genObjHdr
 
-   uint32_t genFragHdr (uint8_t hb[9], const uint16_t id, const uint16_t s, const uint8_t extf=0xFF)
+   int genFragHdr (uint8_t hb[9], const uint16_t id, const uint16_t s, const uint8_t extf=0xFF)
    {
-      uint32_t i= genMicroHdr(hb,0xE);
+      int i= genMicroHdr(hb,0xE);
 
       hb[i++]= id; // & 0xFF;
       hb[i++]= id >> 8;
@@ -278,9 +278,9 @@ protected:
 public:
    MFDHeader (void) { ; }
 
-   uint32_t genObjFragHdr (uint8_t hb[HDR_OJDF_BYTES], const uint16_t objID, const uint16_t fragID, const uint16_t s0, const uint32_t usx=0)
+   int genObjFragHdr (uint8_t hb[HDR_OJDF_BYTES], const uint16_t objID, const uint16_t fragID, const uint16_t s0, const uint32_t usx=0)
    {
-      uint32_t i=0, s= s0 + HDR_OJDF_BYTES;
+      int i=0, s= s0 + HDR_OJDF_BYTES;
       s= genObjHdr(hb, objID, encodeRV(s+usx));
       if (s > 0)
       {
@@ -380,7 +380,40 @@ protected:
    } // newFrag
 
    void extend (const uint8_t n) { lF[iF]+= n; }
-      
+
+   struct FragPos
+   { 
+      uint8_t iF, iB; 
+      FragPos (void) : iF{0}, iB{0} { ; }
+   }; // struct FragPos
+
+   bool advance (FragPos& pos, int b) const
+   {
+      while ((b > 0) && (pos.iF <= iF))
+      {
+         int rB= lF[pos.iF] - pos.iB;
+         if (rB < 0) { return(false); } // error
+         if (b > rB) // likliest?
+         {
+            b-= rB;
+            pos.iF++;
+            pos.iB= 0;
+         }
+         else if (b < rB)
+         { 
+            pos.iB+= b;
+            return(true);
+         }
+         else // (b == rB)
+         {
+            pos.iF++;
+            pos.iB= 0;
+            return(true);
+         }
+      }
+      return(b <= 0);
+   } // advance
+
 public:
    FragAsm (void) { reset(); }
 
@@ -411,14 +444,14 @@ public:
       return(0);
    } // add
 
-   uint16_t sumBytesFromIdx (const uint8_t i0=0)
+   uint16_t sumFragBytesFI (const uint8_t i0=0) const
    {
       uint16_t s= lF[i0];
       for (uint8_t i= i0+1; i<=iF; i++) { s+= lF[i]; }
       return(s);
-   } // sumBytesFromIdx
+   } // sumFragBytesFI
 
-   uint8_t crc8FromIdx (const uint8_t i0=0)
+   uint8_t crc8FromIdx (const uint8_t i0=0) const
    {
       CRC8 crc8;
       uint8_t c= 0xFF;
@@ -427,31 +460,51 @@ public:
       return(c);
    } // crc8FromIdx
 
-   uint8_t count (void) { return(iF + nonEmpty(iF)); }
+   uint8_t count (void) const { return(iF + nonEmpty(iF)); }
 
-   uint32_t commit (UU32 addr, CW25QUtil& dev)
+   int commit (UU32 addr, CW25QUtil& dev) const
    {
-      return dev.writeMultiLim(addr, pF, lF, count());
-   }
+      const int nF= count(), nB= sumFragBytesFI();
+      int r= dev.writeMultiLim(addr, pF, lF, nF);
+      if (r >= nB) { return(nB); } // ?> weird?
+      // else
+      if (r < 0) { return(r); } // err
+      // else
+      int tB= r;
+      FragPos pos;
+      do
+      {
+         if (advance(pos,r))
+         {
+            addr.u32+= r;
+            r= dev.dataWrite(pF[pos.iF]+pos.iB, lF[pos.iF]-pos.iB, addr);
+         }
+      } while ((r > 0) && (tB < nB));
+      return(tB);
+   } // commit
+   
 }; // FragAsm
 
 class FragAsmDbg : public FragAsm
 {
 protected:
-   Stream& dbg;
+   //Stream& dbg;
 
 public:
-   FragAsmDbg (Stream& s) : dbg(s) { ; }
+   //FragAsmDbg (Stream& s) : dbg(s) { ; }
 
-/*
-   uint8_t *claim (const uint8_t n)
+   void test (Stream& s, int a=16)
    {
-      uint8_t *p= FragAsm::claim(n);
-      dbg.print("claim("); dbg.print(n); dbg.print(") ->"); dbg.println((uint32_t)p,HEX);
-      return(p);
-   }
-*/
-   int dump (uint8_t b[], const int max) // flatten
+      FragPos pos;
+      bool r;
+      s.print("FragAsmDbg::test() - ");
+      s.print(" ["); s.print(pos.iF); s.print("],"); s.println(pos.iB); s.print(" -> ");
+      if (a <= 0) { a= sumFragBytesFI()/2; }
+      r= advance(pos, a);
+      s.print(r); s.print("; ["); s.print(pos.iF); s.print("],"); s.println(pos.iB);
+   } // test
+   
+   int dump (uint8_t b[], const int max) const // flatten
    {
       int k= 0;
       for (uint8_t i=0; i<=iF; i++)
@@ -463,16 +516,15 @@ public:
             k+= (k<max);
          }
       }
-      dumpHexTab(dbg, b, k);
       return(k);
    } // dump
 
-   void dump (void) //Stream& dbg)
+   void dump (Stream& s) const // DEPRECATE
    {
       for (uint8_t i=0; i<=iF; i++)
-      { dbg.print("0x"); dbg.print((uint32_t)(pF[i])-RAM_BASE,HEX); dbg.print('['); dbg.print(lF[i]); dbg.println(']'); }
+      { s.print("0x"); s.print((uint32_t)(pF[i])-RAM_BASE,HEX); s.print('['); s.print(lF[i]); s.println(']'); }
       for (uint8_t i=0; i<=iF; i++)
-      { dumpHexFmt(dbg, pF[i], lF[i]); dbg.print('\t'); dumpCharFmt(dbg, pF[i], lF[i]); dbg.println(); }
+      { dumpHexFmt(s, pF[i], lF[i]); s.print('\t'); dumpCharFmt(s, pF[i], lF[i]); s.println(); }
    }
 }; // FragAsm
 
@@ -481,7 +533,7 @@ class MFDAsm : public MFDHeader
 public:
    MFDAsm (void) { ; }
 
-   uint32_t create (FragAsm& fa, const char *name, CClock *pC, const uint16_t id, const uint32_t usx)
+   int create (FragAsm& fa, const char *name, CClock *pC, const uint16_t id, const uint32_t usx)
    {
       uint8_t *pH= fa.claim(HDR_OJDF_BYTES);
       if (pH)
@@ -509,7 +561,7 @@ public:
                pCFC->xx= pC->getBCD4((uint8_t*)(pCFC+1));
             }
          }
-         uint8_t nab= fa.sumBytesFromIdx(1);
+         uint8_t nab= fa.sumFragBytesFI(1);
          if (0 == brkbf)
          { // generate CRC8 for attributes
             CFCTok0 *pCFC= (CFCTok0*)fa.claim(sizeof(CFCTok0)+1);
@@ -547,19 +599,23 @@ public:
 
    void test (Stream& s, CW25QUtil& d, CClock& c)
    {
-      FragAsmDbg fa(s);
-      uint32_t n= MFDAsm::create(fa, "test.dat", &c, 1, 230);
+      FragAsmDbg fa;
+      int r, n= MFDAsm::create(fa, "test.dat", &c, 1, 230);
       uint8_t *pH= &(fa[0]), flattened[64];
 
-      //uint8_t n= fa.sumBytesFromIdx();
+      //uint8_t n= fa.sumFragBytesFI();
       s.print("MFD hdrs ["); s.print(n); s.println("]:");
 
-      if (fa.dump(flattened, sizeof(flattened)) == n)
+      r= fa.dump(flattened, sizeof(flattened));
+      dumpHexTab(s, flattened, r);
+      if (r == n)
       {
          CRC8 crc8;
+         
          uint8_t i= n-2, r= crc8.compute( flattened+HDR_OJDF_BYTES, flattened[i]+2 );
          s.print("CRC8: ["); s.print(i); s.print("] -> "); s.println(r,HEX);
       }
+      fa.test(s,0);
 
       int lv[2], nH= fa.bytes();
       s.print("validate:");
