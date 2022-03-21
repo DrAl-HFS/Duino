@@ -229,27 +229,28 @@ public:
 
    // Gathered fragment write :
    // Write fragments as a contiguous block, limited to 256bytes (write buffer size)
-   int writeMultiLim (const UU32 addr, const uint8_t * const pp[], const uint8_t l[], const int n)
+   int dataWriteMultiFrag (UU32 addr, const uint8_t * const pp[], const uint8_t l[], const int nF)
    {
-      int i=0, t=0;
-      if (n > 0)
+      int t=0, iF=0;
+      if (nF > 0)
       {
-         //sync();
-         //cmd1(W25Q::WR_EN);
-         //start();
-         //cmdAddrFrag
-         startWrite(addr, W25Q::WR_PG);
          do
          {
-            int16_t c= l[i];
-            if (t+c > 256) { c= 256 - t; }
-            t+= write(pp[i], c);
-            //i+= (c == b[i]); irrelevant
-         } while ((++i < n) && (t < 256));
-         complete();
+            int t0= 0, t1;
+            startWrite(addr, W25Q::WR_PG);
+            do
+            {
+               t1= t0 + l[iF];
+               if (t1 <= W25Q::PAGE_BYTES) { t0+= write(pp[iF], l[iF]); iF++; }
+            } while ((t0 == t1) && (iF < nF));
+            complete();
+            //if (t1 > t0) { 
+            addr.u32+= t0;
+            t+= t0;
+         } while (iF < nF);
       }
       return(t);
-   } // writeMultiLim
+   } // dataWriteMultiFrag
 
 // DISPLACE -> CW25QUtilA ???
    uint32_t pageDump (Stream& s, const uint16_t aP=0x0000)

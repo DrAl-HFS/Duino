@@ -465,11 +465,11 @@ public:
    int commit (UU32 addr, CW25QUtil& dev) const
    {
       const int nF= count(), nB= sumFragBytesFI();
-      int r= dev.writeMultiLim(addr, pF, lF, nF);
+      int r= dev.dataWriteMultiFrag(addr, pF, lF, nF);
       if (r >= nB) { return(nB); } // ?> weird catch-all?
       // else
       if (r < 0) { return(r); } // err
-      // else
+      // else *ugly*
       int tB= r;
       FragPos pos;
       do
