@@ -165,7 +165,7 @@ protected:
 
    void logVI (Stream& s)
    {
-      s.print("vi:"); s.print(vi.s); s.print(','); s.print(vi.emi); s.print(','); 
+      s.print("vi:"); s.print(vi.s); s.print(','); s.print(vi.emi); s.print(',');
       s.print(vi.crc,HEX); s.print(','); s.print(vi.l0); s.print(','); s.println(vi.l1);
    } // logVI s.println();
 #endif
@@ -225,7 +225,7 @@ public:
       if ((n > HDR_UHF_BYTES) &&    // min size (reject no payload) and
          (0xB0 == (b[0] & 0xF0)))   // start mark
       {
-         vi.s= b[0] & 0x0F; // size 
+         vi.s= b[0] & 0x0F; // size
          if ((vi.s+HDR_UHF_BYTES) <= n) // ensure complete
          {
             const uint8_t i= vi.s + HDR_UHF_BYTES - 1; // index of end mark
@@ -382,8 +382,8 @@ protected:
    void extend (const uint8_t n) { lF[iF]+= n; }
 
    struct FragPos
-   { 
-      uint8_t iF, iB; 
+   {
+      uint8_t iF, iB;
       FragPos (void) : iF{0}, iB{0} { ; }
    }; // struct FragPos
 
@@ -400,7 +400,7 @@ protected:
             pos.iB= 0;
          }
          else if (b < rB)
-         { 
+         {
             pos.iB+= b;
             return(true);
          }
@@ -464,14 +464,8 @@ public:
 
    int commit (UU32 addr, CW25QUtil& dev) const
    {
-      const int nF= count(), nB= sumFragBytesFI();
-      int r= dev.dataWriteMultiFrag(addr, pF, lF, nF);
-      if (r >= nB) { return(nB); } // ?> weird catch-all?
-      // else
-      if (r < 0) { return(r); } // err
-      // else *ugly*
-      int tB= r;
-      FragPos pos;
+      return dev.dataWriteFrags(addr, pF, lF, count());
+/*    FragPos pos;
       do
       {
          if (advance(pos,r))
@@ -480,9 +474,9 @@ public:
             r= dev.dataWrite(pF[pos.iF]+pos.iB, lF[pos.iF]-pos.iB, addr);
          }
       } while ((r > 0) && (tB < nB));
-      return(tB);
+      return(tB); */
    } // commit
-   
+
 }; // FragAsm
 
 class FragAsmDbg : public FragAsm
@@ -503,7 +497,7 @@ public:
       r= advance(pos, a);
       s.print(r); s.print("; ["); s.print(pos.iF); s.print("],"); s.println(pos.iB);
    } // test
-   
+
    int dump (uint8_t b[], const int max) const // flatten
    {
       int k= 0;
@@ -611,7 +605,7 @@ public:
       if (r == n)
       {
          CRC8 crc8;
-         
+
          uint8_t i= n-2, r= crc8.compute( flattened+HDR_OJDF_BYTES, flattened[i]+2 );
          s.print("CRC8: ["); s.print(i); s.print("] -> "); s.println(r,HEX);
       }

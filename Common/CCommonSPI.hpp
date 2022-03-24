@@ -15,6 +15,8 @@
 #define PIN_NCS   SS
 #endif
 
+// NB: Max SPI clock is typically half the core clock...
+
 #ifdef ARDUINO_ARCH_STM32F1
 #define SPI_CLOCK_DEFAULT  36 // MHz
 #endif
@@ -27,7 +29,7 @@
 #define SPI_CLOCK_DEFAULT 8
 #endif
 
-// General abstraction of device hard/soft states
+// TODO: rethink device hard/soft state sbstraction...
 namespace Device
 {
    enum HState : int8_t { UNKNOWN, FAIL, ERROR, OFF, SLEEP, STANDBY, READY, WAIT }; // 3b
@@ -112,22 +114,13 @@ protected:
    void end (void) { HSPI.end(); }
    // NB: transfer((void*), int); is read-write in same buffer ...
    // Beware of sending "dummy" bytes for reading: some devices
-   // may interpret certain bytes as a command e.g. causing a reset
+   // may interpret certain bytes as a command causing eg. a reset
 
    uint16_t read (uint8_t b[], const int n, const uint8_t w=0xAA)
    {
       int i;
       for (i=0; i<n; i++) { b[i]= HSPI.transfer(w); }
       return(i);
-   } // write
-
-   // Reverse (byte-endian) order
-   int readRev (uint8_t b[], const int n, const uint8_t w=0xAA)
-   {
-      if (n <= 0) { return(0); }
-      int i= n;
-      while (i-- > 0) { b[i]= HSPI.transfer(w); }
-      return(n);
    } // write
 
    int writeb (const uint8_t b, const int n=1)
@@ -142,15 +135,6 @@ protected:
       int i= 0;
       for (; i<n; i++) { HSPI.transfer(b[i]); }
       return(i);
-   } // write
-
-   // Reverse (endian) order
-   int writeRev (const uint8_t b[], const int n)
-   {
-      if (n <= 0) { return(0); }
-      int i= n;
-      while (i-- > 0) { HSPI.transfer(b[i]); }
-      return(n);
    } // write
 
 }; // CCommonSPI
@@ -187,5 +171,58 @@ public:
    } // test
 
 }; // CLoopBackSPI
+
+// Extension set 1 of common SPI functions
+class CCommonSPIX1 : public CCommonSPI
+{
+public:
+   //CCommonSPIX1 (void) { ; }
+
+   // Reverse (byte-endian) order read & write
+   int readRev (uint8_t b[], const int n, const uint8_t w=0xAA)
+   {
+      if (n <= 0) { return(0); }
+      int i= n;
+      while (i-- > 0) { b[i]= HSPI.transfer(w); }
+      return(n);
+   } // readRev
+
+   int writeRev (const uint8_t b[], const int n)
+   {
+      if (n <= 0) { return(0); }
+      int i= n;
+      while (i-- > 0) { HSPI.transfer(b[i]); }
+      return(n);
+   } // writeRev
+
+   // int readFrags (uint8_t * const ppF[], uint8_t lF[], const int nF)
+
+   int writeFrags (const uint8_t * const ppF[], const uint8_t lF[], const int nF)
+   {
+      int t= 0;
+      for (int iF=0; iF<nF; iF++)
+      {
+         t+= write(ppF[iF], lF[iF]);
+      }
+      return(t);
+   } // writeFrags
+
+   // Scan while/until a match is found, return count
+   int scan (const uint8_t v[], const int nV, const int n, const bool until=false, const uint8_t w=0xAA)
+   {
+      int i= 0, iV= 0;
+      if ((n > 0) && (nV > 0))
+      {
+         bool test;
+         do
+         {
+            uint8_t b= HSPI.transfer(w);
+            test= (b == v[iV]) ^ until;
+            if (++iV >= nV) { iV= 0; } // periodic
+         } while (test && (++i < n));
+      }
+      return(i);
+   }
+}; // CCommonSPIX1
 
 #endif // CCOMMON_SPI_HPP

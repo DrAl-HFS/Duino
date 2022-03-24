@@ -47,7 +47,7 @@ namespace W25Q
 }; // namespace W25Q
 
 // Basic access "toolkit"
-class CW25Q : public CCommonSPI
+class CW25Q : public CCommonSPIX1
 {
    struct EraseParam { uint16_t nP; int8_t nE; W25Q::Cmd cmd; };
 
@@ -208,49 +208,121 @@ public:
 // Extended functionality for common problems
 class CW25QUtil : public CW25Q
 {
+/*   friend struct SplitFrag
+   {
+     const uint8_t *pF; uint8_t h, t;
+
+      SplitFrag (void) : pF{NULL}, h{0}, t{0} {;}
+
+      bool set (const uint8_t *p, const uint8_t l, const int r)
+      {
+         if ((NULL == pF) && (0 == h) && (0 == t))
+         {
+            pF= p; h= r; t= l - r;
+            return(true);
+         }
+         return(false);
+      } // set
+
+      int writeH (CCommonSPI& dev)
+      {
+         int w=0;
+         if (pF && (h > 0))
+         {
+            w= dev.write(pF,h);
+            if (t > 0) { pF+= h; }
+            else { pF= NULL; } // weird?
+            h= 0;
+         }
+         return(w);
+      } // writeH
+
+      int writeT (CCommonSPI& dev)
+      {
+         int w=0;
+         if (pF && (0 == h) && (t > 0))
+         {
+            w= dev.write(pF,t);
+            pF= NULL;
+            t= 0;
+         }
+         return(w);
+      } // writeT
+
+   }; // struct SplitFrag
+*/
+   int numFragsWithin (const uint8_t lF[], const int nF, const int max)
+   {
+      int n=0;
+      if (nF > 0)
+      {
+         int sum= lF[0];
+         while ((++n < nF) && ((sum+= lF[n]) <= max)); // { sum+= lF[n]; }
+         //if (sum > max) { split.b= sum-max; split.a= lF[n] - split.b; }
+      }
+      return(n);
+   } // numFragsWithin
+
+   // CAVEAT: no address&size checking - beware circular wrap!
+   int dataWriteF (const UU32 addr, const uint8_t * const ppF[], const uint8_t lF[], const int nF)
+   {
+      int t;
+      startWrite(addr, W25Q::WR_PG);
+      t= writeFrags(ppF, lF, nF);
+      complete();
+      return(t);
+   } // dataWriteF
+/*
+   int dataWriteFS (const UU32 addr, const uint8_t * const ppF[], const uint8_t lF[], const int nF, Split& s)
+   {
+      int t;
+      startWrite(addr, W25Q::WR_PG);
+      t= s.writeT();  // Yech...
+      t+= writeFrags(ppF+iF, lF+iF, n);
+      t+= s.writeH();
+      complete();
+      return(t);
+   } // dataWriteFS
+*/
 public:
    CW25QUtil (const uint8_t clkMHz=SPI_CLOCK_DEFAULT) : CW25Q(clkMHz) { ; }
 
-   // Check for unused storage (or some other constant value)
-   // without using a buffer
-   int32_t scanEqual (const UU32 addr, int32_t max=1<<16, const uint8_t v=0xFF)
+   // Check for unused storage (or some other constant value) without using a buffer
+   int dataScan (const UU32 addr, const int max=1<<12, const uint8_t v=0xFF, const bool until=false)
    {
-      int32_t n=0;
-      uint8_t b;
-      //start();
       cmdAddrFrag(addr,W25Q::RD_PG);
-      do
-      {
-         b= HSPI.transfer(0x00);
-      } while ((v == b) && (++n < max));
+      int n= CCommonSPIX1::scan(&v,1,max,until);
       complete();
       return(n);
-   } // scanEqual
+   } // dataScan
 
    // Gathered fragment write :
-   // Write fragments as a contiguous block, limited to 256bytes (write buffer size)
-   int dataWriteMultiFrag (UU32 addr, const uint8_t * const pp[], const uint8_t l[], const int nF)
+   // Write fragments as continuous sequence, ? over pages ?
+   // CAVEAT: device write buffer is *circular* 256Bytes
+   int dataWriteFrags (UU32 addr, const uint8_t * const ppF[], const uint8_t lF[], const int nF)
    {
+      int n= numFragsWithin(lF, nF, W25Q::PAGE_BYTES - addr.u8[0]);
+      if (n == nF) { return dataWriteF(addr,ppF,lF,nF); }
+      else { // not properly figured out yet...
+      }
+      /*
       int t=0, iF=0;
       if (nF > 0)
       {
+         //SplitFrag split;
          do
          {
-            int t0= 0, t1;
-            startWrite(addr, W25Q::WR_PG);
-            do
-            {
-               t1= t0 + l[iF];
-               if (t1 <= W25Q::PAGE_BYTES) { t0+= write(pp[iF], l[iF]); iF++; }
-            } while ((t0 == t1) && (iF < nF));
-            complete();
-            //if (t1 > t0) { 
-            addr.u32+= t0;
-            t+= t0;
+               //{ i-= !split.set(ppF[i],lF[i],rem); }
+               int n= i-iF; // NB: already i+1
+               iF+= n;
+               t+= t0;
+               addr.u32+= t0;
          } while (iF < nF);
       }
       return(t);
-   } // dataWriteMultiFrag
+      */
+      return(0);
+   } // dataWriteFrags
 
 // DISPLACE -> CW25QUtilA ???
    uint32_t pageDump (Stream& s, const uint16_t aP=0x0000)
@@ -406,7 +478,7 @@ public:
    {
       UU32 addr={ (uint32_t)aP << 8 };
       uint16_t r= 0;
-      if (scanEqual(addr,256,0xFF) < 256)
+      if (dataScan(addr,256) < 256)
       {
          r= dataErase(aP,nP);
          sync();
@@ -434,7 +506,7 @@ namespace W25Q
          max= (limit.u32 - base.u32) / size;
          reset();
       }
-      
+
       void reset (void) { addr= base; i= 0; }
 
       void next (Stream& s, CW25QUtil& d)
@@ -448,7 +520,7 @@ namespace W25Q
             t[0]= millis();
             do
             {
-               r[j]= d.scanEqual(a,size);
+               r[j]= d.dataScan(a,size);
                a.u32+= size;
             } while ((r[j] >= size) && (++j < n));
             t[1]= millis();
@@ -471,9 +543,8 @@ namespace W25Q
             }
          }
       } // next
-      
    }; // PageScan
-   
+
 }; // namespace W25Q
 
 #endif // CW25Q_HPP
