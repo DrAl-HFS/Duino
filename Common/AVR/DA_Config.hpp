@@ -7,7 +7,7 @@
 #define DA_CONFIG_HPP
 
 #include <EEPROM.h>
-#include "..\MFDHacks.hpp"
+//include "..\MFDHacks.hpp"
 
 // TODO : wrap as ID class?
 int8_t setID (char idzs[])

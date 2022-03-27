@@ -29,7 +29,7 @@
 */
 #if 0
 #ifdef ARDUINO_ARCH_AVR
-// NB: cant use pin values due to preprocessor definition problems 
+// NB: cant use pin values due to preprocessor definition problems
 #ifdef ARDUINO_AVR_UNO
 #define NRDY_MPB 0x10  // PB4
 #endif
@@ -105,7 +105,7 @@ namespace AD779x  // Caveat: namespace verbosity...
 
       //void set (ShadowReg& sr) { sr.conf.u8[1]= (sr.conf.u8[1] & ~cm1) | (c1 & cm1); }
    };
-   
+
    // Use shadowing for important registers to
    // reduce communication overhead (& noise)
    struct ShadowReg
@@ -113,10 +113,10 @@ namespace AD779x  // Caveat: namespace verbosity...
       UU16  mode, conf;
       U8    stat;
       // unsatisfactory..
-      operator = (const RateClock& rc) { mode.u8[0]= rc.m0; }
-      operator = (const OperMode& om) { mode.u8[1]= om.m1; }
-      operator = (const ChanRef& cr) { conf.u8[0]= cr.c0; }
-      operator = (const GainFlagBias& gfb) { conf.u8[1]= gfb.c1; }
+      void operator = (const RateClock& rc) { mode.u8[0]= rc.m0; }
+      void operator = (const OperMode& om) { mode.u8[1]= om.m1; }
+      void operator = (const ChanRef& cr) { conf.u8[0]= cr.c0; }
+      void operator = (const GainFlagBias& gfb) { conf.u8[1]= gfb.c1; }
    };
 
    const float internalRefV= 1.17f;
@@ -141,12 +141,12 @@ public:
    uint8_t rdy (uint8_t n)
    {
       uint8_t r= rdy();
-      while (n-- > 1) { r= (r<<1) | rdy(); } 
+      while (n-- > 1) { r= (r<<1) | rdy(); }
       return(r);
    } // rdy
 
    bool ready (const uint8_t n=3, int8_t t=3)
-   {  // noise filter 
+   {  // noise filter
       const uint8_t m= (1 << n) - 1;
       uint8_t r= rdy(n);
       while (r > 0)
@@ -244,7 +244,7 @@ protected:
       readReg(AD779x::ID, &id, 1);
       return(id);
    } // getID
-   
+
    void setRate (AD779x::RateClock rc)
    {
       sr= rc; // doesn't look right...
@@ -299,17 +299,17 @@ public:
    } // identify
 
    //void setChan (AD779x::Chan c) { setConf(AD779x::ChanRef(c), AD779x::GainFlagBias()); } //HACK!
-   
+
    AD779x::Chan chan (bool refresh=false)
    {
       if (refresh) { readReg(AD779x::CONF, sr.conf.u8, 2); }
-      return(sr.conf.u8[0] & AD779x::CHM);
+      return(sr.conf.u8[0] & uint8_t(AD779x::CHM));
    }
 
    AD779x::Rate rate (bool refresh=false)
    {
       if (refresh) { readReg(AD779x::MODE, sr.mode.u8, 2); }
-      return(sr.mode.u8[0] & AD779x::RM);
+      return(sr.mode.u8[0] & uint8_t(AD779x::RM));
    }
 
    uint8_t gain (void) { return(1 << (sr.conf.u8[1] & AD779x::GAIN_MASK)); }
@@ -340,7 +340,7 @@ public:
    CHackStat32 (void) { clear(); }
 
    void clear (void) { mean= 0; sum= 0; idx= 0; for (int8_t i=0; i<NHSB; i++) { xt[i]= 0; } }
-   
+
    void add (uint32_t x)
    {
       sum+= x - xt[MHSB & idx];
@@ -363,9 +363,9 @@ public:
    void dumpMDiff (Stream& s)
    {
       int8_t m= NHSB; if (idx < NHSB) { m= idx; } // C++ min() broken
-      s.print("M:"); 
+      s.print("M:");
       s.print(mean);
-      s.print(" D:"); 
+      s.print(" D:");
       s.print((int)(xt[0]-mean));
       for (int8_t i=1; i<m; i++)
       {
@@ -418,9 +418,9 @@ public:
       }
       return(false);
    } // test
-   
+
    void clear (void) { for (int8_t i=0; i<4; i++) { rl[i]= 0; } }
-   
+
    // CAD779xSignal::ready() needed to work ?why?
    void sample (void)
    {
@@ -431,7 +431,7 @@ public:
          if (0x3 == rm) { add(read24b()); }
       }
    }
-   
+
    void report (Stream& s)
    {
       //if (ior > 0)
@@ -473,7 +473,7 @@ public:
       }
       if (end) { s.print(end); }
    } // printRate
-   
+
    bool logID (Stream& s)
    {
 static const char *msg[]= {"UNKNOWN","OK"};

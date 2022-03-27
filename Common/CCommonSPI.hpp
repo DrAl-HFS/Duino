@@ -1,7 +1,7 @@
 // Duino/Common/CCommonSPI.hpp - 'Duino encapsulation of functionality common to many SPI interfaces
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Nov 2021 - Jan 2022
+// (c) Project Contributors Nov 2021 - Mar 2022
 
 #ifndef CCOMMON_SPI_HPP
 #define CCOMMON_SPI_HPP
@@ -116,7 +116,7 @@ protected:
    // Beware of sending "dummy" bytes for reading: some devices
    // may interpret certain bytes as a command causing eg. a reset
 
-   uint16_t read (uint8_t b[], const int n, const uint8_t w=0xAA)
+   int read (uint8_t b[], const int n, const uint8_t w=0xAA)
    {
       int i;
       for (i=0; i<n; i++) { b[i]= HSPI.transfer(w); }

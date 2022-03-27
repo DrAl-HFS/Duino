@@ -35,7 +35,7 @@ uint32_t secFromTimeA (const char a[])
    return(s);
 } // secFromTimeA
 */
-int8_t monthNumJulian (const char a[]); // forward
+int8_t monthNumJulian (const char a[]); // forward prototype
 
 // super hacky
 int8_t bcd4FromDateA (uint8_t bcd[3], const char *a, uint8_t ymd=2)
@@ -64,12 +64,25 @@ int findCh (const char c, const char a[], const int n)
    return(i);
 } // findCh
 
+int8_t dayNumEn (const char a[])
+{
+static const char d6[6]={'M','T','W','T','F','S'};
+   int8_t i= findCh(toupper(a[0]), d6, sizeof(d6));
+   if (i < 4) { return(1+i); }
+   else if (5 == i)
+   {
+      i+= 1+('u' == tolower(a[1]));
+      return(i);
+   }
+   return(-1);
+} // dayNumEn
+
 // Minimal & hacky Julian calendar month English text discrimination
 // CAVEAT : GIGO
 int8_t monthNumJulian (const char a[])
 {
-   static const char m1[4]={'J','F','M','A'};
-   static const char m9[4]={'S','O','N','D'};
+static const char m1[4]={'J','F','M','A'};
+static const char m9[4]={'S','O','N','D'};
    char c= toupper(a[0]);
    int8_t i;
    i= findCh(c, m1, sizeof(m1));
