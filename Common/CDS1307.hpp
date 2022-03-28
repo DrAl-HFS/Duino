@@ -33,16 +33,9 @@ protected:
    int setDateTimeBCD (uint8_t ymdwhmsA[], int n=7)
    {
       if ((0x7 & n) != n) { return(0); }
-#if 1 // Functionally elegant but programmatically obscure...
+      // Functionally elegant but programmatically obscure...
       ymdwhmsA[n]= DS1307HW::SQ_CTRL-n; // starting register address
       return writeToRev(DS1307HW::ADDR, ymdwhmsA, n+1)-1;
-#else
-      I2C.beginTransmission(DS1307HW::ADDR);
-      I2C.write(DS1307HW::SQ_CTRL-n); // starting register address
-      n= writeRev(ymdwhmsA,n);
-      I2C.endTransmission();
-      return(n);
-#endif
    } // setDateTimeBCD
 
 public:
@@ -60,24 +53,52 @@ public:
       return readFromRev(DS1307HW::ADDR, ymdw, n);
    } // readDateBCD
 
+}; // CDS1307
+
+int clamp (const int x, const int a, const int b)
+{ // assert(a <= b);
+  if (x < a) { return(a); }
+  if (x > b) { return(b); }
+  return(x);
+} // clamp
+
+class CDS1307Util : public CDS1307
+{
+public:
+   //CDS1307Util (void) { ; }
+
    void setSqCtrl (DS1307HW::SqCtrl mode)
    {
-      const uint8_t am[2]={DS1307HW::SQ_CTRL, mode}; // feasible ?
+      const uint8_t am[2]={DS1307HW::SQ_CTRL, mode}; // This works
       writeTo(DS1307HW::ADDR, am, 2);
    } // setSqCtrl
 
-   // Hack test
-   int setSBCD (const uint8_t ss=0x59)
+   int adjustSec (const int dSec=1)
    {
-      const uint8_t v[2]= { 0x00, ss }; // This works
-      writeTo(DS1307HW::ADDR, v, 2);
-   }
-
-}; // CDS1307
+      int r=0, s=0;
+      if (0 != dSec)
+      {
+         const uint8_t bcd[2]= { 0x00, 0 }; // 
+         if (readTimeBCD(bcd,1))
+         {
+            s= fromBCD4(bcd[0],2);
+            r= clamp(s + dSec, 0, 59);
+            if (r != s)
+            {
+               bcd4FromU8(bcd, r);
+               //writeTo(DS1307HW::ADDR, bcd, 2);
+               setDateTimeBCD(bcd,1);
+            }
+         }
+      }
+      return(r-s);
+   } // adjustSec
+   
+}; // CDS1307Util
 
 // ASCII (debug) conversions
 #include "dateTimeUtil.hpp"
-class CDS1307A : public CDS1307
+class CDS1307A : public CDS1307Util
 {
 protected:
 
@@ -126,7 +147,7 @@ public:
       return(r);
    } // printTime
 
-   int setA (const char *time, const char *day=NULL, const char *date=NULL, bool grtr=true)
+   int setA (const char *time, const char *day=NULL, const char *date=NULL, int r=1)
    {
       uint8_t ymdwhmsA[8];
       int o=0,n=0;
@@ -146,32 +167,25 @@ public:
          bcd4FromTimeA(ymdwhmsA+4,time);
          n+=3;
       }
-      if (grtr)
+      if (r <= 1)
       {
          uint8_t v[8];
-         int r, i= readTimeBCD(v,7);
+         readTimeBCD(v,7);
          v[0]&= ~DS1307HW::T_SS_STOP;
          ymdwhmsA[7]= v[7]= 0;
          r= strcmp(ymdwhmsA,v);
-         if (0) // 7 == i)
-         {
-            i= o;
-            do
-            {
-               r= sign((unsigned int)ymdwhmsA[i] - (unsigned int)v[i]);
-            } while ((0 == r) && (++i < n));
-         }
-         if (r <= 0) { return(0); }
+         /* r= sign((unsigned int)ymdwhmsA[i] - (unsigned int)v[i]);  */
       }
-      return setDateTimeBCD(ymdwhmsA+o,n);
+      if (r > 0) { r= setDateTimeBCD(ymdwhmsA+o,n); }
+      return(r);
    } // setA
 
    // -> debug
    void dump (Stream& s)
    {
-      uint8_t b[16];
+      uint8_t b[32];
       uint16_t tm[2];
-      uint8_t q=sizeof(b), r, i=0;
+      uint8_t q=sizeof(b), r, i=0, dt=0;
       writeTo(DS1307HW::ADDR,0x00); // reset internal r/w ptr
       s.println("CDS1307A::dump() - ");
       do
@@ -183,9 +197,10 @@ public:
          tm[1]= millis(); //  s.print('/'); s.print(DS1307HW::USR_LAST);
          //s.print("q,r,i= "); s.print(q); s.print(','); s.print(r); s.print(','); s.print(i); s.print(": ");
          dumpHexTab(s, b, r);
-         s.print("dt="); s.println(tm[1]-tm[0]);
+         dt+= tm[1]-tm[0];
          i+= r;
       } while (i <= DS1307HW::LAST);
+      s.print("dt="); s.println(dt);
    } // dump
 
 }; // CDS1307A
