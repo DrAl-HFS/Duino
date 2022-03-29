@@ -7,7 +7,9 @@
 #define CCOMMON_I2C_HPP
 
 #ifndef I2C
+// ~/Tool/arduino-1.8.13/hardware/arduino/avr/libraries/Wire
 #define I2C Wire
+#define BUFFER_LENGTH 40 // Unable to overwrite Adafruit default ...
 #include <Wire.h>
 #endif
 
