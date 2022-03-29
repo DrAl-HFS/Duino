@@ -156,12 +156,21 @@ public:
          bcd4FromDateA(ymdwhmsA,date);
          n= 3;
       } else { o= 3; }
-      if (day)
-      {
-         ymdwhmsA[3]= dayNumEn(day);
-         n++;
-      } else { o+= (3 == o); }
-      if (o < 4) { ymdwhmsA[3]= consDOW(ymdwhmsA[3]); }
+      if (day) { ymdwhmsA[3]= dayNumEn(day); }
+      else
+      {  // 2000 (leap year) began Sat (2001,2007,2018 begin with Mon, 2020 begin We)
+         o+= (n < 3);
+         if (n > 0)
+         {  // DOW calculation
+            uint8_t ymd[3];
+            for (int i= 0; i<3; i++) { ymd[i]= fromBCD4(ymdwhmsA[i],2); }
+            //if (ymd[0] >= 20) { ymd[0]-= 20; }
+            unsigned int sd= sumDaysJulianU8(ymd);
+            // 2000/01/01 -> Sat (6th day -> idx 5)
+            ymdwhmsA[3]= 1 + ((5 + sd) % 7); // NB: modulo works on *index* not number
+         }
+      }
+      if (n > 0) { ymdwhmsA[3]= consDOW(ymdwhmsA[3]); n++; }
       if (time)
       {
          bcd4FromTimeA(ymdwhmsA+4,time);
@@ -173,13 +182,25 @@ public:
          readTimeBCD(v,7);
          v[0]&= ~DS1307HW::T_SS_STOP;
          ymdwhmsA[7]= v[7]= 0;
-         r= strcmp(ymdwhmsA,v);
+         r= strcmp(ymdwhmsA,v); // NB: *broken* by DOW...
          /* r= sign((unsigned int)ymdwhmsA[i] - (unsigned int)v[i]);  */
       }
       if (r > 0) { r= setDateTimeBCD(ymdwhmsA+o,n); }
       return(r);
    } // setA
 
+   unsigned int testDays (Stream& s, const char *date)
+   {
+      uint8_t ymd[4];
+      u8FromDateA(ymd,date);
+      unsigned int sd, dYM[2];
+      sd= setDaysJulianU8(dYM,ymd);
+      ymd[3]= 1 + ((5 + sd) % 7); // 2020 Jan 1st -> Sat
+      s.print("CDS1307A::testDays() ");
+      for (int i=0; i<4; i++) { s.print(ymd[i]); s.print(' '); }
+      s.print("-> ");
+      s.print(dYM[0]); s.print(' '); s.print(dYM[1]); s.print(' '); s.println(sd);
+}
    // -> debug
    void dump (Stream& s)
    {

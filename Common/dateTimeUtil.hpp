@@ -45,7 +45,7 @@ int8_t bcd4FromDateA (uint8_t bcd[3], const char *a, uint8_t ymd=2)
    ymd&= 2; // ensure 2 or 0
    i+= 4;
    bcd[ymd]=   bcd4FromASafe(a+i,2);
-   i+= 3;
+   i+= 5;
    bcd[2-ymd]= bcd4FromA(a+i,2);
    return(3);
 } // bcd4FromDateA
@@ -57,6 +57,42 @@ int8_t u8FromDateA (uint8_t u[3], const char a[], uint8_t ymd=2)
    return(r);
 } // u8FromTimeA
 
+// CAVEATS:
+// 1) Input month *number* (1..12) not index (but zero->"no month" is valid input).
+// 2) leap years ignored...
+int monthJulianDays (const uint8_t nMonth, const bool integral)
+{
+static const uint8_t md[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+   if (nMonth <= 12)
+   {
+      if (integral)
+      {
+         uint16_t n=0;
+         for (int i=0; i<nMonth; i++) { n+= md[i]; }
+         return(n);
+      }//else
+      if (nMonth > 0) { return(md[nMonth-1]); }
+   }
+   return(0);
+} // monthJulianDays
+
+// Debug Hack
+unsigned int setDaysJulianU8 (unsigned int d[2], const uint8_t ymd[3])
+{
+   d[0]= ((unsigned int)ymd[0] * ((365 << 2) + 1)) >> 2; // * 365.25
+   d[1]= monthJulianDays(ymd[1]-1,true);
+   if ((ymd[1] >= 3) && (0 == (ymd[0] % 4))) { d[1]++; } // leap day (century rule ignored...)
+   return(d[0] + d[1] + ymd[2]);
+} // setDaysJulianU8
+
+unsigned int sumDaysJulianU8 (const uint8_t ymd[3])
+{
+   unsigned int nd= ((unsigned int)ymd[0] * ((365 << 2) + 1)) >> 2;
+   nd+= monthJulianDays(ymd[1]-1,true);
+   if ((ymd[1] >= 3) && (0 == (ymd[0] % 4))) { nd++; } // leap day
+   return(nd + ymd[2]);
+} // sumDaysJulianU8
+
 int findCh (const char c, const char a[], const int n)
 {
    int i= 0;
@@ -64,6 +100,7 @@ int findCh (const char c, const char a[], const int n)
    return(i);
 } // findCh
 
+// consider : dayNumFromEnA
 int8_t dayNumEn (const char a[])
 {
 static const char d6[6]={'M','T','W','T','F','S'};
@@ -77,8 +114,9 @@ static const char d6[6]={'M','T','W','T','F','S'};
    return(-1);
 } // dayNumEn
 
-// Minimal & hacky Julian calendar month English text discrimination
+// Minimal & hacky Julian calendar month English ASCII text discrimination
 // CAVEAT : GIGO
+// consider : monthJulianNumFromEnA
 int8_t monthNumJulian (const char a[])
 {
 static const char m1[4]={'J','F','M','A'};
