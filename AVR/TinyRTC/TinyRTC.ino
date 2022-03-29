@@ -38,8 +38,10 @@ public:
 
    int writeAddr (const UU16 a, const uint8_t b[], int n)
    {
-      return(writeToRevThenFwd(devAddr(), a.u8, 2, b, n) - 2); // Still not working...
+      return(writeToRevThenFwd(devAddr(), a.u8, 2, b, n) - 2);
    }
+   
+   bool sync (void) { delay(10); return(true); }
    
    int writePage (const uint8_t page, const uint8_t b[], int n)
    {
@@ -78,21 +80,56 @@ void setup (void)
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   I2C.begin(); // join i2c bus (address optional for master)
   //uint8_t b[2]={ DS1307HW::DOW, 5 }; gRTC.writeTo(0x68,b,2);
-  int r= gRTC.setA(__TIME__,"Sun",__DATE__);
+  gRTC.testDays(DEBUG,__DATE__);
+  int r= gRTC.setA(__TIME__,NULL,__DATE__);
   DEBUG.print("gRTC.setA() -> "); DEBUG.println(r); 
   gRTC.printDate(DEBUG,' ');
   gRTC.printTime(DEBUG);
-  const char s="Lorem ipsum dolor sit amet cons";
-  gERM.writePage(0,s,sizeof(s));
   gRTC.dump(DEBUG);
+#if 0
+  {
+    //const char s1[]="Lorem ipsum dolor sit amet";
+    //const char s2[]="consectetur adipiscing elit, sed do eiusmod"; // truncated by Wire buffer
+    uint8_t b[32];
+    int q= sizeof(b);
+    for (int i=0; i<q; i++) { b[i]= 1+i; }
+    r= gERM.writePage(4,b,q);
+    DEBUG.print("gERM.writePage() - q,r= ");
+    DEBUG.print(q); DEBUG.print(','); DEBUG.println(r);
+    if (r > 0) { gERM.sync(); }
+  }
+#endif
+  //analogReadResolution(8);
+  pinMode(A7,INPUT);//ANALOGUE);
 } // setup
 
 uint16_t gIter=0;
+int ds= 15;
 
 void loop (void)
 {
-  gERM.dump(DEBUG, gIter & 0x7F); // 128*32= 4k
-  gRTC.printTime(DEBUG);
+#if 0
+  if (0 != ds) 
+  { 
+    DEBUG.print("ds="); DEBUG.print(ds);
+    ds-= gRTC.adjustSec(ds); // duff
+    DEBUG.print(" -> "); DEBUG.println(ds);
+  }
+/*
+  char c[4]="00,";
+  uint8_t ss[3]={0,0,0};
+  gRTC.readTimeBCD(ss,1); 
+  for (int i=0; i<3; i++)
+  {
+    hexChFromU8(c,ss[i]);
+    DEBUG.print(c);
+  }
+  DEBUG.println();
+*/
+#endif
+  int vB= analogRead(A7);
+  gRTC.printTime(DEBUG,' '); DEBUG.print(": vB="); DEBUG.println(vB);
   gIter++;
+  gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
   delay(1000);
 } // loop
