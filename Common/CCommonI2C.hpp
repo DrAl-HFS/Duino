@@ -9,8 +9,12 @@
 #ifndef I2C
 // ~/Tool/arduino-1.8.13/hardware/arduino/avr/libraries/Wire
 #define I2C Wire
-#define BUFFER_LENGTH 40 // Unable to overwrite Adafruit default ...
+// Changing definitions seems to have no effect :(
+//#define TWI_BUFFER_LENGTH 40 // used in twi.h - AVR specific ?
+//#define BUFFER_LENGTH 40
 #include <Wire.h>
+// NB: device address for wire library is given as 7msb only
+// i.e hwa= (da<<1)| RNW
 #endif
 
 class CCommonI2C

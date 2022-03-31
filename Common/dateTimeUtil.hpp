@@ -79,7 +79,8 @@ static const uint8_t md[12]={31,28,31,30,31,30,31,31,30,31,30,31};
 // Debug Hack
 unsigned int setDaysJulianU8 (unsigned int d[2], const uint8_t ymd[3])
 {
-   d[0]= ((unsigned int)ymd[0] * ((365 << 2) + 1)) >> 2; // * 365.25
+   //d[0]= ((unsigned int)ymd[0] * ((365 << 2) + 1)) >> 2; // * 365.25
+   d[0]= (unsigned int)ymd[0] * 365 + (ymd[0] >> 2); // * 365 + *.25
    d[1]= monthJulianDays(ymd[1]-1,true);
    if ((ymd[1] >= 3) && (0 == (ymd[0] % 4))) { d[1]++; } // leap day (century rule ignored...)
    return(d[0] + d[1] + ymd[2]);

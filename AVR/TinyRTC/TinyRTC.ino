@@ -25,34 +25,38 @@ void setup (void)
 {
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   I2C.begin(); // join i2c bus (address optional for master)
-  gRTC.dump(DEBUG);
   //gRTC.testDays(DEBUG,__DATE__);
-  int r= gRTC.setA(__TIME__,NULL,__DATE__,0);
-  DEBUG.print("gRTC.setA() -> "); DEBUG.println(r); 
   gRTC.printDate(DEBUG,' ');
   gRTC.printTime(DEBUG);
-#if 0
-  {
-    //const char s1[]="Lorem ipsum dolor sit amet";
-    //const char s2[]="consectetur adipiscing elit, sed do eiusmod"; // truncated by Wire buffer
-    uint8_t b[32];
-    int q= sizeof(b);
-    for (int i=0; i<q; i++) { b[i]= 1+i; }
-    r= gERM.writePage(4,b,q);
-    DEBUG.print("gERM.writePage() - q,r= ");
-    DEBUG.print(q); DEBUG.print(','); DEBUG.println(r);
-    if (r > 0) { gERM.sync(); }
-  }
-#endif
   //analogReadResolution(8);
   pinMode(A7,INPUT);//ANALOGUE);
+  
+#ifdef TWI_BUFFER_LENGTH
+  DEBUG.print("I2C buffers:"); DEBUG.print(TWI_BUFFER_LENGTH); DEBUG.print(','); DEBUG.println(BUFFER_LENGTH);
+#endif
 } // setup
 
+void buffTest (void)
+{
+  //const char s1[]="Lorem ipsum dolor sit amet";
+  //const char s2[]="consectetur adipiscing elit, sed do eiusmod"; // truncated by Wire buffer
+  uint8_t b[32];
+  int r, q= sizeof(b);
+  for (int i=0; i<q; i++) { b[i]= 1+i; }
+  r= gERM.writePage(5,b,q);
+  DEBUG.print("gERM.writePage() - q,r= ");
+  DEBUG.print(q); DEBUG.print(','); DEBUG.println(r);
+  if (r > 0) { gERM.sync(); }
+} // buffTest
+
 uint16_t gIter=0;
-int ds= 15;
+int ds= 15, err=3;
 
 void loop (void)
 {
+  int r=0;
+  
+  if (0 == gIter) { buffTest(); }
 #if 0
   if (0 != ds) 
   { 
@@ -73,8 +77,18 @@ void loop (void)
 */
 #endif
   int vB= analogRead(A7);
-  gRTC.printTime(DEBUG,' '); DEBUG.print(": vB="); DEBUG.println(vB);
-  gIter++;
-  //gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
+  r= gRTC.printTime(DEBUG,' '); DEBUG.print(": vB="); DEBUG.println(vB);
   delay(1000);
+  if (r < 0) 
+  {
+    gRTC.dump(DEBUG);
+    if (err-- <= 0)
+    {
+      r= gRTC.setA(__TIME__,NULL,__DATE__,0);
+      DEBUG.print("gRTC.setA() -> "); DEBUG.println(r); 
+      err= 3;
+    }
+  }
+  gIter++;
+  gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
 } // loop

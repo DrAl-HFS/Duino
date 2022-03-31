@@ -12,7 +12,7 @@
 
 namespace AT24CHW
 {
-  enum Device : uint8_t { BASE_ADDR=0x50 };
+  enum Device : uint8_t { BASE_ADDR=0x50 }; // NB: 7msb -> 0xA0|RNW on wire
 }; // namespace AT24CHW
 
 #ifndef UU16

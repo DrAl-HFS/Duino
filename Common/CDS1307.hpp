@@ -11,7 +11,7 @@
 
 namespace DS1307HW
 {
-  enum Device : uint8_t { ADDR=0x68 };
+  enum Device : uint8_t { ADDR=0x68 };  // NB: 7msb -> 0xD0|RNW on wire
   enum Reg : uint8_t {
     T_SS, T_MM, T_HH,   DOW,
     D_DD, D_MM, D_YY,   SQ_CTRL };
@@ -27,7 +27,8 @@ class CDS1307 : protected CCommonI2CX1
 protected:
    // CAVEATS:
    // 1) due to order reversal, <n> measures from rightmost
-   // arg ie. if n=1 then seconds will be set.
+   // arg ie. truncation is conceptually from left so that
+   // if n=1 then seconds will be set.
    // 2) An extra byte is required to append the starting
    // register address (sent first due to order reversal).
    int setDateTimeBCD (uint8_t ymdwhmsA[], int n=7)
@@ -78,7 +79,7 @@ public:
       int r=0, s=0;
       if (0 != dSec)
       {
-         const uint8_t bcd[2]= { 0x00, 0 }; // 
+         const uint8_t bcd[2]= { 0x00, 0 };
          if (readTimeBCD(bcd,1))
          {
             s= fromBCD4(bcd[0],2);
@@ -93,7 +94,7 @@ public:
       }
       return(r-s);
    } // adjustSec
-   
+
 }; // CDS1307Util
 
 // ASCII (debug) conversions
@@ -135,7 +136,11 @@ public:
    {
       uint8_t hms[3];
       const int r= readTimeBCD(hms);
-      if (r > 2) { printTimeBCD(s,hms,end); }
+      if (r > 2)
+      {
+         printTimeBCD(s,hms,end);
+         if (DS1307HW::T_SS_STOP == hms[r-1]) { return(-1); }
+      }
       return(r);
    } // printTime
 
@@ -151,6 +156,13 @@ public:
    {
       uint8_t ymdwhmsA[8];
       int o=0,n=0;
+
+      if (0 == r)
+      {
+         uint8_t s[2];
+         readTimeBCD(s,1);
+         if (DS1307HW::T_SS_STOP == s[0]) { r= 2; }
+      }
       if (date)
       {
          bcd4FromDateA(ymdwhmsA,date);
@@ -176,19 +188,20 @@ public:
          bcd4FromTimeA(ymdwhmsA+4,time);
          n+=3;
       }
-      if (r <= 1)
-      {
+      if (1 == r)
+      {  // set forward only
          uint8_t v[8];
          readTimeBCD(v,7);
          v[0]&= ~DS1307HW::T_SS_STOP;
          ymdwhmsA[7]= v[7]= 0;
-         r= strcmp(ymdwhmsA,v); // NB: *broken* by DOW...
+         r= strcmp(ymdwhmsA,v); // NB: potential for breakage by DOW...
          /* r= sign((unsigned int)ymdwhmsA[i] - (unsigned int)v[i]);  */
       }
       if (r > 0) { r= setDateTimeBCD(ymdwhmsA+o,n); }
       return(r);
    } // setA
 
+   // hack
    unsigned int testDays (Stream& s, const char *date)
    {
       uint8_t ymd[4];
@@ -200,7 +213,8 @@ public:
       for (int i=0; i<4; i++) { s.print(ymd[i]); s.print(' '); }
       s.print("-> ");
       s.print(dYM[0]); s.print(' '); s.print(dYM[1]); s.print(' '); s.println(sd);
-}
+   }
+
    // -> debug
    void dump (Stream& s)
    {
