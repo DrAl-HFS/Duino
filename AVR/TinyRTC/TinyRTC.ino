@@ -16,9 +16,9 @@ CAT24C gERM;
 void bootMsg (Stream& s)
 {
   char sid[8];
-  if (getID(sid) > 0) { DEBUG.print(sid); }
-  DEBUG.print(" TinyRTC " __DATE__ " ");
-  DEBUG.println(__TIME__);
+  if (getID(sid) > 0) { s.print(sid); }
+  s.print(" TinyRTC " __DATE__ " ");
+  s.println(__TIME__);
 } // bootMsg
 
 void setup (void)
