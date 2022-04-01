@@ -1,8 +1,10 @@
 // Duino/Common/AVR/DA_TWISR.hpp - AVR two wire (I2C-like) interrupt driven communication, C++ class.
-// Adapted from C-code authored by "kkempeneers" (twi.c - without no copyright or licence declaration)
+// Adapted from C-code authored by "kkempeneers" (as "twi.c" - without copyright or licence declaration)
 // obtained from:- 
 // https://www.avrfreaks.net/sites/default/files/project_files/Interrupt_driven_Two_Wire_Interface.zip
-// This could break under Arduino, depending on resource requrements... CAVEAT EMPTOR
+// This approach provides efficient asynchronous communication without buffer copying.
+// This could break in a variety of interesting ways under Arduino, subject to resource requrements.
+// * CAVEAT EMPTOR *
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Mar 2022
@@ -13,40 +15,54 @@
 #define FOSC 16000000UL	// 16MHz
 #endif
 
-volatile uint8_t twi_address;
+// SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s
+struct Frag { uint8_t *p, n; };
+
+Frag fragB[2];
+volatile uint8_t hwAddr;
 volatile uint8_t *twi_data;
-volatile uint8_t twi_ddr;
 volatile uint8_t twi_bytes;
-//volatile uint8_t twi_stop;
-volatile uint8_t status;
 /* Bit definitions for the tw_status register */
 #define BUSY 7
 
-volatile uint8_t retry_cnt;
-
-class TWISR
+class TWIHW
 {
+protected:
+
+   void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
+
+   void stop (void) { TWCR|= (1<<TWINT)|(1<<TWSTO); }
+   
+	 void sync (void)
+	 {
+			while(TWCR & (1<<TWSTO));
+	 } // sync
+
+public:
+	 TWIHW (void) { ; }
+
+}; // TWIHW
+
+class TWISR : protected TWIHW
+{
+protected:
+	 volatile uint8_t status, retry_cnt;
+
    void start (void)
    { 
    	 retry_cnt= 0;
-		 TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);
+   	 TWIHW::start();
      status |= (1<<BUSY);
    } // start
 
    void stop (void)
    {
-      TWCR|= (1<<TWINT)|(1<<TWSTO);
+   	  TWIHW::stop();
 		  status&= ~(1<<BUSY);
-   } // stop
-   
-	 void sync (void)
-	 {
-      while(status & (1<<BUSY)); // Busy wait (or exit with error code)
-			while(TWCR & (1<<TWSTO));
-	 } // sync
+	 } // stop
 
 public:
-   TWISR (void) { ; }
+   TWISR (void) : status{0}, retry_cnt{0} { ; }
 
 	 void init (void)
 	 {
@@ -55,26 +71,37 @@ public:
 #endif
       TWBR= (FOSC / 100000UL - 16)/2; // 100kHz ?
 	 } // init
+	 
+	 bool sync (void)
+	 {
+      while(status & (1<<BUSY)); // Busy wait (or exit with error code)
+      return(true);
+	 } // sync
 
 	 int write (uint8_t address, uint8_t *data, uint8_t bytes)
 	 {
-	    sync();
-			twi_address= address;
-			twi_data= data;
-			twi_bytes= bytes;
-			twi_ddr= TW_WRITE;
-			start();
+	    if (sync())
+	    {
+				TWIHW::sync();
+				hwAddr= (address << 1) | TW_WRITE;
+				twi_data= data;
+				twi_bytes= bytes;
+				start();
+				return(bytes);
+			}
 			return 0;
 	 } // write
 
 	 int read (uint8_t address, uint8_t *data, uint8_t bytes)
 	 {
-      while(status & (1<<BUSY));									// Bus is busy wait (or exit with error code)
-			twi_address= address;
-			twi_data= data;
-			twi_bytes= bytes;
-			twi_ddr= TW_READ;
-			start();
+      if (sync())
+      {
+				hwAddr= (address << 1) | TW_READ;
+				twi_data= data;
+				twi_bytes= bytes;
+				start();
+				return(bytes);
+			}
 			return 0;
 	 } // read
 	 
@@ -89,8 +116,8 @@ public:
 							  stop();
 			          return;												
 		        }
-		        TWDR= (twi_address<<1) + twi_ddr;						// Transmit SLA + Read or Write
-		        TWCR &= ~(1<<TWSTA);									// TWSTA must be cleared by software! This also clears TWINT!!!
+		        TWDR= hwAddr; 				// Transmit SLA + Read or Write
+		        TWCR &= ~(1<<TWSTA);	// TWSTA must be cleared by software! This also clears TWINT!!!
 		        break;
 
 				 case TW_MT_SLA_ACK :											// Slave acknowledged address,
