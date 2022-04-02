@@ -22,7 +22,7 @@ void setup (void)
 {
   delay(100);
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  gTWI.init();
+  gTWI.init(DEBUG);
   
   //DEBUG.print("sizeof(fragB)="); DEBUG.println(sizeof(fragB));
 } // setup

@@ -19,58 +19,48 @@
 struct Frag { uint8_t *p, n; };
 
 Frag fragB[2];
-volatile uint8_t hwAddr;
-volatile uint8_t *twi_data;
-volatile uint8_t twi_bytes;
+//volatile uint8_t *twi_data;
+//volatile uint8_t twi_bytes;
 /* Bit definitions for the tw_status register */
 #define BUSY 7
 
-class TWIHW
+class TWIHWS
 {
 protected:
 
    void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
 
+   void restart (void) { TWCR |= (1<<TWINT)|(1<<TWSTA)|(1<<TWSTO); }
+
    void stop (void) { TWCR|= (1<<TWINT)|(1<<TWSTO); }
 
+   void ack (void) { TWCR |= (1<<TWEA)|(1<<TWINT); }
+   
    void sync (void)
    {
       while(TWCR & (1<<TWSTO));
    } // sync
 
 public:
-   TWIHW (void) { ; }
+   TWIHWS (void) { ; }
 
-}; // TWIHW
+}; // TWIHWS
 
-class TWISR : protected TWIHW
+class TWISWS
 {
 protected:
    volatile uint8_t status, retry_cnt;
 
+public:
+   TWISWS (void) : status{0}, retry_cnt{0} { ; }
+
    void start (void)
    {
-      retry_cnt= 0;
-      TWIHW::start();
+      clear();
       status |= (1<<BUSY);
    } // start
 
-   void stop (void)
-   {
-      TWIHW::stop();
-      status&= ~(1<<BUSY);
-   } // stop
-
-public:
-   TWISR (void) : status{0}, retry_cnt{0} { ; }
-
-   void init (void)
-   {
-#if defined(TWPS0)
-TWSR= 0;
-#endif
-      TWBR= (FOSC / 100000UL - 16)/2; // 100kHz ?
-   } // init
+   void stop (void) { status&= ~(1<<BUSY); }
 
    bool sync (void)
    {
@@ -78,27 +68,68 @@ TWSR= 0;
       return(true);
    } // sync
 
-   int write (uint8_t address, uint8_t *data, uint8_t bytes)
+   void retry (void) { retry_cnt++; }
+
+   void clear (void) { retry_cnt= 0; }
+
+}; // TWISWS
+
+class TWISR : protected TWIHWS, TWISWS
+{
+protected:
+   uint8_t hwAddr;
+   Frag f;
+
+   void start (void)
+   {
+      TWISWS::start();
+      TWIHWS::start();
+   } // start
+
+   void stop (void)
+   {
+      TWIHWS::stop();
+      TWISWS::stop();
+   } // stop
+
+public:
+   TWISR (void) { ; }
+
+   using TWISWS::sync;
+   
+   void init (Stream& s)
+   {
+#if defined(TWPS0)
+TWSR= 0;
+#endif
+      //s.print("TWISR::init() - "); 
+      //s.print("TWBR,TWSR="); s.print(TWBR,HEX); s.print(','); s.print(TWSR,HEX);
+      TWBR= 0x12; // -> 400kHz
+      // (FOSC / 100000UL - 16)/2; // 0x48 -> 100kHz ?
+      //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
+   } // init
+
+   int write (uint8_t devAddr, uint8_t *data, uint8_t bytes)
    {
       if (sync())
       {
-         TWIHW::sync();
-         hwAddr= (address << 1) | TW_WRITE;
-         twi_data= data;
-         twi_bytes= bytes;
+         TWIHWS::sync();
+         hwAddr= (devAddr << 1) | TW_WRITE;
+         f.p= data;
+         f.n= bytes;
          start();
          return(bytes);
       }
       return 0;
    } // write
 
-   int read (uint8_t address, uint8_t *data, uint8_t bytes)
+   int read (uint8_t devAddr, uint8_t *data, uint8_t bytes)
    {
       if (sync())
       {
-         hwAddr= (address << 1) | TW_READ;
-         twi_data= data;
-         twi_bytes= bytes;
+         hwAddr= (devAddr << 1) | TW_READ;
+         f.p= data;
+         f.n= bytes;
          start();
          return(bytes);
       }
@@ -121,23 +152,23 @@ TWSR= 0;
             break;
 
          case TW_MT_SLA_ACK :											// Slave acknowledged address,
-            retry_cnt= 0;											// so clear retry counter
-            TWDR= *twi_data;										// Transmit data,
-            twi_data++;												// increment pointer
+            clear();											// so clear retry counter
+            TWDR= *f.p;										// Transmit data,
+            f.p++;												// increment pointer
             TWCR |= (1<<TWINT);									// and clear TWINT to continue
             break;
 
          case TW_MT_SLA_NACK :										// Slave didn't acknowledge address,
          case TW_MR_SLA_NACK :
-            retry_cnt++;											// this may mean that the slave is disconnected
-            TWCR |= (1<<TWINT)|(1<<TWSTA)|(1<<TWSTO);			// retry 3 times
+            retry();											// this may mean that the slave is disconnected
+            restart();			// retry 3 times
             break;
 
          case TW_MT_DATA_ACK :										// Slave Acknowledged data,
-            if(--twi_bytes > 0)
+            if(--f.n > 0)
             {	 // Send more data
-               TWDR= *twi_data;									// Send it,
-               twi_data++;											// increment pointer
+               TWDR= *f.p;									// Send it,
+               f.p++;											// increment pointer
                TWCR |= (1<<TWINT);								// and clear TWINT to continue
             }
             else { stop(); }
@@ -148,19 +179,19 @@ TWSR= 0;
          case TW_MT_ARB_LOST : break;				// Single master this can't be!!!
 
          case TW_MR_SLA_ACK : // Slave acknowledged address
-            if(--twi_bytes > 0) { TWCR |= (1<<TWEA)|(1<<TWINT);	} // If there is more than one byte to read acknowledge
+            if(--f.n > 0) { ack();	} // If there is more than one byte to read acknowledge
             else { TWCR |= (1<<TWINT); }							// else do not acknowledge
             break;
 
          case TW_MR_DATA_ACK : 										// Master acknowledged data
-            *twi_data= TWDR;										// Read received data byte
-            twi_data++;												// Increment pointer
-            if(--twi_bytes > 0) { TWCR |= (1<<TWEA)|(1<<TWINT);	} // Get next databyte and acknowledge
+            *f.p= TWDR;										// Read received data byte
+            f.p++;												// Increment pointer
+            if(--f.n > 0) { ack();	} // Get next databyte and acknowledge
             else { TWCR &= ~(1<<TWEA);	} // Enable Acknowledge must be cleared by software, this also clears TWINT!!!
             break;
 
          case TW_MR_DATA_NACK : 	// Master didn't acknowledge data -> end of read process
-            *twi_data= TWDR; // Read received data byte
+            *f.p= TWDR; // Read received data byte
             stop();
             break;
       } // switch
