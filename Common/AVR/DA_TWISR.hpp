@@ -84,6 +84,7 @@ public:
 class TWISR : protected TWIHWS, TWISWS
 {
 protected:
+   uint8_t evH[11];
    uint8_t hwAddr;
    Frag f;
 
@@ -100,7 +101,7 @@ protected:
    } // stop
 
 public:
-   TWISR (void) { ; }
+   TWISR (void) { for (int8_t i=0; i<11; i++) { evH[i]= 0; } }
 
    using TWISWS::sync;
    
@@ -144,10 +145,18 @@ public:
 
    void event (const uint8_t flags)
    {
+      int8_t iE=0;
       switch(flags)
       {
-         case TW_START :
-         case TW_REP_START :
+         case TW_MR_DATA_ACK : iE=1; // Master acknowledged data
+            *f.p= TWDR;					   // Read received data byte
+            f.p++;							 // Increment pointer
+            if (--f.n > 0) { ack();	} // Get next databyte and acknowledge
+            else { TWCR &= ~(1<<TWEA);	} // Enable Acknowledge must be cleared by software, this also clears TWINT!!!
+            break;
+
+         case TW_START : iE= 2;
+         case TW_REP_START : if (0 == iE) { iE= 3; }
             if (retry()) // false
             {
                TWDR= hwAddr; 				// Transmit SLA + Read or Write
@@ -155,20 +164,7 @@ public:
             } else { stop(); } // // 3 NACKs -> abort
             break;
 
-         case TW_MT_SLA_ACK :	 // From slave device (address recognised)
-            clear(); // Transaction proceeeds
-            TWDR= *f.p;
-            f.p++;
-            resume();
-            break;
-
-         case TW_MT_SLA_NACK :   // No address ack, disconnected / jammed?
-         case TW_MR_SLA_NACK :
-            //retry();    // Assume retry avail
-            restart();  // Stop-start should clear any jamming of bus
-            break;
-
-         case TW_MT_DATA_ACK : // From slave device
+         case TW_MT_DATA_ACK : iE= 4; // From slave device
             if(--f.n > 0)
             {	 // Send more data
                TWDR= *f.p;									// Send it,
@@ -178,31 +174,43 @@ public:
             else { stop(); } // Assume end of data
             break;
 
-         case TW_MT_DATA_NACK :	stop(); break; // Slave didn't acknowledge data
+         case TW_MT_SLA_ACK :	 iE= 5; // From slave device (address recognised)
+            clear(); // Transaction proceeeds
+            TWDR= *f.p;
+            f.p++;
+            resume();
+            break;
 
-         case TW_MR_SLA_ACK : // Slave acknowledged address
-            if(--f.n > 0) { ack();	} // If there is more than one byte to read acknowledge
+         case TW_MR_SLA_ACK : iE= 6; // Slave acknowledged address
+            if (--f.n > 0) { ack();	} // If there is more than one byte to read acknowledge
             else { resume(); }							// else do not acknowledge
             break;
 
-         // Multi-master
-         case TW_MT_ARB_LOST : break;				// Single master this can't be!!!
-
-         // Slave mode only ?
-         case TW_MR_DATA_ACK : 										// Master acknowledged data
-            *f.p= TWDR;										// Read received data byte
-            f.p++;												// Increment pointer
-            if(--f.n > 0) { ack();	} // Get next databyte and acknowledge
-            else { TWCR &= ~(1<<TWEA);	} // Enable Acknowledge must be cleared by software, this also clears TWINT!!!
+         case TW_MT_SLA_NACK : iE= 7;  // No address ack, disconnected / jammed?
+         case TW_MR_SLA_NACK : if (0 == iE) { iE= 8; }
+            //retry();    // Assume retry avail
+            restart();  // Stop-start should clear any jamming of bus
             break;
 
-         case TW_MR_DATA_NACK : 	// Master didn't acknowledge data -> end of read process
+         case TW_MT_DATA_NACK :	iE= 9; stop(); break; // Slave didn't acknowledge data
+
+         // Multi-master
+         case TW_MT_ARB_LOST : iE= 10; break;				// Single master this can't be!!!
+
+         case TW_MR_DATA_NACK : 	iE= 11; // Master didn't acknowledge data -> end of read process
             *f.p= TWDR; // Read received data byte
             stop();
             break;
       } // switch
+      evH[iE]+= (evH[iE] < 0xFF);   // saturating increment
    } // event
 
+   void dump (Stream& s) const
+   { 
+      for (int8_t i=0; i<11; i++) { s.print(evH[i]); s.print(' '); }
+      s.println();
+   } // dump
+   
 }; // class TWISR
 
 // Instance and link to ISR
