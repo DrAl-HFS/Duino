@@ -11,8 +11,8 @@
 
 #include <util/twi.h> // TW_MT_* TW_MR_* etc definitions
 
-#ifndef FOSC
-#define FOSC 16000000UL	// 16MHz
+#ifndef CORE_CLK
+#define CORE_CLK 16000000UL	// 16MHz
 #endif
 
 // SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s
@@ -24,23 +24,25 @@ Frag fragB[2];
 /* Bit definitions for the tw_status register */
 #define BUSY 7
 
+#define TW_CLK_100   0x48
+#define TW_CLK_400   0x12
+
 class TWIHWS
 {
 protected:
-
+   // NB: Interrupt flag (TWINT) is cleared by writing 1 
    void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
 
    void restart (void) { TWCR |= (1<<TWINT)|(1<<TWSTA)|(1<<TWSTO); }
 
    void stop (void) { TWCR|= (1<<TWINT)|(1<<TWSTO); }
 
-   void ack (void) { TWCR |= (1<<TWEA)|(1<<TWINT); }
+   void ack (void) { TWCR |= (1<<TWINT)|(1<<TWEA); }
    
-   void sync (void)
-   {
-      while(TWCR & (1<<TWSTO));
-   } // sync
+   void sync (void) { while(TWCR & (1<<TWSTO)); } // wait for bus stop condition to clear
 
+   void resume (void) { TWCR |= (1<<TWINT); }
+   
 public:
    TWIHWS (void) { ; }
 
@@ -68,7 +70,12 @@ public:
       return(true);
    } // sync
 
-   void retry (void) { retry_cnt++; }
+   bool retry (bool commit=true)
+   { 
+      bool r= retry_cnt < 3;
+      if (commit) { retry_cnt+= r; } // retry_cnt+= commit&&r; ? more efficient ?
+      return(r);
+   } // retry
 
    void clear (void) { retry_cnt= 0; }
 
@@ -97,15 +104,14 @@ public:
 
    using TWISWS::sync;
    
-   void init (Stream& s)
+   void set (uint8_t r=TW_CLK_400)
    {
-#if defined(TWPS0)
-TWSR= 0;
-#endif
       //s.print("TWISR::init() - "); 
       //s.print("TWBR,TWSR="); s.print(TWBR,HEX); s.print(','); s.print(TWSR,HEX);
-      TWBR= 0x12; // -> 400kHz
-      // (FOSC / 100000UL - 16)/2; // 0x48 -> 100kHz ?
+      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
+      TWSR= 0; // clear PS1&0 so clock prescale= 1 (high speed)
+      TWBR= r;
+      // TWBR= ((CORE_CLK / busClk) - 16) / 2;
       //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
    } // init
 
@@ -140,49 +146,49 @@ TWSR= 0;
    {
       switch(flags)
       {
-         case TW_START :												// Start condition
-         case TW_REP_START :											// Repeated start condition
-            if(retry_cnt > 2)
-            {	// 3 NACKs -> abort
-                stop();
-                return;
-            }
-            TWDR= hwAddr; 				// Transmit SLA + Read or Write
-            TWCR &= ~(1<<TWSTA);	// TWSTA must be cleared by software! This also clears TWINT!!!
+         case TW_START :
+         case TW_REP_START :
+            if (retry()) // false
+            {
+               TWDR= hwAddr; 				// Transmit SLA + Read or Write
+               TWCR &= ~(1<<TWSTA);	// TWSTA must be cleared by software! This also clears TWINT!!!
+            } else { stop(); } // // 3 NACKs -> abort
             break;
 
-         case TW_MT_SLA_ACK :											// Slave acknowledged address,
-            clear();											// so clear retry counter
-            TWDR= *f.p;										// Transmit data,
-            f.p++;												// increment pointer
-            TWCR |= (1<<TWINT);									// and clear TWINT to continue
+         case TW_MT_SLA_ACK :	 // From slave device (address recognised)
+            clear(); // Transaction proceeeds
+            TWDR= *f.p;
+            f.p++;
+            resume();
             break;
 
-         case TW_MT_SLA_NACK :										// Slave didn't acknowledge address,
+         case TW_MT_SLA_NACK :   // No address ack, disconnected / jammed?
          case TW_MR_SLA_NACK :
-            retry();											// this may mean that the slave is disconnected
-            restart();			// retry 3 times
+            //retry();    // Assume retry avail
+            restart();  // Stop-start should clear any jamming of bus
             break;
 
-         case TW_MT_DATA_ACK :										// Slave Acknowledged data,
+         case TW_MT_DATA_ACK : // From slave device
             if(--f.n > 0)
             {	 // Send more data
                TWDR= *f.p;									// Send it,
                f.p++;											// increment pointer
-               TWCR |= (1<<TWINT);								// and clear TWINT to continue
+               resume();
             }
-            else { stop(); }
+            else { stop(); } // Assume end of data
             break;
 
          case TW_MT_DATA_NACK :	stop(); break; // Slave didn't acknowledge data
 
-         case TW_MT_ARB_LOST : break;				// Single master this can't be!!!
-
          case TW_MR_SLA_ACK : // Slave acknowledged address
             if(--f.n > 0) { ack();	} // If there is more than one byte to read acknowledge
-            else { TWCR |= (1<<TWINT); }							// else do not acknowledge
+            else { resume(); }							// else do not acknowledge
             break;
 
+         // Multi-master
+         case TW_MT_ARB_LOST : break;				// Single master this can't be!!!
+
+         // Slave mode only ?
          case TW_MR_DATA_ACK : 										// Master acknowledged data
             *f.p= TWDR;										// Read received data byte
             f.p++;												// Increment pointer
