@@ -16,7 +16,7 @@
 #endif
 
 // SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s @ 16MHz
-struct Frag { uint8_t *p, n, f; };
+struct Frag { uint8_t *pB, nB, f; };
 
 Frag fragB[2];
 #define BUSY 7
@@ -94,8 +94,15 @@ protected:
 public:
    TWBuffer (void) { ; }
    
-   uint8_t& byte (void) { return(*f.p++); }
+   uint8_t& byte (void) { return(*f.pB++); }
+   
+   bool more (void) { return(--f.nB > 0); }
+   
+   void readByte (void) { byte()= TWDR; }
+   void writeByte (void) { TWDR= byte(); }
 }; // TWBuffer
+
+#define SZ(i,v)  //if (0 == i) { i= v; }
 
 class TWISR : protected TWIHWS, TWISWS, TWBuffer
 {
@@ -137,8 +144,8 @@ public:
       {
          TWIHWS::sync();
          hwAddr= (devAddr << 1) | TW_WRITE;
-         f.p= b;
-         f.n= n;
+         f.pB= b;
+         f.nB= n;
          start();
          return(n);
       }
@@ -150,8 +157,8 @@ public:
       if (sync())
       {
          hwAddr= (devAddr << 1) | TW_READ;
-         f.p= b;
-         f.n= n;
+         f.pB= b;
+         f.nB= n;
          start();
          return(n);
       }
@@ -160,64 +167,66 @@ public:
 
    void event (const uint8_t flags)
    {
-      int8_t iE=0;
+      //int8_t iE=0;
       switch(flags)
       {
-         case TW_MR_DATA_ACK : iE=1;  // Master has acknowledged receipt
-            TWBuffer::byte()= TWDR;  // So store and acknowledge
-            if (--f.n > 0) { ack();	} // Get next databyte and acknowledge
+         case TW_MR_DATA_ACK : SZ(iE,1)  // Master has acknowledged receipt
+            readByte();
+            if (more()) { ack();	} // if further data expected, acknowledge
             else { end();	}
             break;
 
-         case TW_START : iE= 2;
-         case TW_REP_START : if (0 == iE) { iE= 3; }
+         case TW_START : SZ(iE,2)
+         case TW_REP_START : SZ(iE,3)
             if (retry())  { commit(hwAddr); }
             else { stop(); } // multiple NACKs -> abort
             break;
 
-         case TW_MT_DATA_ACK : iE= 4; // From slave device
-            if (--f.n > 0)
+         case TW_MT_DATA_ACK : SZ(iE,4) // From slave device
+            if (more())
             {	 // Send more data
-               TWDR= TWBuffer::byte(); // Send it,
+               writeByte();
                resume();
             }
             else { stop(); } // Assume end of data
             break;
 
-         case TW_MT_SLA_ACK :	 iE= 5; // From slave device (address recognised)
+         case TW_MT_SLA_ACK :	 SZ(iE,5) // From slave device (address recognised)
             clear(); // Transaction proceeds
-            TWDR= TWBuffer::byte();
+            writeByte();
             resume();
             break;
 
-         case TW_MR_SLA_ACK : iE= 6;  // Slave acknowledged address
-            if (--f.n > 0) { ack();	} // If there is more than one byte to read acknowledge
+         case TW_MR_SLA_ACK : SZ(iE,6)  // Slave acknowledged address
+            if (more()) { ack();	} // If there is more than one byte to read acknowledge
             else { resume(); }		  // else do not acknowledge
             break;
 
-         case TW_MT_SLA_NACK : iE= 7;  // No address ack, disconnected / jammed?
-         case TW_MR_SLA_NACK : if (0 == iE) { iE= 8; }
+         // --- terminus est ---
+
+         case TW_MT_SLA_NACK : SZ(iE,7)  // No address ack, disconnected / jammed?
+         case TW_MR_SLA_NACK : SZ(iE,8)
             //retry();    // Assume retry avail
             restart();  // Stop-start should clear any jamming of bus
             break;
 
-         case TW_MT_DATA_NACK :	iE= 9; stop(); break; // Slave didn't acknowledge data
+         case TW_MT_DATA_NACK :	SZ(iE,9) stop(); break; // Slave didn't acknowledge data
 
          // Multi-master
-         case TW_MT_ARB_LOST : iE= 10; break;				// Single master this can't be!!!
+         case TW_MT_ARB_LOST : SZ(iE,10) break;
 
-         case TW_MR_DATA_NACK : 	iE= 11; // Master didn't acknowledge data -> end of read process
-            TWBuffer::byte()= TWDR; // Read received data byte
+         case TW_MR_DATA_NACK : 	SZ(iE,11) // Master didn't acknowledge data -> end of read process
+            readByte(); // final read
             stop();
             break;
       } // switch
-      evH[iE]+= (evH[iE] < 0xFF);   // saturating increment
+      //evH[iE]+= (evH[iE] < 0xFF);   // saturating increment
    } // event
 
    void dump (Stream& s) const
    { 
-      for (int8_t i=0; i<11; i++) { s.print(evH[i]); s.print(' '); }
-      s.println();
+      //for (int8_t i=0; i<11; i++) { s.print(evH[i]); s.print(' '); }
+      //s.println();
    } // dump
    
 }; // class TWISR
