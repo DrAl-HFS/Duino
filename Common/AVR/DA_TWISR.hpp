@@ -69,10 +69,11 @@ public:
 
    void stop (void) { status&= ~(1<<BUSY); }
 
-   bool sync (void)
+   bool sync (bool block=true)
    {
-      while(status & (1<<BUSY)); // Busy wait (or exit with error code)
-      return(true);
+      if (block) { while(status & (1<<BUSY)); } // Busy wait
+      //else
+      return(0 == (status & (1<<BUSY)));
    } // sync
 
    bool retry (bool commit=true)
@@ -102,7 +103,7 @@ public:
    void writeByte (void) { TWDR= byte(); }
 }; // TWBuffer
 
-#define SZ(i,v)  //if (0 == i) { i= v; }
+#define SZ(i,v)  if (0 == i) { i= v; }
 
 class TWISR : protected TWIHWS, TWISWS, TWBuffer
 {
@@ -167,22 +168,22 @@ public:
 
    void event (const uint8_t flags)
    {
-      //int8_t iE=0;
+      int8_t iE=0;
       switch(flags)
       {
-         case TW_MR_DATA_ACK : SZ(iE,1)  // Master has acknowledged receipt
+         case TW_MR_DATA_ACK : SZ(iE,1);  // Master has acknowledged receipt
             readByte();
             if (more()) { ack();	} // if further data expected, acknowledge
             else { end();	}
             break;
 
-         case TW_START : SZ(iE,2)
-         case TW_REP_START : SZ(iE,3)
+         case TW_START : SZ(iE,2);
+         case TW_REP_START : SZ(iE,3);
             if (retry())  { commit(hwAddr); }
             else { stop(); } // multiple NACKs -> abort
             break;
 
-         case TW_MT_DATA_ACK : SZ(iE,4) // From slave device
+         case TW_MT_DATA_ACK : SZ(iE,4); // From slave device
             if (more())
             {	 // Send more data
                writeByte();
@@ -191,42 +192,42 @@ public:
             else { stop(); } // Assume end of data
             break;
 
-         case TW_MT_SLA_ACK :	 SZ(iE,5) // From slave device (address recognised)
+         case TW_MT_SLA_ACK :	 SZ(iE,5); // From slave device (address recognised)
             clear(); // Transaction proceeds
             writeByte();
             resume();
             break;
 
-         case TW_MR_SLA_ACK : SZ(iE,6)  // Slave acknowledged address
-            if (more()) { ack();	} // If there is more than one byte to read acknowledge
-            else { resume(); }		  // else do not acknowledge
+         case TW_MR_SLA_ACK : SZ(iE,6); // Slave acknowledged address
+            if (more()) { ack();	}      // acknowledge to continue reading 
+            else { resume(); }
             break;
 
          // --- terminus est ---
 
-         case TW_MT_SLA_NACK : SZ(iE,7)  // No address ack, disconnected / jammed?
-         case TW_MR_SLA_NACK : SZ(iE,8)
+         case TW_MT_SLA_NACK : SZ(iE,7);  // No address ack, disconnected / jammed?
+         case TW_MR_SLA_NACK : SZ(iE,8);
             //retry();    // Assume retry avail
             restart();  // Stop-start should clear any jamming of bus
             break;
 
-         case TW_MT_DATA_NACK :	SZ(iE,9) stop(); break; // Slave didn't acknowledge data
+         case TW_MT_DATA_NACK :	SZ(iE,9); stop(); break; // Slave didn't acknowledge data
 
          // Multi-master
-         case TW_MT_ARB_LOST : SZ(iE,10) break;
+         case TW_MT_ARB_LOST : SZ(iE,10); break;
 
-         case TW_MR_DATA_NACK : 	SZ(iE,11) // Master didn't acknowledge data -> end of read process
+         case TW_MR_DATA_NACK : 	SZ(iE,11); // Master didn't acknowledge data -> end of read process
             readByte(); // final read
             stop();
             break;
       } // switch
-      //evH[iE]+= (evH[iE] < 0xFF);   // saturating increment
+      evH[iE]+= (evH[iE] < 0xFF);   // saturating increment
    } // event
 
    void dump (Stream& s) const
    { 
-      //for (int8_t i=0; i<11; i++) { s.print(evH[i]); s.print(' '); }
-      //s.println();
+      for (int8_t i=0; i<11; i++) { s.print(evH[i]); s.print(' '); }
+      s.println();
    } // dump
    
 }; // class TWISR
