@@ -22,15 +22,15 @@ void setup (void)
 {
   delay(100);
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  gTWI.init(DEBUG);
+  gTWI.set(TW_CLK_400);
   
   //DEBUG.print("sizeof(fragB)="); DEBUG.println(sizeof(fragB));
 } // setup
 
 uint16_t gIter=0;
 const char s1[]="* Lorem ipsum dolor sit amet *";
-uint8_t gB[34];
-const uint8_t q= sizeof(gB)-2;
+uint8_t gB[40];
+const uint8_t q= 32;
 
 void setAddr (uint8_t b[], const uint16_t a)
 {
@@ -38,20 +38,19 @@ void setAddr (uint8_t b[], const uint16_t a)
   b[1]= a & 0xFF; // form (big endian) page address
 } // setAddr
 
-char fillTest (uint8_t b[])
+char fillTest (uint8_t b[], uint8_t endSwap=0)
 {
-  uint8_t t[4];
+  uint8_t t[2];
   
-  t[0]= b[0]; t[1]= b[1];
-  gTWI.write(0x50,t,2); // set page
-  gTWI.read(0x50,t+2,2); // retrieve 2 Bytes
-  gTWI.sync(); //delay(50); 
-  if ((t[0] != t[3]) || (t[1] != t[2])) // Check for stored page address match
+  gTWI.write(0x50,b,2); // set page address
+  gTWI.read(0x50,t,2); // retrieve 2 Bytes
+  gTWI.sync();
+  if ((b[endSwap^1] != t[1]) || (b[endSwap] != t[0])) // Check for stored page address match
   {
-    b[2]= b[1]; b[3]= b[0]; // page begins with its own (little endian) address
+    b[2]= b[endSwap]; b[3]= b[endSwap^1]; // page begins with its own address, possibly swapped endian order
     //for (int8_t i=0; i<q; i++) { b[i]= q+1-i; }
     if (b[4] != s1[0]) { memcpy(b+4, s1, sizeof(s1)); } // Fill with text as necessary
-    gTWI.write(0x50, b, 2+q); // store 32bytes (prefixed with page address)
+    gTWI.write(0x50, b, 2+q); // store 32bytes (prefixed with BE page address)
     return('W');
   }
   return('-');
@@ -59,14 +58,22 @@ char fillTest (uint8_t b[])
 
 void loop (void)
 {
-  setAddr(gB, (gIter & 0x7F) << 5);
-  char c= fillTest(gB); // 4kB -> 128pages of 32Bytes
-  DEBUG.println(c);
-  gTWI.sync(); // delay(50);
-  gTWI.write(0x50,gB,2); // reset page
-  gTWI.read(0x50,gB+2,q); // retrieve 32 Bytes
-  gTWI.sync(); // delay(50);
-  dumpHexTab(DEBUG, gB+2, q);
-  delay(450);
-  gIter++;
+  if (gTWI.sync(false))
+  {
+    setAddr(gB, (gIter & 0x7F) << 5);
+    char c= fillTest(gB); // 4kB -> 128pages of 32Bytes
+    DEBUG.println(c);
+    if (gTWI.sync(false))
+    {
+      gTWI.write(0x50,gB,2); // reset page
+      gTWI.read(0x50,gB+2,q); // retrieve 32 Bytes
+      gTWI.sync(); // delay(50);
+      dumpHexTab(DEBUG, gB+2, q);
+      gIter++;
+    }
+  }
+  DEBUG.println(gIter);
+  delay(150);
+  //gTWI.dump(DEBUG);
+  delay(350);
 } // loop
