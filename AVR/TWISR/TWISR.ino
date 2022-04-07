@@ -74,6 +74,6 @@ void loop (void)
   }
   DEBUG.println(gIter);
   delay(150);
-  //gTWI.dump(DEBUG);
+  gTWI.dump(DEBUG); gTWI.clrEv();
   delay(350);
 } // loop

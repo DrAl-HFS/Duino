@@ -3,8 +3,11 @@
 // obtained from:-
 // https://www.avrfreaks.net/sites/default/files/project_files/Interrupt_driven_Two_Wire_Interface.zip
 // This approach provides efficient asynchronous communication without buffer copying.
-// This could break in a variety of interesting ways under Arduino, subject to resource requrements.
+// (SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s @ 16MHz.)
+// ---
 // * CAVEAT EMPTOR *
+// This could break in a variety of interesting ways under Arduino, subject to resource requrements.
+// ---
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Mar 2022
@@ -15,7 +18,6 @@
 #define CORE_CLK 16000000UL	// 16MHz
 #endif
 
-// SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s @ 16MHz
 struct Frag { uint8_t *pB, nB, f; };
 
 Frag fragB[2];
@@ -24,7 +26,7 @@ Frag fragB[2];
 #define TW_CLK_100   0x48
 #define TW_CLK_400   0x12
 
-class TWIHWS
+class TWIHWS // hardware state
 {
 protected:
    // NB: Interrupt flag (TWINT) is cleared by writing 1 
@@ -53,7 +55,7 @@ public:
 
 }; // TWIHWS
 
-class TWISWS
+class TWISWS // software state
 {
 protected:
    volatile uint8_t status, retry_cnt;
@@ -108,7 +110,6 @@ public:
 class TWISR : protected TWIHWS, TWISWS, TWBuffer
 {
 protected:
-   uint8_t evH[11];
    uint8_t hwAddr;
 
    void start (void)
@@ -124,7 +125,7 @@ protected:
    } // stop
 
 public:
-   TWISR (void) { for (int8_t i=0; i<11; i++) { evH[i]= 0; } }
+   TWISR (void) { ; }
 
    using TWISWS::sync;
    
@@ -166,7 +167,7 @@ public:
       return 0;
    } // read
 
-   void event (const uint8_t flags)
+   int8_t event (const uint8_t flags)
    {
       int8_t iE=0;
       switch(flags)
@@ -221,20 +222,44 @@ public:
             stop();
             break;
       } // switch
-      evH[iE]+= (evH[iE] < 0xFF);   // saturating increment
+      return(iE);
    } // event
 
+}; // class TWISR
+
+class TWISRD : public TWISR
+{
+public:
+   uint8_t evQ[64];
+   int8_t iQ;
+   uint8_t evF[12];
+
+   TWISRD (void) { clrEv(); }
+
+   void clrEv (void) { iQ= 0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
+   
+   int8_t event (const uint8_t flags)
+   {
+      int8_t iE= TWISR::event(flags);
+      evF[iE]+= (evF[iE] < 0xFF);   // saturating increment
+      evQ[iQ]= iE;
+      iQ+= (iQ < sizeof(evQ));
+   } // event
+   
    void dump (Stream& s) const
-   { 
-      for (int8_t i=0; i<11; i++) { s.print(evH[i]); s.print(' '); }
+   {
+      s.print("Q:");
+      for (int8_t i=0; i<iQ; i++) { s.print(' '); s.print(evQ[i]); }
+      s.print("\nF:");
+      for (int8_t i=0; i<sizeof(evF); i++) { s.print(' '); s.print(evF[i]); }
       s.println();
    } // dump
-   
-}; // class TWISR
+
+}; // class TWISRD
 
 // Instance and link to ISR
 
-TWISR gTWI;
+TWISRD gTWI;
 
 SIGNAL(TWI_vect)
 {
