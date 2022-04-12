@@ -71,11 +71,17 @@ public:
 
    void stop (void) { status&= ~(1<<BUSY); }
 
-   bool sync (bool block=true)
+   bool sync (void) const { return(0 == (status & (1<<BUSY))); }
+   
+   // n+2 checks, 5us apart
+   bool sync (uint8_t n) const // 144 (16*9)*5us = 32Bytes @ 400kHz ?
    {
-      if (block) { while(status & (1<<BUSY)); } // Busy wait
-      //else
-      return(0 == (status & (1<<BUSY)));
+      do
+      {
+         if (sync()) { return(true); }
+         delayMicroseconds(5); // 2 clk at 400kHz
+      } while (n-- > 0);
+      return sync();
    } // sync
 
    bool retry (bool commit=true)
@@ -99,7 +105,8 @@ public:
    
    uint8_t& byte (void) { return(*f.pB++); }
    
-   bool more (void) { return(--f.nB > 0); }
+   bool more (void) // { f.nB-= (f.nB > 0); return(f.nB > 0); }
+   { return((int8_t)(--f.nB) > 0); }
    
    void readByte (void) { byte()= TWDR; }
    void writeByte (void) { TWDR= byte(); }
@@ -127,8 +134,17 @@ protected:
 public:
    TWISR (void) { ; }
 
-   using TWISWS::sync;
-   
+   //using TWISWS::sync;
+   bool sync (uint8_t wait=0) const
+   {
+      if ((wait > f.nB) && (f.nB > 0))
+      {
+         uint8_t t= f.nB << 2; //if (TW_CLK_400 == TWBR)
+         if (t < wait) { wait= t; }
+      }
+      return TWISWS::sync(wait); // Assume 400kHz so 5us per 2bits
+   } // sync
+
    void set (uint8_t r=TW_CLK_400)
    {
       //s.print("TWISR::init() - "); 
@@ -201,7 +217,7 @@ public:
 
          case TW_MR_SLA_ACK : SZ(iE,6); // Slave acknowledged address
             if (more()) { ack();	}      // acknowledge to continue reading 
-            else { resume(); }
+            else { resume(); } // ??
             break;
 
          // --- terminus est ---
@@ -218,7 +234,7 @@ public:
          case TW_MT_ARB_LOST : SZ(iE,10); break;
 
          case TW_MR_DATA_NACK : 	SZ(iE,11); // Master didn't acknowledge data -> end of read process
-            readByte(); // final read
+            readByte(); // final read ?
             stop();
             break;
       } // switch
@@ -227,14 +243,104 @@ public:
 
 }; // class TWISR
 
-class TWISRD : public TWISR
+/* Auto-sync hack, deprecated
+class TWISync : public TWISR
+{
+   uint8_t syncSet, tickSet[2];
+
+   int tickDiff (void) const { return((int)tickSet[1] - (int)tickSet[0]); }
+   bool tickBounded (const uint8_t t, int d)
+   {
+      d= (d > 0);
+      if ((t >= tickSet[0x1^d]) && (t <= tickSet[d])) { return(false); }
+   } // tickBounded
+
+   bool preSync (const bool wait)
+   {
+      if (wait)
+      {
+         if (TWISR::sync(true))
+         {
+            uint8_t t;
+            int m= 0;
+            
+            if (tickSet[0] != tickSet[1])
+            {  // still waiting
+               const uint8_t tNow= millis();
+               const int d= tickDiff();
+               if (tickBounded(tNow,d))
+               {
+                  if (d > 0) { m= tickSet[1] - tNow; }
+                  else { m= tickSet[1] + (0x100 - tNow); }
+               }
+            }
+            else if (syncSet > 0) { m= syncSet; }
+            if (m > 0) { delay(m); } 
+            syncSet= 0;
+            tickSet[0]= tickSet[1]= t;
+            return(true);
+         }
+         return(false);
+      }
+      //else
+      if ((syncSet > 0) && TWISR::sync())
+      {
+         tickSet[0]= millis();
+         tickSet[1]= tickSet[0] + syncSet;
+         syncSet= 0;
+         return(false);
+      }
+      const int d= tickDiff();
+      if (0 != d)
+      {
+         uint8_t tNow= millis();
+         if (tickBounded(tNow,d)) { return(false); } // still waiting
+         //else complete
+         tickSet[0]= tickSet[1]= tNow;
+      }
+      return(tickSet[0] == tickSet[1]);
+   } // preSync
+
+   void postSync (uint8_t tSync) { syncSet= tSync; }
+
+public:
+   TWISync (void) : syncSet{0}, tickSet{0} { ; }
+
+   int write (uint8_t devAddr, uint8_t b[], uint8_t n, bool wait=false, uint8_t tPS=0)
+   {
+      int w= 0;
+      if (preSync(wait))
+      {
+         w= TWISR::write(devAddr,b,n);
+         if (w > 0) { postSync(tPS); }
+      }
+      return(w);
+   } // write
+   
+   int read (uint8_t devAddr, uint8_t b[], uint8_t n, bool wait=false, uint8_t tPS=0)
+   {
+      int r= 0;
+      if (preSync(wait))
+      {
+         r= TWISR::read(devAddr,b,n);
+         if (r > 0) { postSync(tPS); }
+      }
+      return(r);
+   } // read
+
+}; // class TWISync
+*/
+
+
+// Debug extension
+class TWIDebug : public TWISR // TWISync
 {
 public:
    uint8_t evQ[64];
    int8_t iQ;
    uint8_t evF[12];
 
-   TWISRD (void) { clrEv(); }
+   TWIDebug (void) { clrEv(); }
 
    void clrEv (void) { iQ= 0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
    
@@ -259,7 +365,7 @@ public:
 
 // Instance and link to ISR
 
-TWISRD gTWI;
+TWIDebug gTWI;
 
 SIGNAL(TWI_vect)
 {
