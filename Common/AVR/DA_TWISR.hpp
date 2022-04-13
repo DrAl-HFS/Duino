@@ -23,13 +23,22 @@ struct Frag { uint8_t *pB, nB, f; };
 Frag fragB[2];
 #define BUSY 7
 
-#define TW_CLK_100   0x48
-#define TW_CLK_400   0x12
+namespace TWI
+{ 
+   enum Clk : uint8_t   // Magic numbers for wire clock rate (when prescaler=1, accurate within ~300Hz)
+   {
+      CLK_100=0x48, CLK_150=0x2D, 
+      CLK_200=0x20, CLK_250=0x18, 
+      CLK_300=0x12, CLK_350=0x0E, 
+      CLK_400=0x0C   // Higher rates possible? Unreliable?
+   };
+}; // namespace TWI
 
 class TWIHWS // hardware state
 {
 protected:
    // NB: Interrupt flag (TWINT) is cleared by writing 1 
+
    void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
 
    void restart (void) { TWCR|= (1<<TWINT)|(1<<TWSTA)|(1<<TWSTO); }
@@ -37,7 +46,7 @@ protected:
    void commit (uint8_t hwAddr)
    {
       TWDR= hwAddr; 			// Transmit SLA + Read or Write
-      TWCR &= ~(1<<TWSTA);	// TWSTA must be cleared by software! This also clears TWINT!!!
+      TWCR&= ~(1<<TWSTA);	// TWSTA must be cleared by software! This also clears TWINT!!!
    } // commit
 
    void stop (void) { TWCR|= (1<<TWINT)|(1<<TWSTO); }
@@ -53,6 +62,26 @@ protected:
 public:
    TWIHWS (void) { ; }
 
+   void setClk (TWI::Clk c=TWI::CLK_400)
+   {
+      //s.print("TWISR::init() - "); 
+      //s.print("TWBR,TWSR="); s.print(TWBR,HEX); s.print(','); s.print(TWSR,HEX);
+      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
+      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
+      TWBR= c;
+   } // setClk
+
+   void setClk (uint32_t fHz)
+   {
+      uint32_t sc= CORE_CLK;
+      if (fHz < 100000)
+      {
+         TWSR= 0x03;
+         sc/= 64;
+      } else { TWSR= 0x00; }
+      TWBR= ((sc / fHz) - 16) / 2;
+      //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
+   }
 }; // TWIHWS
 
 class TWISWS // software state
@@ -137,32 +166,23 @@ public:
    //using TWISWS::sync;
    bool sync (uint8_t wait=0) const
    {
-      if ((wait > f.nB) && (f.nB > 0))
+      if (f.nB > 0)
       {
          uint8_t t= f.nB << 2; //if (TW_CLK_400 == TWBR)
-         if (t < wait) { wait= t; }
+         if (wait > t) { wait= t; }
       }
       return TWISWS::sync(wait); // Assume 400kHz so 5us per 2bits
    } // sync
 
-   void set (uint8_t r=TW_CLK_400)
-   {
-      //s.print("TWISR::init() - "); 
-      //s.print("TWBR,TWSR="); s.print(TWBR,HEX); s.print(','); s.print(TWSR,HEX);
-      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
-      TWSR= 0; // clear PS1&0 so clock prescale= 1 (high speed)
-      TWBR= r;
-      // TWBR= ((CORE_CLK / busClk) - 16) / 2;
-      //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
-   } // init
+   using TWIHWS::setClk;
 
-   int write (uint8_t devAddr, uint8_t b[], uint8_t n)
+   int write (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
    {
       if (sync())
       {
          TWIHWS::sync();
          hwAddr= (devAddr << 1) | TW_WRITE;
-         f.pB= b;
+         f.pB= (uint8_t*)b; // unconst hack
          f.nB= n;
          start();
          return(n);
@@ -170,7 +190,7 @@ public:
       return 0;
    } // write
 
-   int read (uint8_t devAddr, uint8_t b[], uint8_t n)
+   int read (const uint8_t devAddr, uint8_t b[], const uint8_t n)
    {
       if (sync())
       {
@@ -242,6 +262,27 @@ public:
    } // event
 
 }; // class TWISR
+
+class TWIUtil : public TWISR
+{
+public:
+   //TWIUtil (void) { ; }
+
+   int writeSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+   { 
+      int r= write(devAddr,b,n); 
+      if (r > 0) { sync(-1); }
+      return(r);
+   } // writeSync
+   
+   int readSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+   { 
+      int r= read(devAddr,b,n); 
+      if (r > 0) { sync(-1); }
+      return(r);
+   } // readSync
+   
+}; // class TWIUtil
 
 /* Auto-sync hack, deprecated
 class TWISync : public TWISR
@@ -333,7 +374,7 @@ public:
 
 
 // Debug extension
-class TWIDebug : public TWISR // TWISync
+class TWIDebug : public TWIUtil // TWISync
 {
 public:
    uint8_t evQ[64];
