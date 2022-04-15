@@ -6,11 +6,10 @@
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
 
-#if 0
-#include "TWI/CTWI.hpp"
-#else
+
+//#include "TWI/KK/CTWI.hpp"
+//#include "TWI/SN/CTWI.hpp"
 #include "Common/AVR/DA_TWISR.hpp"
-#endif
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/DN_Util.hpp"
 //#include "Common/Timing.hpp"
@@ -22,8 +21,8 @@ const char *gS[]=
   "* Nemo enim ipsam voluptatem *"
 };
 const uint8_t qS= 30;
-uint8_t gB[40];
-const uint8_t qP= 32;
+uint8_t gB[66];
+const uint8_t qP= 64;
 char gEv=0x00;
 uint8_t gFlags=0x01;
 
@@ -48,7 +47,9 @@ void setup (void)
 {
   delay(100);
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  gTWI.setClk(TWI::CLK_400);
+  gTWI.setClk(); //TWI::CLK_400);
+  //uint32_t f= gTWI.setClk(200000);
+  //DEBUG.print("setClk() -> "); DEBUG.println(f);
   setAddr(gB, 0);
   //DEBUG.print("sizeof(fragB)="); DEBUG.println(sizeof(fragB));
 } // setup
@@ -85,35 +86,35 @@ void loop (void)
   if (gT.update()) { gFlags|= 0x5; }
   if (gFlags & 0x1)
   {
-    uint8_t r[2], t;
+    uint32_t u[2];
+    int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
     if ('W' == gEv) { delay(10); }
-    r[0]= gTWI.writeSync(0x50,gB,2); // select page
-    memset(gB+2, 0xA5, sizeof(gB)-2);
-    t= 3;
-    do
+    u[0]= micros();
+    r[0]= gTWI.writeSync(0x50,gB,2);  // select page
+    if (r > 0)
     {
-      r[1]= gTWI.readSync(0x50,gB+2,qP); // retrieve data (32 Bytes)
-      if (r[1] <= 0) { delay(1); }
-    } while ((r[1] <= 0) && (t-- > 0));
-    DEBUG.print("R:");
-    for (int8_t i=0; i<2; i++) { DEBUG.print(' '); DEBUG.print(r[i]); }
-    DEBUG.print('('); DEBUG.print(t); DEBUG.println(')');
-    if (r[1] > 0)
+      memset(gB+32, 0xA5, sizeof(gB)-34);
+      r[1]= gTWI.readSync(0x50, gB+2, 40); // retrieve data
+    } else { memset(gB+2, 0xA5, sizeof(gB)-2); } // paranoid
+    u[1]= micros();
+    dump<int>(DEBUG, r, 2, "r", " gNISR="); DEBUG.println(gTWI.iQ); //gNISR);
+    dump<uint32_t>(DEBUG, u, 2, "u", " d="); DEBUG.println(u[1]-u[0]);
+    if (r[0] > 0)
     {
-      dumpHexTab(DEBUG, gB+2, qP);
+      dumpHexTab(DEBUG, gB+2, sizeof(gB)-2);
     } else { gTWI.dump(DEBUG); }
     gFlags&= ~0x1;
   }
   if ((gFlags & 0x2) && gTWI.sync())
   {
-    fillTest(DEBUG,gB,1); // 4kB -> 128pages of 32Bytes
+    fillTest(DEBUG,gB,1);
     gFlags&= ~0x2;
   }
   if (gFlags & 0x4)
   {
-    setAddr(gB, (++gIter & 0x7F) << 5);
-    DEBUG.print('I'); DEBUG.print(gIter); DEBUG.print(": ");
+    setAddr(gB, (++gIter & 0x7F) << 5); // 4kB -> 128pages of 32Bytes
+    DEBUG.print('I'); DEBUG.print(gIter); DEBUG.println(": ");
     gTWI.dump(DEBUG); gTWI.clrEv();
     gFlags&= ~0x4;
   }

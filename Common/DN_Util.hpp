@@ -145,6 +145,21 @@ int8_t bcd4FromU8 (uint8_t bcd4[1], uint8_t u)
    return(2);
 } // bcd4FromU8
 
+//void dump (Stream& s, const auto v[], const int n, ...) // requires c++14
+template<typename T>
+void dump (Stream& s, const T v[], const int n)
+{
+   for (int i=0; i<n; i++) { s.print(' '); s.print(v[i]); }
+} // template <T> dump
+template<typename T>
+void dump (Stream& s, const T v[], const int n, const char *hdr, const char *ftr=NULL)
+{
+   if (hdr) { s.print(hdr); }
+   s.print('['); s.print(n); s.print("]=");
+   dump<T>(s,v,n);
+   if (ftr) { s.print(ftr); }
+} // template <T> dump
+
 void dumpHexFmt (Stream& s, const uint8_t b[], const int16_t n, char fs[], const uint8_t ofs=0, const char a='a')
 {
    for (int16_t i=0; i<n; i++)

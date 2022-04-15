@@ -20,24 +20,51 @@
 
 struct Frag { uint8_t *pB, nB, f; };
 
-Frag fragB[2];
+//Frag fragB[2];
 #define BUSY 7
 
 namespace TWI
-{ 
-   enum Clk : uint8_t   // Magic numbers for wire clock rate (when prescaler=1, accurate within ~300Hz)
+{
+   enum Clk : uint8_t   // Magic numbers for wire clock rate (when prescaler=1)
    {
-      CLK_100=0x48, CLK_150=0x2D, 
-      CLK_200=0x20, CLK_250=0x18, 
-      CLK_300=0x12, CLK_350=0x0E, 
-      CLK_400=0x0C   // Higher rates possible? Unreliable?
+      CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
+      CLK_200=0x20, CLK_250=0x18,
+      CLK_300=0x12, CLK_350=0x0E,
+      CLK_400=0x0C   // Higher rates presumed unreliable.
    };
 }; // namespace TWI
 
 class TWIHWS // hardware state
 {
 protected:
-   // NB: Interrupt flag (TWINT) is cleared by writing 1 
+   uint8_t getBT0 (uint8_t r)
+   {
+      switch(r)
+      {
+         case TWI::CLK_400 : return(23); // 22.5us
+         case TWI::CLK_100 : return(90);
+         default :
+         {
+            uint8_t n= r / TWI::CLK_400;
+            return( (22 * n) + (n / 2) + (n & 0x1) ); // = (22.5 * n) + 0.5
+         }
+      }
+   } // getBT0
+
+   uint8_t getBT (void)
+   {
+      uint8_t t0= getBT0(TWBR);
+      switch (TWSR & 0x3)
+      {
+         case 0x00 : return(t0);
+         case 0x01 : return(4*t0);
+         //case 0x02 : return(16*t0); // >= 360us per byte
+         //case 0x03 : return(64*t0); // >= 1.44ms per byte
+      }
+      return(250);
+   } // setBT
+
+   // NB: Interrupt flag (TWINT) is cleared by writing 1
 
    void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
 
@@ -52,42 +79,46 @@ protected:
    void stop (void) { TWCR|= (1<<TWINT)|(1<<TWSTO); }
 
    void ack (void) { TWCR|= (1<<TWINT)|(1<<TWEA); }
-   
+
    void end (void) { TWCR&= ~(1<<TWEA); }
-   
+
    void sync (void) { while(TWCR & (1<<TWSTO)); } // wait for bus stop condition to clear
 
    void resume (void) { TWCR|= (1<<TWINT); }
-   
+
 public:
    TWIHWS (void) { ; }
 
    void setClk (TWI::Clk c=TWI::CLK_400)
    {
-      //s.print("TWISR::init() - "); 
-      //s.print("TWBR,TWSR="); s.print(TWBR,HEX); s.print(','); s.print(TWSR,HEX);
       //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
       TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
       TWBR= c;
    } // setClk
 
-   void setClk (uint32_t fHz)
+   uint32_t setClk (uint32_t fHz)
    {
-      uint32_t sc= CORE_CLK;
-      if (fHz < 100000)
+      uint32_t sc= 0;
+      if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
+      else if (fHz >= 475)
       {
          TWSR= 0x03;
-         sc/= 64;
-      } else { TWSR= 0x00; }
-      TWBR= ((sc / fHz) - 16) / 2;
-      //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
-   }
+         sc= CORE_CLK / 64;
+      }
+      if (sc > 0)
+      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
+         TWBR= ((sc / fHz) - 16) / 2;
+      }
+      return(sc / ((TWBR * 2) + 16));
+   } // setClk
+
 }; // TWIHWS
 
-class TWISWS // software state
+class TWISWS : protected TWIHWS // software state sits atop hardware state
 {
 protected:
    volatile uint8_t status, retry_cnt;
+   uint8_t hwAddr;
 
 public:
    TWISWS (void) : status{0}, retry_cnt{0} { ; }
@@ -98,23 +129,30 @@ public:
       status |= (1<<BUSY);
    } // start
 
+   void commit (void) { TWIHWS::commit(hwAddr); }
+
    void stop (void) { status&= ~(1<<BUSY); }
 
    bool sync (void) const { return(0 == (status & (1<<BUSY))); }
-   
-   // n+2 checks, 5us apart
-   bool sync (uint8_t n) const // 144 (16*9)*5us = 32Bytes @ 400kHz ?
+
+   bool sync (const uint8_t nB) const
    {
+      bool r= sync();
+      if (r || (nB <= 0)) { return(r); }
+      //else
+      const uint16_t u0= micros();
+      const uint16_t u1= u0 + nB * getBT();
+      uint16_t t;
       do
       {
          if (sync()) { return(true); }
-         delayMicroseconds(5); // 2 clk at 400kHz
-      } while (n-- > 0);
+         t= micros();
+      } while ((t < u1) || (t > u0)); // wrap safe (order important)
       return sync();
    } // sync
 
    bool retry (bool commit=true)
-   { 
+   {
       bool r= retry_cnt < 3;
       if (commit) { retry_cnt+= r; } // retry_cnt+= commit&&r; ? more efficient ?
       return(r);
@@ -122,7 +160,7 @@ public:
 
    void clear (void) { retry_cnt= 0; }
 
-}; // TWISWS
+}; // class TWISWS
 
 class TWBuffer
 {
@@ -131,22 +169,21 @@ protected:
 
 public:
    TWBuffer (void) { ; }
-   
+
    uint8_t& byte (void) { return(*f.pB++); }
-   
+
    bool more (void) // { f.nB-= (f.nB > 0); return(f.nB > 0); }
    { return((int8_t)(--f.nB) > 0); }
-   
+
    void readByte (void) { byte()= TWDR; }
    void writeByte (void) { TWDR= byte(); }
 }; // TWBuffer
 
 #define SZ(i,v)  if (0 == i) { i= v; }
 
-class TWISR : protected TWIHWS, TWISWS, TWBuffer
+class TWISR : protected TWISWS, TWBuffer
 {
 protected:
-   uint8_t hwAddr;
 
    void start (void)
    {
@@ -163,15 +200,11 @@ protected:
 public:
    TWISR (void) { ; }
 
-   //using TWISWS::sync;
-   bool sync (uint8_t wait=0) const
+   using TWISWS::sync;
+   bool sync (uint8_t wait) const
    {
-      if (f.nB > 0)
-      {
-         uint8_t t= f.nB << 2; //if (TW_CLK_400 == TWBR)
-         if (wait > t) { wait= t; }
-      }
-      return TWISWS::sync(wait); // Assume 400kHz so 5us per 2bits
+      if (wait > f.nB) { wait= f.nB; }
+      return TWISWS::sync(wait);
    } // sync
 
    using TWIHWS::setClk;
@@ -202,7 +235,8 @@ public:
       }
       return 0;
    } // read
-
+   // W[2] 2 5 4 4
+   // R[32] 2 6 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 11
    int8_t event (const uint8_t flags)
    {
       int8_t iE=0;
@@ -216,7 +250,7 @@ public:
 
          case TW_START : SZ(iE,2);
          case TW_REP_START : SZ(iE,3);
-            if (retry())  { commit(hwAddr); }
+            if (retry())  { commit(); }
             else { stop(); } // multiple NACKs -> abort
             break;
 
@@ -236,7 +270,7 @@ public:
             break;
 
          case TW_MR_SLA_ACK : SZ(iE,6); // Slave acknowledged address
-            if (more()) { ack();	}      // acknowledge to continue reading 
+            if (more()) { ack();	}      // acknowledge to continue reading
             else { resume(); } // ??
             break;
 
@@ -253,8 +287,8 @@ public:
          // Multi-master
          case TW_MT_ARB_LOST : SZ(iE,10); break;
 
-         case TW_MR_DATA_NACK : 	SZ(iE,11); // Master didn't acknowledge data -> end of read process
-            readByte(); // final read ?
+         case TW_MR_DATA_NACK : 	SZ(iE,11); // ack not sent
+            readByte(); // get final byte
             stop();
             break;
       } // switch
@@ -268,20 +302,28 @@ class TWIUtil : public TWISR
 public:
    //TWIUtil (void) { ; }
 
-   int writeSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-   { 
-      int r= write(devAddr,b,n); 
-      if (r > 0) { sync(-1); }
+   int writeSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   {
+      int r;
+      do
+      {
+         r= write(devAddr,b,n);
+         sync(-1);
+      } while ((r <= 0) && (t-- > 0));
       return(r);
    } // writeSync
-   
-   int readSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-   { 
-      int r= read(devAddr,b,n); 
-      if (r > 0) { sync(-1); }
+
+   int readSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   {
+      int r;
+      do
+      {
+         r= read(devAddr,b,n);
+         sync(-1);
+      } while ((r <= 0) && (t-- > 0));
       return(r);
    } // readSync
-   
+
 }; // class TWIUtil
 
 /* Auto-sync hack, deprecated
@@ -304,7 +346,7 @@ class TWISync : public TWISR
          {
             uint8_t t;
             int m= 0;
-            
+
             if (tickSet[0] != tickSet[1])
             {  // still waiting
                const uint8_t tNow= millis();
@@ -316,7 +358,7 @@ class TWISync : public TWISR
                }
             }
             else if (syncSet > 0) { m= syncSet; }
-            if (m > 0) { delay(m); } 
+            if (m > 0) { delay(m); }
             syncSet= 0;
             tickSet[0]= tickSet[1]= t;
             return(true);
@@ -357,7 +399,7 @@ public:
       }
       return(w);
    } // write
-   
+
    int read (uint8_t devAddr, uint8_t b[], uint8_t n, bool wait=false, uint8_t tPS=0)
    {
       int r= 0;
@@ -384,7 +426,7 @@ public:
    TWIDebug (void) { clrEv(); }
 
    void clrEv (void) { iQ= 0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
-   
+
    int8_t event (const uint8_t flags)
    {
       int8_t iE= TWISR::event(flags);
@@ -392,7 +434,7 @@ public:
       evQ[iQ]= iE;
       iQ+= (iQ < sizeof(evQ));
    } // event
-   
+
    void dump (Stream& s) const
    {
       s.print("Q:");
