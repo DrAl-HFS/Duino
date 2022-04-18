@@ -34,12 +34,12 @@ void init() {
 
   TWCR = _BV(TWEN);
 }
-*/
+
 uint8_t *wait() {
   while (busy);
   return(transmission.buffer+1);
 }
-
+*/
 class TWMISR
 {
    void start (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
@@ -56,7 +56,7 @@ class TWMISR
 
    void reply (void)
    {
-      if (transmission.index < (transmission.length - 1)) { ack(); }
+      if (transmission.index < (transmission.length - 1)) { ack(); } 
       else { nack(); }
    }
 
@@ -65,7 +65,7 @@ class TWMISR
       busy= 0;
       if (NULL != transmission.callback) { transmission.callback(transmission.buffer[0] >> 1, transmission.buffer+1); }
    }
-
+   
 protected:
    int get (uint8_t b[], int r)
    {
@@ -78,39 +78,39 @@ public:
 
    bool sync (void) const { return(0 == busy); }
 
-int write (uint8_t address, uint8_t* data, uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
-{
-  if (sync())
-  {
-     busy= 1;
-     transmission.buffer[0] = (address << 1) | TW_WRITE;
-     transmission.length = length + 1;
-     transmission.index = 0;
-     transmission.callback = callback;
-     memcpy(&transmission.buffer[1], data, length);
+   int write (uint8_t address, uint8_t data[], uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
+   {
+     if (sync())
+     {
+        busy= 1;
+        transmission.buffer[0] = (address << 1) | TW_WRITE;
+        transmission.length = length + 1;
+        transmission.index = 0;
+        transmission.callback = callback;
+        memcpy(&transmission.buffer[1], data, length);
 
-     start();
-     return(length);
-   }
-   return(0);
-} // write
+        start();
+        return(length);
+      }
+      return(0);
+   } // write
 
-int read (uint8_t address, uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
-{
-  if (sync())
-  {
-     busy= 1;
-     transmission.buffer[0] = (address << 1) | TW_READ;
-     transmission.length = length + 1;
-     transmission.index = 0;
-     transmission.callback = callback;
+   int read (uint8_t address, uint8_t data[], uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
+   {
+     if (sync())
+     {
+        busy= 1;
+        transmission.buffer[0] = (address << 1) | TW_READ;
+        transmission.length = length + 1;
+        transmission.index = 0;
+        transmission.callback = callback;
 
-     start();
-     return(length);
-   }
-   return(0);
-} // read
-
+        start();
+        return(length);
+      }
+      return(0);
+   } // read
+   
    int8_t event (const uint8_t flags)
    {
       switch (flags)
