@@ -37,22 +37,23 @@ public:
 #define SZ(i,v)  if (0 == i) { i= v; }
 
 
-class TWUtil : public TWI::ClkUtil, TWISR // TWMISR, public SWS
+class TWUtil : public TWI::ClkUtil, public TWISR // TWMISR, public SWS
 {
 public:
    //TWUtil (void) { ; }
-
+   using TWI::SWS::sync;
+   
    bool sync (const uint8_t nB) const
    {
       bool r= sync();
       if (r || (nB <= 0)) { return(r); }
       //else
       const uint16_t u0= micros();
-      const uint16_t u1= u0 + nB * getBT();
+      const uint16_t u1= u0 + nB * TWI::ClkUtil::getBT();
       uint16_t t;
       do
       {
-         if (SWS::sync()) { return(true); }
+         if (sync()) { return(true); }
          t= micros();
       } while ((t < u1) || (t > u0)); // wrap safe (order important)
       return sync();
@@ -181,6 +182,8 @@ public:
 
    TWDebug (void) { clrEv(); }
 
+   using TWI::ClkUtil::setClk;
+   
    void clrEv (void) { iQ= 0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
 
    int8_t event (const uint8_t flags)

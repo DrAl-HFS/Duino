@@ -11,27 +11,26 @@
 
 namespace TWI {
 
-enum Clk : uint8_t   // Magic numbers for wire clock rate (when prescaler=1)
+enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (when prescaler=1)
 {
    CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
    CLK_200=0x20, CLK_250=0x18, 
    CLK_300=0x12, CLK_350=0x0E, 
    CLK_400=0x0C   // Higher rates presumed unreliable.
 };
-enum State : uint8_t { BUSY=0x80 };
    
-class HWS // hardware state
+class ClkUtil
 {
 protected:
    uint8_t getBT0 (uint8_t r)
    {
       switch(r)
       {
-         case TWI::CLK_400 : return(23); // 22.5us
-         case TWI::CLK_100 : return(90);
+         case CLK_400 : return(23); // 22.5us
+         case CLK_100 : return(90);
          default :
          {
-            uint8_t n= r / TWI::CLK_400;
+            uint8_t n= r / CLK_400;
             return( (22 * n) + (n / 2) + (n & 0x1) ); // = (22.5 * n) + 0.5
          }
       }
@@ -50,6 +49,34 @@ protected:
       return(250);
    } // setBT
 
+   void setClk (ClkTok c=CLK_400)
+   {
+      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
+      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
+      TWBR= c;
+   } // setClk
+
+   uint32_t setClk (uint32_t fHz)
+   {
+      uint32_t sc= 0;
+      if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
+      else if (fHz >= 475)
+      {
+         TWSR= 0x03;
+         sc= CORE_CLK / 64;
+      } 
+      if (sc > 0)
+      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
+         TWBR= ((sc / fHz) - 16) / 2;
+      }
+      return(sc / ((TWBR * 2) + 16));
+   } // setClk
+   
+}; // class ClkUtil
+
+class HWS // hardware state
+{
+protected:
    // NB: Interrupt flag (TWINT) is cleared by writing 1 
 
    void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
@@ -74,36 +101,14 @@ protected:
    
 public:
    HWS (void) { ; }
-
-   void setClk (TWI::Clk c=TWI::CLK_400)
-   {
-      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
-      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
-      TWBR= c;
-   } // setClk
-
-   uint32_t setClk (uint32_t fHz)
-   {
-      uint32_t sc= 0;
-      if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
-      else if (fHz >= 475)
-      {
-         TWSR= 0x03;
-         sc= CORE_CLK / 64;
-      } 
-      if (sc > 0)
-      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
-         TWBR= ((sc / fHz) - 16) / 2;
-      }
-      return(sc / ((TWBR * 2) + 16));
-   } // setClk
    
 }; // class HWS
-
 
 class SWS : protected HWS // software state sits atop hardware state
 {
 protected:
+   enum State : uint8_t { BUSY=0x80 };
+
    volatile uint8_t status, retry_cnt;
    uint8_t hwAddr;
 
@@ -121,22 +126,6 @@ public:
    void stop (void) { status&= ~BUSY; }
 
    bool sync (void) const { return(0 == (status & BUSY)); }
-   
-   bool sync (const uint8_t nB) const
-   {
-      bool r= sync();
-      if (r || (nB <= 0)) { return(r); }
-      //else
-      const uint16_t u0= micros();
-      const uint16_t u1= u0 + nB * getBT();
-      uint16_t t;
-      do
-      {
-         if (sync()) { return(true); }
-         t= micros();
-      } while ((t < u1) || (t > u0)); // wrap safe (order important)
-      return sync();
-   } // sync
 
    bool retry (bool commit=true)
    { 
