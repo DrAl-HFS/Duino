@@ -9,7 +9,7 @@
 
 //#include "TWI/KK/CTWI.hpp"
 //#include "TWI/SN/CTWI.hpp"
-#include "Common/AVR/DA_TWISR.hpp"
+#include "Common/AVR/DA_TWUtil.hpp"
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/DN_Util.hpp"
 //#include "Common/Timing.hpp"
@@ -86,20 +86,28 @@ void loop (void)
   if (gT.update()) { gFlags|= 0x5; }
   if (gFlags & 0x1)
   {
-    uint32_t u[2];
+    uint32_t u[5];
+    uint8_t ub[2];
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
     if ('W' == gEv) { delay(10); }
-    u[0]= micros();
-    r[0]= gTWI.writeSync(0x50,gB,2);  // select page
-    if (r > 0)
+    u[0]= micros(); 
+    ub[0]= TCNT0 * 4;
+    r[0]= gTWI.write(0x50,gB,2);  // select page
+    ub[1]= TCNT0 * 4;
+    u[1]= micros(); 
+    if (r[0] > 0)
     {
-      memset(gB+32, 0xA5, sizeof(gB)-34);
+      //memset(gB+32, 0xA5, sizeof(gB)-34);
+      gB[3]= gB[31]= 0xA5;
       r[1]= gTWI.readSync(0x50, gB+2, 40); // retrieve data
     } else { memset(gB+2, 0xA5, sizeof(gB)-2); } // paranoid
-    u[1]= micros();
-    dump<int>(DEBUG, r, 2, "r", " gNISR="); DEBUG.println(gTWI.iQ); //gNISR);
-    dump<uint32_t>(DEBUG, u, 2, "u", " d="); DEBUG.println(u[1]-u[0]);
+    u[2]= micros(); 
+    u[3]= u[1]-u[0];
+    u[4]= u[2]-u[1];
+    dump<uint8_t>(DEBUG, ub, 2, "ub", "\n");
+    //dump<int>(DEBUG, r, 2, "r", " nEV="); DEBUG.println(gTWI.iQ); //gNISR);
+    dump<uint32_t>(DEBUG, u, 5, "u", "\n");
     if (r[0] > 0)
     {
       dumpHexTab(DEBUG, gB+2, sizeof(gB)-2);
