@@ -47,7 +47,8 @@ void setup (void)
 {
   delay(100);
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  gTWI.setClk(); //TWI::CLK_400);
+  gTWI.set(TWUtil::CLK_400);
+  interrupts();
   //uint32_t f= gTWI.setClk(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
   setAddr(gB, 0);

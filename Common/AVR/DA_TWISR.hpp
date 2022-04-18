@@ -14,28 +14,10 @@
 
 #include "DA_TWI.hpp"
 
-struct Frag { uint8_t *pB, nB, f; };
-
-class TWBuffer
-{
-protected:
-   Frag f;
-
-public:
-   TWBuffer (void) { ; }
-   
-   uint8_t& byte (void) { return(*f.pB++); }
-   
-   bool more (void) // { f.nB-= (f.nB > 0); return(f.nB > 0); }
-   { return((int8_t)(--f.nB) > 0); }
-   
-   void readByte (void) { byte()= TWDR; }
-   void writeByte (void) { TWDR= byte(); }
-}; // TWBuffer
 
 #define SZ(i,v)  if (0 == i) { i= v; }
 
-class TWISR : protected TWI::SWS, TWBuffer
+class TWISR : protected TWI::SWS, TWI::Buffer
 {
 protected:
 
@@ -50,6 +32,9 @@ protected:
       TWI::HWS::stop();
       TWI::SWS::stop();
    } // stop
+
+   // Compatibility dummy (transitional)
+   int get (uint8_t dummy[], int r) { return(r); }
 
 public:
    TWISR (void) { ; }
@@ -82,7 +67,7 @@ public:
       }
       return 0;
    } // read
-   // W[2] 2 5 4 4  
+   // W[2] 2 5 4 4
    // R[32] 2 6 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 11
    int8_t event (const uint8_t flags)
    {

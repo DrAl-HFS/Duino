@@ -1,4 +1,5 @@
-// Duino/Common/AVR/DA_TWI.hpp - AVR two wire (I2C-like) basics.
+// Duino/Common/AVR/DA_TWI.hpp - AVR two wire (I2C-like) basics, specific
+// to KK variant.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Mar 2022
@@ -11,73 +12,10 @@
 
 namespace TWI {
 
-enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (when prescaler=1)
-{
-   CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
-   CLK_200=0x20, CLK_250=0x18, 
-   CLK_300=0x12, CLK_350=0x0E, 
-   CLK_400=0x0C   // Higher rates presumed unreliable.
-};
-   
-class ClkUtil
-{
-protected:
-   uint8_t getBT0 (uint8_t r)
-   {
-      switch(r)
-      {
-         case CLK_400 : return(23); // 22.5us
-         case CLK_100 : return(90);
-         default :
-         {
-            uint8_t n= r / CLK_400;
-            return( (22 * n) + (n / 2) + (n & 0x1) ); // = (22.5 * n) + 0.5
-         }
-      }
-   } // getBT0
-   
-   uint8_t getBT (void)
-   {
-      uint8_t t0= getBT0(TWBR);
-      switch (TWSR & 0x3)
-      {
-         case 0x00 : return(t0);
-         case 0x01 : return(4*t0);
-         //case 0x02 : return(16*t0); // >= 360us per byte
-         //case 0x03 : return(64*t0); // >= 1.44ms per byte
-      }
-      return(250);
-   } // setBT
-
-   void setClk (ClkTok c=CLK_400)
-   {
-      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
-      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
-      TWBR= c;
-   } // setClk
-
-   uint32_t setClk (uint32_t fHz)
-   {
-      uint32_t sc= 0;
-      if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
-      else if (fHz >= 475)
-      {
-         TWSR= 0x03;
-         sc= CORE_CLK / 64;
-      } 
-      if (sc > 0)
-      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
-         TWBR= ((sc / fHz) - 16) / 2;
-      }
-      return(sc / ((TWBR * 2) + 16));
-   } // setClk
-   
-}; // class ClkUtil
-
 class HWS // hardware state
 {
 protected:
-   // NB: Interrupt flag (TWINT) is cleared by writing 1 
+   // NB: Interrupt flag (TWINT) is cleared by writing 1
 
    void start (void) { TWCR= (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); }
 
@@ -92,16 +30,16 @@ protected:
    void stop (void) { TWCR|= (1<<TWINT)|(1<<TWSTO); }
 
    void ack (void) { TWCR|= (1<<TWINT)|(1<<TWEA); }
-   
+
    void end (void) { TWCR&= ~(1<<TWEA); }
-   
+
    void sync (void) { while(TWCR & (1<<TWSTO)); } // wait for bus stop condition to clear
 
    void resume (void) { TWCR|= (1<<TWINT); }
-   
+
 public:
    HWS (void) { ; }
-   
+
 }; // class HWS
 
 class SWS : protected HWS // software state sits atop hardware state
@@ -122,13 +60,13 @@ public:
    } // start
 
    void commit (void) { TWI::HWS::commit(hwAddr); }
-   
+
    void stop (void) { status&= ~BUSY; }
 
    bool sync (void) const { return(0 == (status & BUSY)); }
 
    bool retry (bool commit=true)
-   { 
+   {
       bool r= retry_cnt < 3;
       if (commit) { retry_cnt+= r; } // retry_cnt+= commit&&r; ? more efficient ?
       return(r);
@@ -137,5 +75,22 @@ public:
    void clear (void) { retry_cnt= 0; }
 
 }; // class SWS
+
+class Buffer
+{
+protected:
+   Frag f;
+
+public:
+   Buffer (void) { ; }
+
+   uint8_t& byte (void) { return(*f.pB++); }
+
+   bool more (void) // { f.nB-= (f.nB > 0); return(f.nB > 0); }
+   { return((int8_t)(--f.nB) > 0); }
+
+   void readByte (void) { byte()= TWDR; }
+   void writeByte (void) { TWDR= byte(); }
+}; // Buffer
 
 }; // namespace TWI

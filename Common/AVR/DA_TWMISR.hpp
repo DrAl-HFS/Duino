@@ -16,7 +16,7 @@
 #ifndef TWI_BUFFER_LENGTH
 #define TWI_BUFFER_LENGTH 40
 #endif
-static volatile uint8_t busy;
+static volatile uint8_t busy=0;
 static struct {
    uint8_t buffer[TWI_BUFFER_LENGTH];
    uint8_t length;
@@ -42,7 +42,6 @@ uint8_t *wait() {
 
 class TWMISR
 {
-   
    void start (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
 
    void stop (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); }
@@ -57,7 +56,7 @@ class TWMISR
 
    void reply (void)
    {
-      if (transmission.index < (transmission.length - 1)) { ack(); } 
+      if (transmission.index < (transmission.length - 1)) { ack(); }
       else { nack(); }
    }
 
@@ -67,37 +66,50 @@ class TWMISR
       if (NULL != transmission.callback) { transmission.callback(transmission.buffer[0] >> 1, transmission.buffer+1); }
    }
 
+protected:
+   int get (uint8_t b[], int r)
+   {
+      if ((r > 0) && (b != transmission.buffer+1)) { memcpy(b, transmission.buffer+1, r); }
+      return(r);
+   } // get
+
 public:
    TWMISR (void) { ; }
 
-void write (uint8_t address, uint8_t* data, uint8_t length, void (*callback)(uint8_t, uint8_t *))
+   bool sync (void) const { return(0 == busy); }
+
+int write (uint8_t address, uint8_t* data, uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
 {
-  wait();
+  if (sync())
+  {
+     busy= 1;
+     transmission.buffer[0] = (address << 1) | TW_WRITE;
+     transmission.length = length + 1;
+     transmission.index = 0;
+     transmission.callback = callback;
+     memcpy(&transmission.buffer[1], data, length);
 
-  busy = 1;
+     start();
+     return(length);
+   }
+   return(0);
+} // write
 
-  transmission.buffer[0] = (address << 1) | TW_WRITE;
-  transmission.length = length + 1;
-  transmission.index = 0;
-  transmission.callback = callback;
-  memcpy(&transmission.buffer[1], data, length);
-
-  start();
-}
-
-void read (uint8_t address, uint8_t length, void (*callback)(uint8_t, uint8_t *))
+int read (uint8_t address, uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
 {
-  wait();
+  if (sync())
+  {
+     busy= 1;
+     transmission.buffer[0] = (address << 1) | TW_READ;
+     transmission.length = length + 1;
+     transmission.index = 0;
+     transmission.callback = callback;
 
-  busy = 1;
-
-  transmission.buffer[0] = (address << 1) | TW_READ;
-  transmission.length = length + 1;
-  transmission.index = 0;
-  transmission.callback = callback;
-
-  start();
-}
+     start();
+     return(length);
+   }
+   return(0);
+} // read
 
    int8_t event (const uint8_t flags)
    {
@@ -146,14 +158,3 @@ void read (uint8_t address, uint8_t length, void (*callback)(uint8_t, uint8_t *)
 
 }; // class TWMISR
 
-/*
-// Instance and link to ISR
-
-TWIDebug gTWI;
-
-SIGNAL(TWI_vect)
-{
-   gTWI.event( TWSR & TW_STATUS_MASK ); // Mask out prescaler bits to get TWI status
-}
-
-*/

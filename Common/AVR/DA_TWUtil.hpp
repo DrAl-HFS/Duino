@@ -1,55 +1,99 @@
-// Duino/Common/AVR/DA_TWISR.hpp - AVR two wire (I2C-like) interrupt driven communication, C++ class.
-// Adapted from C-code authored by "kkempeneers" (as "twi.c" - without copyright or licence declaration)
-// obtained from:-
-// https://www.avrfreaks.net/sites/default/files/project_files/Interrupt_driven_Two_Wire_Interface.zip
-// This approach provides efficient asynchronous communication without buffer copying.
-// (SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s @ 16MHz.)
-// ---
-// * CAVEAT EMPTOR *
-// This could break in a variety of interesting ways under Arduino, subject to resource requrements.
-// ---
+// Duino/Common/AVR/DA_TWUtil.hpp - AVR two wire (I2C-like) utility code, C++ classes.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Mar - Apr 2022
 
+// Hacky forward declaration (transitional)
+struct Frag { uint8_t *pB, nB, f; };
+
 #include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
 
-//struct Frag { uint8_t *pB, nB, f; };
-/*
-class TWBuffer
+
+namespace TWUtil {
+
+enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for prescaler=1 and CORE_CLK=16MHz)
+{
+   CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
+   CLK_200=0x20, CLK_250=0x18,
+   CLK_300=0x12, CLK_350=0x0E,
+   CLK_400=0x0C   // Higher rates presumed unreliable.
+};
+
+class Clk
 {
 protected:
-   Frag f;
+   uint8_t getBT0 (uint8_t r)
+   {
+      switch(r)
+      {
+         case CLK_400 : return(23); // 22.5us
+         case CLK_100 : return(90);
+         default :
+         {
+            uint8_t n= r / CLK_400;
+            return( (22 * n) + (n / 2) + (n & 0x1) ); // = (22.5 * n) + 0.5
+         }
+      }
+   } // getBT0
+
+   uint8_t getBT (void)
+   {
+      uint8_t t0= getBT0(TWBR);
+      switch (TWSR & 0x3)
+      {
+         case 0x00 : return(t0);
+         case 0x01 : return(4*t0);
+         //case 0x02 : return(16*t0); // >= 360us per byte
+         //case 0x03 : return(64*t0); // >= 1.44ms per byte
+      }
+      return(250);
+   } // setBT
 
 public:
-   TWBuffer (void) { ; }
 
-   uint8_t& byte (void) { return(*f.pB++); }
+   void set (ClkTok c=CLK_400)
+   {
+      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
+      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
+      TWBR= c;
+   } // set
 
-   bool more (void) // { f.nB-= (f.nB > 0); return(f.nB > 0); }
-   { return((int8_t)(--f.nB) > 0); }
+   uint32_t set (uint32_t fHz)
+   {
+      uint32_t sc= 0;
+      if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
+      else if (fHz >= 475)
+      {
+         TWSR= 0x03;
+         sc= CORE_CLK / 64;
+      }
+      if (sc > 0)
+      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
+         TWBR= ((sc / fHz) - 16) / 2;
+      }
+      return(sc / ((TWBR * 2) + 16));
+   } // set
 
-   void readByte (void) { byte()= TWDR; }
-   void writeByte (void) { TWDR= byte(); }
-}; // TWBuffer
-*/
-#define SZ(i,v)  if (0 == i) { i= v; }
+}; // class Clk
 
 
-class TWUtil : public TWI::ClkUtil, public TWISR // TWMISR, public SWS
+class Sync : public Clk, public TWISR // TWMISR
 {
 public:
    //TWUtil (void) { ; }
+
+   /* Specific variant dependancy */
    using TWI::SWS::sync;
-   
+   //using TWMISR::sync;
+
    bool sync (const uint8_t nB) const
    {
       bool r= sync();
       if (r || (nB <= 0)) { return(r); }
       //else
       const uint16_t u0= micros();
-      const uint16_t u1= u0 + nB * TWI::ClkUtil::getBT();
+      const uint16_t u1= u0 + nB * Clk::getBT();
       uint16_t t;
       do
       {
@@ -78,10 +122,10 @@ public:
          r= read(devAddr,b,n);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
-      return(r);
+      return get(b,r);
    } // readSync
 
-}; // class TWUtil
+}; // class Sync
 
 /* Auto-sync hack, deprecated
 class TWSync : public TWISR
@@ -173,7 +217,7 @@ public:
 
 
 // Debug extension
-class TWDebug : public TWUtil // TWSync
+class Debug : public Sync
 {
 public:
    uint8_t evQ[64];
@@ -182,13 +226,13 @@ public:
 
    TWDebug (void) { clrEv(); }
 
-   using TWI::ClkUtil::setClk;
-   
+   using Clk::set;
+
    void clrEv (void) { iQ= 0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
 
    int8_t event (const uint8_t flags)
    {
-      int8_t iE= TWUtil::event(flags);
+      int8_t iE= Sync::event(flags);
       evF[iE]+= (evF[iE] < 0xFF);   // saturating increment
       evQ[iQ]= iE;
       iQ+= (iQ < sizeof(evQ));
@@ -205,9 +249,11 @@ public:
 
 }; // class TWDebug
 
+}; // namespace TWUtil
+
 // Instance and link to ISR
 
-TWDebug gTWI;
+TWUtil::Debug gTWI;
 
 SIGNAL(TWI_vect)
 {
