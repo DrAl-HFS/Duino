@@ -21,7 +21,6 @@ static struct {
    uint8_t buffer[TWI_BUFFER_LENGTH];
    uint8_t length;
    uint8_t index;
-   void (*callback)(uint8_t, uint8_t *);
 } transmission;
 /*
 void init() {
@@ -60,11 +59,7 @@ class TWMISR
       else { nack(); }
    }
 
-   void done (void)
-   {
-      busy= 0;
-      if (NULL != transmission.callback) { transmission.callback(transmission.buffer[0] >> 1, transmission.buffer+1); }
-   }
+   void done (void) { busy= 0; }
    
 protected:
    int get (uint8_t b[], int r)
@@ -78,82 +73,84 @@ public:
 
    bool sync (void) const { return(0 == busy); }
 
-   int write (uint8_t address, uint8_t data[], uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
+   int write (uint8_t devAddr, const uint8_t b[], const uint8_t n)
    {
      if (sync())
      {
         busy= 1;
-        transmission.buffer[0] = (address << 1) | TW_WRITE;
-        transmission.length = length + 1;
-        transmission.index = 0;
-        transmission.callback = callback;
-        memcpy(&transmission.buffer[1], data, length);
+        transmission.buffer[0]= (devAddr << 1) | TW_WRITE;
+        transmission.length= n + 1;
+        transmission.index= 0;
+        memcpy(&transmission.buffer[1], b, n);
 
         start();
-        return(length);
+        return(n);
       }
       return(0);
    } // write
 
-   int read (uint8_t address, uint8_t data[], uint8_t length, void (*callback)(uint8_t, uint8_t *)=NULL)
+   int read (uint8_t devAddr, uint8_t b[], const uint8_t n)
    {
      if (sync())
      {
         busy= 1;
-        transmission.buffer[0] = (address << 1) | TW_READ;
-        transmission.length = length + 1;
-        transmission.index = 0;
-        transmission.callback = callback;
+        transmission.buffer[0]= (devAddr << 1) | TW_READ;
+        transmission.length= n + 1;
+        transmission.index= 0;
 
         start();
-        return(length);
+        return(n);
       }
       return(0);
    } // read
-   
+
+#define SZ(i,v)  if (0 == i) { i= v; }
+
    int8_t event (const uint8_t flags)
    {
+      int8_t iE=0;
       switch (flags)
       {
-         case TW_START:
-         case TW_REP_START:
-         case TW_MT_SLA_ACK:
-         case TW_MT_DATA_ACK:
-         if (transmission.index < transmission.length)
-         {
-            send(transmission.buffer[transmission.index++]);
-            nack();
-         }
-         else 
-         {
-            stop();
-            done();
-         }
-         break;
-
-         case TW_MR_DATA_ACK:
+         case TW_MR_DATA_ACK: SZ(iE,1);
             recv();
             reply();
             break;
 
-         case TW_MR_SLA_ACK:
+         case TW_START: SZ(iE,2);
+         case TW_REP_START: SZ(iE,3);
+         case TW_MT_SLA_ACK: SZ(iE,5);
+         case TW_MT_DATA_ACK: SZ(iE,4);
+            if (transmission.index < transmission.length)
+            {
+               send(transmission.buffer[transmission.index++]);
+               nack();
+            }
+            else 
+            {
+               stop();
+               done();
+            }
+            break;
+
+         case TW_MR_SLA_ACK: SZ(iE,6);
             reply();
             break;
 
-         case TW_MR_DATA_NACK:
-            recv();
-            stop();
-            done();
-            break;
-
-         case TW_MT_SLA_NACK:
-         case TW_MR_SLA_NACK:
-         case TW_MT_DATA_NACK:
+         case TW_MT_SLA_NACK: SZ(iE,7);
+         case TW_MR_SLA_NACK: SZ(iE,8);
+         case TW_MT_DATA_NACK: SZ(iE,9);
          default:
             stop();
             done();
             break;
+
+         case TW_MR_DATA_NACK: SZ(iE,11);
+            recv();
+            stop();
+            done();
+            break;
       }
+      return(iE);
    } // event
 
 }; // class TWMISR
