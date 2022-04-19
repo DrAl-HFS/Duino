@@ -14,31 +14,16 @@
 //#include "twi.h"
 
 #ifndef TWI_BUFFER_LENGTH
-#define TWI_BUFFER_LENGTH 40
+#define TWI_BUFFER_LENGTH 48
 #endif
-static volatile uint8_t busy=0;
-static struct {
+static struct
+{
+   volatile uint8_t state;
+   uint8_t n, i;
    uint8_t hwAddr;
    uint8_t b[TWI_BUFFER_LENGTH];
-   uint8_t n, i;
 } buff;
-/*
-void init() {
-   TWBR = ((F_CPU / TWI_FREQ) - 16) / 2;
-  TWSR = 0; // prescaler = 1
 
-  busy = 0;
-
-  sei();
-
-  TWCR = _BV(TWEN);
-}
-
-uint8_t *wait() {
-  while (busy);
-  return(buff.b+1);
-}
-*/
 class TWMISR
 {
    void start (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
@@ -53,15 +38,23 @@ class TWMISR
 
    void recv (void) { buff.b[buff.i++] = TWDR; }
 
+protected:
    void reply (void)
    {
-      if (buff.i < (buff.n - 1)) { ack(); } 
+      if (buff.i < (buff.n - 1)) { ack(); }
       else { nack(); }
    }
 
-   void done (void) { busy= 0; }
-   
-protected:
+   void unlock (void) { buff.state= 0; }
+
+   bool lock (void)
+   {
+      bool r= sync();
+      if (r) { buff.state= 0x1; }
+      return(r);
+   }
+
+   // transitional hack
    int get (uint8_t b[], int r)
    {
       if ((r > 0) && (b != buff.b+0)) { memcpy(b, buff.b+0, r); }
@@ -71,14 +64,12 @@ protected:
 public:
    TWMISR (void) { ; }
 
-   bool sync (void) const { return(0 == busy); }
+   bool sync (void) const { return(0 == buff.state); }
 
    int write (uint8_t devAddr, const uint8_t b[], const uint8_t n)
    {
-     if (sync())
+     if (lock())
      {
-        busy= 1;
-        //buff.b[0]= 
         buff.hwAddr= (devAddr << 1) | TW_WRITE;
         buff.n= n;
         buff.i= 0;
@@ -92,10 +83,8 @@ public:
 
    int read (uint8_t devAddr, uint8_t b[], const uint8_t n)
    {
-     if (sync())
+     if (lock())
      {
-        busy= 1;
-        //buff.b[0]= 
         buff.hwAddr= (devAddr << 1) | TW_READ;
         buff.n= n;
         buff.i= 0;
@@ -123,7 +112,7 @@ public:
             send(buff.hwAddr);
             nack();
             break;
-            
+
          case TW_MT_SLA_ACK: SZ(iE,5);
          case TW_MT_DATA_ACK: SZ(iE,4);
             if (buff.i < buff.n)
@@ -131,10 +120,10 @@ public:
                send(buff.b[buff.i++]);
                nack();
             }
-            else 
+            else
             {
                stop();
-               done();
+               unlock();
             }
             break;
 
@@ -147,13 +136,13 @@ public:
          case TW_MT_DATA_NACK: SZ(iE,9);
          default:
             stop();
-            done();
+            unlock();
             break;
 
          case TW_MR_DATA_NACK: SZ(iE,11);
             recv();
             stop();
-            done();
+            unlock();
             break;
       }
       return(iE);
