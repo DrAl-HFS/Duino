@@ -18,10 +18,10 @@
 #endif
 static volatile uint8_t busy=0;
 static struct {
-   uint8_t buffer[TWI_BUFFER_LENGTH];
-   uint8_t length;
-   uint8_t index;
-} transmission;
+   uint8_t hwAddr;
+   uint8_t b[TWI_BUFFER_LENGTH];
+   uint8_t n, i;
+} buff;
 /*
 void init() {
    TWBR = ((F_CPU / TWI_FREQ) - 16) / 2;
@@ -36,26 +36,26 @@ void init() {
 
 uint8_t *wait() {
   while (busy);
-  return(transmission.buffer+1);
+  return(buff.b+1);
 }
 */
 class TWMISR
 {
-   void start (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
+   void start (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
 
-   void stop (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); }
+   void stop (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); }
 
-   void ack (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWEA); }
+   void ack (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWEA); }
 
-   void nack (void) { TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE); }
+   void nack (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE); }
 
-   void send (uint8_t data) { TWDR = data; }
+   void send (uint8_t b) { TWDR= b; }
 
-   void recv (void) { transmission.buffer[transmission.index++] = TWDR; }
+   void recv (void) { buff.b[buff.i++] = TWDR; }
 
    void reply (void)
    {
-      if (transmission.index < (transmission.length - 1)) { ack(); } 
+      if (buff.i < (buff.n - 1)) { ack(); } 
       else { nack(); }
    }
 
@@ -64,7 +64,7 @@ class TWMISR
 protected:
    int get (uint8_t b[], int r)
    {
-      if ((r > 0) && (b != transmission.buffer+1)) { memcpy(b, transmission.buffer+1, r); }
+      if ((r > 0) && (b != buff.b+0)) { memcpy(b, buff.b+0, r); }
       return(r);
    } // get
 
@@ -78,10 +78,11 @@ public:
      if (sync())
      {
         busy= 1;
-        transmission.buffer[0]= (devAddr << 1) | TW_WRITE;
-        transmission.length= n + 1;
-        transmission.index= 0;
-        memcpy(&transmission.buffer[1], b, n);
+        //buff.b[0]= 
+        buff.hwAddr= (devAddr << 1) | TW_WRITE;
+        buff.n= n;
+        buff.i= 0;
+        memcpy(buff.b+buff.i, b, n);
 
         start();
         return(n);
@@ -94,9 +95,10 @@ public:
      if (sync())
      {
         busy= 1;
-        transmission.buffer[0]= (devAddr << 1) | TW_READ;
-        transmission.length= n + 1;
-        transmission.index= 0;
+        //buff.b[0]= 
+        buff.hwAddr= (devAddr << 1) | TW_READ;
+        buff.n= n;
+        buff.i= 0;
 
         start();
         return(n);
@@ -118,11 +120,15 @@ public:
 
          case TW_START: SZ(iE,2);
          case TW_REP_START: SZ(iE,3);
+            send(buff.hwAddr);
+            nack();
+            break;
+            
          case TW_MT_SLA_ACK: SZ(iE,5);
          case TW_MT_DATA_ACK: SZ(iE,4);
-            if (transmission.index < transmission.length)
+            if (buff.i < buff.n)
             {
-               send(transmission.buffer[transmission.index++]);
+               send(buff.b[buff.i++]);
                nack();
             }
             else 
