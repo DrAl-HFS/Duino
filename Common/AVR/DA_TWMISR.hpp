@@ -16,12 +16,14 @@
 #ifndef TWI_BUFFER_LENGTH
 #define TWI_BUFFER_LENGTH 48
 #endif
+uint8_t gTWTB[66];
+
 static struct
 {
    volatile uint8_t state;
    uint8_t n, i;
    uint8_t hwAddr;
-   uint8_t b[TWI_BUFFER_LENGTH];
+   uint8_t *p, b[TWI_BUFFER_LENGTH];
 } buff;
 
 class TWMISR
@@ -36,7 +38,7 @@ class TWMISR
 
    void send (uint8_t b) { TWDR= b; }
 
-   void recv (void) { buff.b[buff.i++] = TWDR; }
+   void recv (void) { buff.p[buff.i++] = TWDR; }
 
 protected:
    void reply (void)
@@ -54,15 +56,19 @@ protected:
       return(r);
    }
 
-   // transitional hack
+   // transitional hacks
+   void set (const uint8_t b[], const uint8_t n)
+   {
+      if (b != buff.p) { memcpy(buff.p, b, n); }
+   }
    int get (uint8_t b[], int r)
    {
-      if ((r > 0) && (b != buff.b+0)) { memcpy(b, buff.b+0, r); }
+      if ((r > 0) && (b != buff.p)) { memcpy(b, buff.p, r); }
       return(r);
    } // get
 
 public:
-   TWMISR (void) { ; }
+   TWMISR (void) { buff.p= buff.b; }
 
    bool sync (void) const { return(0 == buff.state); }
 
@@ -73,7 +79,7 @@ public:
         buff.hwAddr= (devAddr << 1) | TW_WRITE;
         buff.n= n;
         buff.i= 0;
-        memcpy(buff.b+buff.i, b, n);
+        set(b,n);
 
         start();
         return(n);
@@ -117,7 +123,7 @@ public:
          case TW_MT_DATA_ACK: SZ(iE,4);
             if (buff.i < buff.n)
             {
-               send(buff.b[buff.i++]);
+               send(buff.p[buff.i++]);
                nack();
             }
             else

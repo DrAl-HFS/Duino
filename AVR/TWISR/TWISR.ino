@@ -21,7 +21,6 @@ const char *gS[]=
   "* Nemo enim ipsam voluptatem *"
 };
 const uint8_t qS= 30;
-uint8_t gB[66];
 const uint8_t qP= 64;
 char gEv=0x00;
 uint8_t gFlags=0x01;
@@ -51,8 +50,8 @@ void setup (void)
   interrupts();
   //uint32_t f= gTWI.setClk(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
-  setAddr(gB, 0);
-  //DEBUG.print("sizeof(fragB)="); DEBUG.println(sizeof(fragB));
+  setAddr(gTWTB, 0);
+  //DEBUG.print("sizeof(fragTWTB)="); DEBUG.println(sizeof(fragTWTB));
 } // setup
 
 
@@ -94,15 +93,15 @@ void loop (void)
     if ('W' == gEv) { delay(10); }
     u[0]= micros(); 
     ub[0]= TCNT0 * 4;
-    r[0]= gTWI.write(0x50,gB,2);  // select page
+    r[0]= gTWI.write(0x50,gTWTB,2);  // select page
     ub[1]= TCNT0 * 4;
     u[1]= micros(); 
     if (r[0] > 0)
     {
-      //memset(gB+32, 0xA5, sizeof(gB)-34);
-      gB[3]= gB[31]= 0xA5;
-      r[1]= gTWI.readSync(0x50, gB+2, 40); // retrieve data
-    } else { memset(gB+2, 0xA5, sizeof(gB)-2); } // paranoid
+      //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
+      gTWTB[3]= gTWTB[31]= 0xA5;
+      r[1]= gTWI.readSync(0x50, gTWTB+2, 40); // retrieve data
+    } else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
     u[2]= micros(); 
     u[3]= u[1]-u[0];
     u[4]= u[2]-u[1];
@@ -111,18 +110,18 @@ void loop (void)
     dump<uint32_t>(DEBUG, u, 5, "u", "\n");
     if (r[0] > 0)
     {
-      dumpHexTab(DEBUG, gB+2, sizeof(gB)-2);
+      dumpHexTab(DEBUG, gTWTB+2, sizeof(gTWTB)-2);
     } else { gTWI.dump(DEBUG); }
     gFlags&= ~0x1;
   }
   if ((gFlags & 0x2) && gTWI.sync())
   {
-    fillTest(DEBUG,gB,1);
+    fillTest(DEBUG,gTWTB,1);
     gFlags&= ~0x2;
   }
   if (gFlags & 0x4)
   {
-    setAddr(gB, (++gIter & 0x7F) << 5); // 4kB -> 128pages of 32Bytes
+    setAddr(gTWTB, (++gIter & 0x7F) << 5); // 4kB -> 128pages of 32Bytes
     DEBUG.print('I'); DEBUG.print(gIter); DEBUG.println(": ");
     gTWI.dump(DEBUG); gTWI.clrEv();
     gFlags&= ~0x4;
