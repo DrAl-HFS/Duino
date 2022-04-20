@@ -122,7 +122,7 @@ public:
          r= read(devAddr,b,n);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
-      return get(b,r);
+      return(r);// get(b,r);
    } // readSync
 
 }; // class Sync

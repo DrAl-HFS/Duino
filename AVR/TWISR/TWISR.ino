@@ -21,7 +21,7 @@ const char *gS[]=
   "* Nemo enim ipsam voluptatem *"
 };
 const uint8_t qS= 30;
-const uint8_t qP= 64;
+const uint8_t qP= 33;
 char gEv=0x00;
 uint8_t gFlags=0x01;
 
@@ -83,7 +83,16 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
 
 void loop (void)
 {
-  if (gT.update()) { gFlags|= 0x5; }
+  if (gT.update())
+  { 
+    gFlags|= 0x5;
+    //if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
+  }
+  if ((gFlags & 0x2) && gTWI.sync())
+  {
+    fillTest(DEBUG,gTWTB,1);
+    gFlags&= ~0x2;
+  }
   if (gFlags & 0x1)
   {
     uint32_t u[5];
@@ -113,11 +122,6 @@ void loop (void)
       dumpHexTab(DEBUG, gTWTB+2, sizeof(gTWTB)-2);
     } else { gTWI.dump(DEBUG); }
     gFlags&= ~0x1;
-  }
-  if ((gFlags & 0x2) && gTWI.sync())
-  {
-    fillTest(DEBUG,gTWTB,1);
-    gFlags&= ~0x2;
   }
   if (gFlags & 0x4)
   {

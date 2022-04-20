@@ -16,14 +16,15 @@
 #ifndef TWI_BUFFER_LENGTH
 #define TWI_BUFFER_LENGTH 48
 #endif
-uint8_t gTWTB[66];
+static uint8_t gTWTB[TWI_BUFFER_LENGTH];
 
 static struct
 {
    volatile uint8_t state;
-   uint8_t n, i;
    uint8_t hwAddr;
-   uint8_t *p, b[TWI_BUFFER_LENGTH];
+   Frag f;
+   uint8_t iB;
+ //, bb[TWI_BUFFER_LENGTH];
 } buff;
 
 class TWMISR
@@ -38,12 +39,12 @@ class TWMISR
 
    void send (uint8_t b) { TWDR= b; }
 
-   void recv (void) { buff.p[buff.i++] = TWDR; }
+   void recv (void) { buff.f.pB[buff.iB++] = TWDR; }
 
 protected:
    void reply (void)
    {
-      if (buff.i < (buff.n - 1)) { ack(); }
+      if (buff.iB < (buff.f.nB - 1)) { ack(); }
       else { nack(); }
    }
 
@@ -56,20 +57,30 @@ protected:
       return(r);
    }
 
-   // transitional hacks
+public:
+   TWMISR (void) { ; } // gTWTB; } // ??? doesnt work ???
+
+   /* transitional hacks
    void set (const uint8_t b[], const uint8_t n)
    {
-      if (b != buff.p) { memcpy(buff.p, b, n); }
+      if (gTWTB != buff.f.pB) { memcpy(buff.f.pB, b, n); }
    }
    int get (uint8_t b[], int r)
    {
-      if ((r > 0) && (b != buff.p)) { memcpy(b, buff.p, r); }
+      if ((r > 0) && (gTWTB != buff.f.pB)) { memcpy(b, buff.f.pB, r); }
       return(r);
    } // get
-
-public:
-   TWMISR (void) { buff.p= buff.b; }
-
+   bool setb (int8_t i)
+   {
+      bool r= sync();
+      if (r)
+      {
+         if (i & 0x1) { buff.f.pB= gTWTB; }
+         else { buff.f.pB= buff.bb; }
+      }
+      return(r);
+   } // setb
+*/
    bool sync (void) const { return(0 == buff.state); }
 
    int write (uint8_t devAddr, const uint8_t b[], const uint8_t n)
@@ -77,9 +88,10 @@ public:
      if (lock())
      {
         buff.hwAddr= (devAddr << 1) | TW_WRITE;
-        buff.n= n;
-        buff.i= 0;
-        set(b,n);
+        buff.f.pB= b;
+        buff.f.nB= n;
+        buff.iB=  0;
+        //set(b,n);
 
         start();
         return(n);
@@ -92,8 +104,9 @@ public:
      if (lock())
      {
         buff.hwAddr= (devAddr << 1) | TW_READ;
-        buff.n= n;
-        buff.i= 0;
+        buff.f.pB= b;
+        buff.f.nB= n;
+        buff.iB=  0;
 
         start();
         return(n);
@@ -121,9 +134,9 @@ public:
 
          case TW_MT_SLA_ACK: SZ(iE,5);
          case TW_MT_DATA_ACK: SZ(iE,4);
-            if (buff.i < buff.n)
+            if (buff.iB < buff.f.nB)
             {
-               send(buff.p[buff.i++]);
+               send(buff.f.pB[buff.iB++]);
                nack();
             }
             else
