@@ -30,7 +30,7 @@ enum StateFlag : uint8_t {
 class Buffer
 {
 protected:
-   volatile uint8_t state;
+   volatile uint8_t state; // NB: more correctly an interface property (rather than buffer...)
    uint8_t hwAddr;
    Frag f;
    uint8_t iB;
@@ -42,7 +42,7 @@ protected:
       return(r);
    } // lock
 
-   void unlock (void) { state= 0; }
+   void unlock (void) { state&= ~LOCK; }
    
    void set (const uint8_t devAddr, const uint8_t rwf, uint8_t b[], const uint8_t n)
    {
@@ -128,8 +128,8 @@ public:
             reply();
             break;
 
-         case TW_MT_DATA_ACK: SZ(iE,2);
-         case TW_MT_SLA_ACK: SZ(iE,3);
+         case TW_MT_DATA_ACK: SZ(iE,2); state|= SACK;
+         case TW_MT_SLA_ACK: SZ(iE,3); if (3 == iE) { state|= AACK; }
             if (more())
             {
                send();
@@ -144,13 +144,13 @@ public:
 
          case TW_START: SZ(iE,4);
          case TW_REP_START: SZ(iE,5);
-            state|= ADDR;
+            state|= START; // sent OK
             HWRC::send(hwAddr);
             nack();
             break;
 
          case TW_MR_SLA_ACK: SZ(iE,6);
-            state|= RACK;
+            state|= AACK;
             reply();
             break;
 
