@@ -86,7 +86,7 @@ void loop (void)
   if (gT.update())
   { 
     gFlags|= 0x5;
-    //if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
+    if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
   }
   if ((gFlags & 0x2) && gTWI.sync())
   {

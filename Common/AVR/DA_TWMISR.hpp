@@ -7,28 +7,61 @@
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Apr 2022
-//#include <avr/io.h>
-//#include <avr/interrupt.h>
+
 #include <util/twi.h>
-//#include <string.h>
-//#include "twi.h"
 
 #ifndef TWI_BUFFER_LENGTH
 #define TWI_BUFFER_LENGTH 48
 #endif
-static uint8_t gTWTB[TWI_BUFFER_LENGTH];
+#ifdef TWI_BUFFER_LENGTH
+static uint8_t gTWTB[TWI_BUFFER_LENGTH]; // test buffer
+#endif
 
-static struct
+namespace TWM { // Two Wire Master
+
+enum StateFlag : uint8_t { LOCK=0x01, START=0x02, ADDR=0x04, AACK=0x08, DACK=0x10 };
+
+class Buffer
 {
+protected:
    volatile uint8_t state;
    uint8_t hwAddr;
    Frag f;
    uint8_t iB;
- //, bb[TWI_BUFFER_LENGTH];
-} buff;
 
-class TWMISR
+   bool lock (void)
+   {
+      bool r= sync();
+      if (r) { state= LOCK; }
+      return(r);
+   } // lock
+
+   void unlock (void) { state= 0; }
+   
+   void set (const uint8_t devAddr, const uint8_t rwf, uint8_t b[], const uint8_t n)
+   {
+      hwAddr= (devAddr << 1) | (rwf & 0x1);
+      f.pB= b;
+      f.nB= n;
+      iB=  0;
+   } // set
+
+   uint8_t& next (void) { return(f.pB[iB++]); }
+   
+public:
+   Buffer (void) : state{0} { ; }
+
+   bool sync (void) const { return(LOCK != (LOCK & state)); }
+
+   bool more (void) const { return(iB < f.nB); }
+   
+   bool notLast (void) const { return(iB < (f.nB-1)); }
+}; // class Buffer
+
+class HWRC // Hardware register commands
 {
+protected:
+
    void start (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
 
    void stop (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); }
@@ -39,77 +72,35 @@ class TWMISR
 
    void send (uint8_t b) { TWDR= b; }
 
-   void recv (void) { buff.f.pB[buff.iB++] = TWDR; }
+   uint8_t recv (void) { return(TWDR); }
 
-protected:
-   void reply (void)
-   {
-      if (buff.iB < (buff.f.nB - 1)) { ack(); }
-      else { nack(); }
-   }
+}; // class HWRC
 
-   void unlock (void) { buff.state= 0; }
-
-   bool lock (void)
-   {
-      bool r= sync();
-      if (r) { buff.state= 0x1; }
-      return(r);
-   }
+class ISR : HWRC, public Buffer
+{
+   void reply (void) { if (notLast()) { ack(); } else { nack(); } }
 
 public:
-   TWMISR (void) { ; } // gTWTB; } // ??? doesnt work ???
-
-   /* transitional hacks
-   void set (const uint8_t b[], const uint8_t n)
-   {
-      if (gTWTB != buff.f.pB) { memcpy(buff.f.pB, b, n); }
-   }
-   int get (uint8_t b[], int r)
-   {
-      if ((r > 0) && (gTWTB != buff.f.pB)) { memcpy(b, buff.f.pB, r); }
-      return(r);
-   } // get
-   bool setb (int8_t i)
-   {
-      bool r= sync();
-      if (r)
-      {
-         if (i & 0x1) { buff.f.pB= gTWTB; }
-         else { buff.f.pB= buff.bb; }
-      }
-      return(r);
-   } // setb
-*/
-   bool sync (void) const { return(0 == buff.state); }
+   // ISR (void) { ; } compile error on this ???
 
    int write (uint8_t devAddr, const uint8_t b[], const uint8_t n)
    {
-     if (lock())
-     {
-        buff.hwAddr= (devAddr << 1) | TW_WRITE;
-        buff.f.pB= b;
-        buff.f.nB= n;
-        buff.iB=  0;
-        //set(b,n);
-
-        start();
-        return(n);
+      if (lock())
+      {
+         set(devAddr, TW_WRITE, b, n);
+         start();
+         return(n);
       }
       return(0);
    } // write
 
    int read (uint8_t devAddr, uint8_t b[], const uint8_t n)
    {
-     if (lock())
-     {
-        buff.hwAddr= (devAddr << 1) | TW_READ;
-        buff.f.pB= b;
-        buff.f.nB= n;
-        buff.iB=  0;
-
-        start();
-        return(n);
+      if (lock())
+      {
+         set(devAddr, TW_READ, b, n);
+         start();
+         return(n);
       }
       return(0);
    } // read
@@ -122,21 +113,15 @@ public:
       switch (flags)
       {
          case TW_MR_DATA_ACK: SZ(iE,1);
-            recv();
+            next()= recv();
             reply();
             break;
 
-         case TW_START: SZ(iE,2);
-         case TW_REP_START: SZ(iE,3);
-            send(buff.hwAddr);
-            nack();
-            break;
-
-         case TW_MT_SLA_ACK: SZ(iE,5);
-         case TW_MT_DATA_ACK: SZ(iE,4);
-            if (buff.iB < buff.f.nB)
+         case TW_MT_DATA_ACK: SZ(iE,2);
+         case TW_MT_SLA_ACK: SZ(iE,3);
+            if (more())
             {
-               send(buff.f.pB[buff.iB++]);
+               send(next()); //f.pB[iB++]);
                nack();
             }
             else
@@ -146,20 +131,22 @@ public:
             }
             break;
 
+         case TW_START: SZ(iE,4);
+         case TW_REP_START: SZ(iE,5);
+            send(hwAddr);
+            nack();
+            break;
+
          case TW_MR_SLA_ACK: SZ(iE,6);
             reply();
             break;
 
-         case TW_MT_SLA_NACK: SZ(iE,7);
-         case TW_MR_SLA_NACK: SZ(iE,8);
-         case TW_MT_DATA_NACK: SZ(iE,9);
-         default:
-            stop();
-            unlock();
-            break;
-
-         case TW_MR_DATA_NACK: SZ(iE,11);
-            recv();
+         case TW_MR_DATA_NACK: SZ(iE,7);
+            recv(); // fall through stop(); unlock(); break;
+         case TW_MT_SLA_NACK: SZ(iE,8);
+         case TW_MR_SLA_NACK: SZ(iE,9);
+         case TW_MT_DATA_NACK: SZ(iE,10);
+         default: SZ(iE,11);
             stop();
             unlock();
             break;
@@ -167,5 +154,6 @@ public:
       return(iE);
    } // event
 
-}; // class TWMISR
+}; // class ISR
 
+}; // namespace TWM

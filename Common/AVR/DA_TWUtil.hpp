@@ -6,9 +6,13 @@
 // Hacky forward declaration (transitional)
 struct Frag { uint8_t *pB, nB, f; };
 
-#include "DA_TWISR.hpp"
+//#include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
 
+
+#ifndef CORE_CLK
+#define CORE_CLK 16000000UL	// 16MHz
+#endif
 
 namespace TWUtil {
 
@@ -78,14 +82,14 @@ public:
 }; // class Clk
 
 
-class Sync : public Clk, public TWMISR // TWISR // 
+class Sync : public Clk, public TWM::ISR
 {
 public:
    //TWUtil (void) { ; }
    
    /* Specific variant dependancy */
    //using TWI::SWS::sync;
-   using TWMISR::sync;
+   using TWM::ISR::sync;
    
    bool sync (const uint8_t nB) const
    {

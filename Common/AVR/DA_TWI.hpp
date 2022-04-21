@@ -6,10 +6,6 @@
 
 #include <util/twi.h> // TW_MT_* TW_MR_* etc definitions
 
-#ifndef CORE_CLK
-#define CORE_CLK 16000000UL	// 16MHz
-#endif
-
 namespace TWI {
 
 class HWS // hardware state
