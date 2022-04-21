@@ -1,12 +1,17 @@
-// Duino/Common/AVR/DA_TWISR.hpp - AVR two wire (I2C-like) interrupt driven communication, C++ class.
-// Adapted from C-code authored by "kkempeneers" (as "twi.c" - without copyright or licence declaration)
-// obtained from:-
-// https://www.avrfreaks.net/sites/default/files/project_files/Interrupt_driven_Two_Wire_Interface.zip
-// This approach provides efficient asynchronous communication without buffer copying.
-// (SRAM access 2 cycles on 8b bus - so memcpy() is 4clks/byte ie. 4MB/s @ 16MHz.)
+// Duino/Common/AVR/DA_TWISR.hpp - *DEPRECATED* due to eccentric buffer
+// index manipulation. AVR two wire (I2C-like)
+// interrupt driven communication, C++ class. Adapted from C-code
+// authored by "kkempeneers" (as "twi.c" - without copyright or licence
+// declaration) obtained from:-
+// https://www.avrfreaks.net/sites/default/files/project_files/
+//    Interrupt_driven_Two_Wire_Interface.zip
+// This approach provides efficient asynchronous communication without
+// buffer copying. (SRAM access 2 cycles on 8b bus - so memcpy() is
+// 4clks/byte ie. 4MB/s @ 16MHz.)
 // ---
 // * CAVEAT EMPTOR *
-// This could break in a variety of interesting ways under Arduino, subject to resource requrements.
+// This could break in a variety of interesting ways under Arduino,
+// subject to resource requrements.
 // ---
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A

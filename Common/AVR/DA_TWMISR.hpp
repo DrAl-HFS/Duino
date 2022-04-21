@@ -19,8 +19,14 @@ static uint8_t gTWTB[TWI_BUFFER_LENGTH]; // test buffer
 
 namespace TWM { // Two Wire Master
 
-enum StateFlag : uint8_t { LOCK=0x01, START=0x02, ADDR=0x04, AACK=0x08, DACK=0x10 };
+enum StateFlag : uint8_t { 
+   LOCK=0x01, START=0x02,
+   ADDR=0x04, AACK=0x08,
+   SEND=0x10, RECV=0x20,
+   SACK=0x40, RACK=0x80
+};
 
+// Buffer management
 class Buffer
 {
 protected:
@@ -58,7 +64,8 @@ public:
    bool notLast (void) const { return(iB < (f.nB-1)); }
 }; // class Buffer
 
-class HWRC // Hardware register commands
+// Hardware register commands
+class HWRC
 {
 protected:
 
@@ -78,7 +85,11 @@ protected:
 
 class ISR : HWRC, public Buffer
 {
-   void reply (void) { if (notLast()) { ack(); } else { nack(); } }
+   void reply (void) { if (Buffer::notLast()) { HWRC::ack(); } else { HWRC::nack(); } }
+
+   void send (void) { HWRC::send( Buffer::next() ); state|= SEND; }
+
+   void recv (void) { Buffer::next()= HWRC::recv(); state|= RECV; }
 
 public:
    // ISR (void) { ; } compile error on this ???
@@ -113,7 +124,7 @@ public:
       switch (flags)
       {
          case TW_MR_DATA_ACK: SZ(iE,1);
-            next()= recv();
+            recv();
             reply();
             break;
 
@@ -121,7 +132,7 @@ public:
          case TW_MT_SLA_ACK: SZ(iE,3);
             if (more())
             {
-               send(next()); //f.pB[iB++]);
+               send();
                nack();
             }
             else
@@ -133,11 +144,13 @@ public:
 
          case TW_START: SZ(iE,4);
          case TW_REP_START: SZ(iE,5);
-            send(hwAddr);
+            state|= ADDR;
+            HWRC::send(hwAddr);
             nack();
             break;
 
          case TW_MR_SLA_ACK: SZ(iE,6);
+            state|= RACK;
             reply();
             break;
 
