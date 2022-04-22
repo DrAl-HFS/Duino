@@ -46,7 +46,7 @@ public:
 
    using SWS::sync;
 
-   int write (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+   int writeTo (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
    {
       if (sync())
       {
@@ -58,9 +58,9 @@ public:
          return(n);
       }
       return 0;
-   } // write
+   } // writeTo
 
-   int read (const uint8_t devAddr, uint8_t b[], const uint8_t n)
+   int readFrom (const uint8_t devAddr, uint8_t b[], const uint8_t n)
    {
       if (sync())
       {
@@ -71,7 +71,7 @@ public:
          return(n);
       }
       return 0;
-   } // read
+   } // readFrom
    // W[2] 2 5 4 4
    // R[32] 2 6 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 11
    int8_t event (const uint8_t flags)

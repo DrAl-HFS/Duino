@@ -48,7 +48,7 @@ void setup (void)
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   gTWI.set(TWUtil::CLK_400);
   interrupts();
-  //uint32_t f= gTWI.setClk(200000);
+  //uint32_t f= gTWI.set(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
   setAddr(gTWTB, 0);
   //DEBUG.print("sizeof(fragTWTB)="); DEBUG.println(sizeof(fragTWTB));
@@ -61,10 +61,10 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
   uint8_t t[6];
   
   gEv= 0x0;
-  if (gTWI.writeSync(0x50,b,2)) // set page address
+  if (gTWI.writeToSync(0x50,b,2)) // set page address
   {
     for (int8_t i=0; i<sizeof(t); i++) { t[i]= 0xA5; }
-    if (gTWI.readSync(0x50,t,sizeof(t))) // retrieve leading Bytes
+    if (gTWI.readFromSync(0x50,t,sizeof(t))) // retrieve leading Bytes
     {
       s.print("Hdr:"); dumpHexFmt(s, t, 6);
       gEv= '-';
@@ -72,7 +72,7 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
       {
         b[2]= b[endSwap]; b[3]= b[endSwap^1]; // page begins with its own address, possibly swapped endian order
         if (gS[i][3] != b[7]) { memcpy(b+4, gS[i], qS); } // Fill with text as necessary
-        gTWI.write(0x50, b, 2+qP); // store 32bytes (prefixed with BE page address)
+        gTWI.writeTo(0x50, b, 2+qP); // store 32bytes (prefixed with BE page address)
         gEv= 'W';
       }
     }
@@ -102,14 +102,14 @@ void loop (void)
     if ('W' == gEv) { delay(10); }
     u[0]= micros(); 
     ub[0]= TCNT0 * 4;
-    r[0]= gTWI.write(0x50,gTWTB,2);  // select page
+    r[0]= gTWI.writeTo(0x50,gTWTB,2);  // select page
     ub[1]= TCNT0 * 4;
     u[1]= micros(); 
     if (r[0] > 0)
     {
       //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
       gTWTB[3]= gTWTB[31]= 0xA5;
-      r[1]= gTWI.readSync(0x50, gTWTB+2, 40); // retrieve data
+      r[1]= gTWI.readFromSync(0x50, gTWTB+2, 40); // retrieve data
     } else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
     u[2]= micros(); 
     u[3]= u[1]-u[0];

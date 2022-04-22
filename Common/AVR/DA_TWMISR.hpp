@@ -22,18 +22,19 @@ namespace TWM { // Two Wire Master
 enum StateFlag : uint8_t { 
    LOCK=0x01, START=0x02,
    ADDR=0x04, AACK=0x08,
-   SEND=0x10, RECV=0x20,
-   SACK=0x40, RACK=0x80
+   SEND=0x10, SACK=0x20,
+   RECV=0x40, RACK=0x80
 };
 
 // Buffer management
+#define BUFF_FRAG_MAX 2
 class Buffer
 {
 protected:
    volatile uint8_t state; // NB: more correctly an interface property (rather than buffer...)
    uint8_t hwAddr;
-   Frag f;
-   uint8_t iB;
+   uint8_t nF, iF, iB;
+   Frag frag[BUFF_FRAG_MAX];
 
    bool lock (void)
    {
@@ -43,25 +44,60 @@ protected:
    } // lock
 
    void unlock (void) { state&= ~LOCK; }
-   
-   void set (const uint8_t devAddr, const uint8_t rwf, uint8_t b[], const uint8_t n)
-   {
-      hwAddr= (devAddr << 1) | (rwf & 0x1);
-      f.pB= b;
-      f.nB= n;
-      iB=  0;
-   } // set
 
-   uint8_t& next (void) { return(f.pB[iB++]); }
+   void setAddr (const uint8_t devAddr, const uint8_t rwf) { hwAddr= (devAddr << 1) | (rwf & 0x1); }
+   
+   void resetFrags (void) { iF=0; iB=0; }
+
+   void clearFrags (void) { nF=0; resetFrags(); }
+   
+   void addFrag (uint8_t b[], const uint8_t n, const uint8_t f=0)
+   {
+      if (nF >= BUFF_FRAG_MAX) { return; }
+      frag[nF].pB= b;
+      frag[nF].nB= n;
+      frag[nF].f=  f;
+      nF++;
+   } // addFrag
+
+   bool nextFragValid (uint8_t i) const { return((i < (nF-1)) && (frag[i].f == frag[i+1].f)); }
+   
+   uint8_t& next (void)
+   {
+      if (iB < frag[iF].nB) { return(frag[iF].pB[iB++]); } // most likely
+      //else 
+      if (nextFragValid(iF)) // advance to next frag
+      {  
+         iB= 1;
+         return(frag[++iF].pB[0]); 
+      }
+      //else error 
+      return(frag[iF].pB[frag[iF].nB-1]); // just repeat last
+   } // next
    
 public:
    Buffer (void) : state{0} { ; }
 
    bool sync (void) const { return(LOCK != (LOCK & state)); }
 
-   bool more (void) const { return(iB < f.nB); }
+   int remaining (void) const // not yet working... ???
+   {
+      int r= (int)frag[iF].nB - (int)iB;
+      if (r > 1) { return(r); }
+      //else best to sum in case of empty (?!) or single byte frags
+      uint8_t i= iF; // 
+      while (nextFragValid(i++))
+      { 
+         r+= frag[i].nB;
+         if (r > 1) { return(r); }
+      }
+      return(r);
+   } // remaining
+
+   bool more (void) const { return(iB < frag[iF].nB); } // remaining() > 0; } // ???
    
-   bool notLast (void) const { return(iB < (f.nB-1)); }
+   bool notLast (void) const { return(iB < (frag[iF].nB-1)); } // remaining() > 1; } // 
+   
 }; // class Buffer
 
 // Hardware register commands
@@ -94,27 +130,31 @@ class ISR : HWRC, public Buffer
 public:
    // ISR (void) { ; } compile error on this ???
 
-   int write (uint8_t devAddr, const uint8_t b[], const uint8_t n)
+   int writeTo (uint8_t devAddr, const uint8_t b[], const uint8_t n)
    {
       if (lock())
       {
-         set(devAddr, TW_WRITE, b, n);
+         setAddr(devAddr, TW_WRITE);
+         clearFrags();
+         addFrag(b, n);
          start();
          return(n);
       }
       return(0);
-   } // write
+   } // writeTo
 
-   int read (uint8_t devAddr, uint8_t b[], const uint8_t n)
+   int readFrom (uint8_t devAddr, uint8_t b[], const uint8_t n)
    {
       if (lock())
       {
-         set(devAddr, TW_READ, b, n);
+         setAddr(devAddr, TW_READ);
+         clearFrags();
+         addFrag(b, n);
          start();
          return(n);
       }
       return(0);
-   } // read
+   } // readFrom
 
 #define SZ(i,v)  if (0 == i) { i= v; }
 

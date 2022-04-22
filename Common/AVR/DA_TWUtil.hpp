@@ -56,7 +56,7 @@ protected:
 
 public:
 
-   void set (ClkTok c=CLK_400)
+   void set (ClkTok c)
    {
       //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
       TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
@@ -107,27 +107,27 @@ public:
       return sync();
    } // sync
 
-   int writeSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
    {
       int r;
       do
       {
-         r= write(devAddr,b,n);
+         r= writeTo(devAddr,b,n);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
       return(r);
-   } // writeSync
+   } // writeToSync
 
-   int readSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
    {
       int r;
       do
       {
-         r= read(devAddr,b,n);
+         r= readFrom(devAddr,b,n);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
-      return(r);// get(b,r);
-   } // readSync
+      return(r);
+   } // readFromSync
 
 }; // class Sync
 
