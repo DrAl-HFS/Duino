@@ -19,8 +19,8 @@ namespace TWUtil {
 enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for prescaler=1 and CORE_CLK=16MHz)
 {
    CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
-   CLK_200=0x20, CLK_250=0x18, 
-   CLK_300=0x12, CLK_350=0x0E, 
+   CLK_200=0x20, CLK_250=0x18,
+   CLK_300=0x12, CLK_350=0x0E,
    CLK_400=0x0C   // Higher rates presumed unreliable.
 };
 
@@ -40,7 +40,7 @@ protected:
          }
       }
    } // getBT0
-   
+
    uint8_t getBT (void)
    {
       uint8_t t0= getBT0(TWBR);
@@ -71,7 +71,7 @@ public:
       {
          TWSR= 0x03;
          sc= CORE_CLK / 64;
-      } 
+      }
       if (sc > 0)
       {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
          TWBR= ((sc / fHz) - 16) / 2;
@@ -86,11 +86,11 @@ class Sync : public Clk, public TWM::ISR
 {
 public:
    //TWUtil (void) { ; }
-   
+
    /* Specific variant dependancy */
    //using TWI::SWS::sync;
    using TWM::ISR::sync;
-   
+
    bool sync (const uint8_t nB) const
    {
       bool r= sync();
@@ -232,7 +232,7 @@ public:
    TWDebug (void) { clrEv(); }
 
    using Clk::set;
-   
+
    void clrEv (void) { iEQ= 0; iSQ=0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
 
    int8_t event (const uint8_t flags)
