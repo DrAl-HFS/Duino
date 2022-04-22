@@ -19,8 +19,8 @@ namespace TWUtil {
 enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for prescaler=1 and CORE_CLK=16MHz)
 {
    CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
-   CLK_200=0x20, CLK_250=0x18,
-   CLK_300=0x12, CLK_350=0x0E,
+   CLK_200=0x20, CLK_250=0x18, 
+   CLK_300=0x12, CLK_350=0x0E, 
    CLK_400=0x0C   // Higher rates presumed unreliable.
 };
 
@@ -40,7 +40,7 @@ protected:
          }
       }
    } // getBT0
-
+   
    uint8_t getBT (void)
    {
       uint8_t t0= getBT0(TWBR);
@@ -71,7 +71,7 @@ public:
       {
          TWSR= 0x03;
          sc= CORE_CLK / 64;
-      }
+      } 
       if (sc > 0)
       {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
          TWBR= ((sc / fHz) - 16) / 2;
@@ -82,15 +82,15 @@ public:
 }; // class Clk
 
 
-class Sync : public Clk, public TWM::ISR
+class Sync : public Clk, public TWM::RW1
 {
 public:
    //TWUtil (void) { ; }
-
+   
    /* Specific variant dependancy */
    //using TWI::SWS::sync;
    using TWM::ISR::sync;
-
+   
    bool sync (const uint8_t nB) const
    {
       bool r= sync();
@@ -131,95 +131,6 @@ public:
 
 }; // class Sync
 
-/* Auto-sync hack, deprecated
-class TWSync : public TWISR
-{
-   uint8_t syncSet, tickSet[2];
-
-   int tickDiff (void) const { return((int)tickSet[1] - (int)tickSet[0]); }
-   bool tickBounded (const uint8_t t, int d)
-   {
-      d= (d > 0);
-      if ((t >= tickSet[0x1^d]) && (t <= tickSet[d])) { return(false); }
-   } // tickBounded
-
-   bool preSync (const bool wait)
-   {
-      if (wait)
-      {
-         if (TWISR::sync(true))
-         {
-            uint8_t t;
-            int m= 0;
-
-            if (tickSet[0] != tickSet[1])
-            {  // still waiting
-               const uint8_t tNow= millis();
-               const int d= tickDiff();
-               if (tickBounded(tNow,d))
-               {
-                  if (d > 0) { m= tickSet[1] - tNow; }
-                  else { m= tickSet[1] + (0x100 - tNow); }
-               }
-            }
-            else if (syncSet > 0) { m= syncSet; }
-            if (m > 0) { delay(m); }
-            syncSet= 0;
-            tickSet[0]= tickSet[1]= t;
-            return(true);
-         }
-         return(false);
-      }
-      //else
-      if ((syncSet > 0) && TWISR::sync())
-      {
-         tickSet[0]= millis();
-         tickSet[1]= tickSet[0] + syncSet;
-         syncSet= 0;
-         return(false);
-      }
-      const int d= tickDiff();
-      if (0 != d)
-      {
-         uint8_t tNow= millis();
-         if (tickBounded(tNow,d)) { return(false); } // still waiting
-         //else complete
-         tickSet[0]= tickSet[1]= tNow;
-      }
-      return(tickSet[0] == tickSet[1]);
-   } // preSync
-
-   void postSync (uint8_t tSync) { syncSet= tSync; }
-
-public:
-   TWISync (void) : syncSet{0}, tickSet{0} { ; }
-
-   int write (uint8_t devAddr, uint8_t b[], uint8_t n, bool wait=false, uint8_t tPS=0)
-   {
-      int w= 0;
-      if (preSync(wait))
-      {
-         w= TWISR::write(devAddr,b,n);
-         if (w > 0) { postSync(tPS); }
-      }
-      return(w);
-   } // write
-
-   int read (uint8_t devAddr, uint8_t b[], uint8_t n, bool wait=false, uint8_t tPS=0)
-   {
-      int r= 0;
-      if (preSync(wait))
-      {
-         r= TWISR::read(devAddr,b,n);
-         if (r > 0) { postSync(tPS); }
-      }
-      return(r);
-   } // read
-
-}; // class TWISync
-*/
-
-
 // Debug extension
 class Debug : public Sync
 {
@@ -232,7 +143,7 @@ public:
    TWDebug (void) { clrEv(); }
 
    using Clk::set;
-
+   
    void clrEv (void) { iEQ= 0; iSQ=0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
 
    int8_t event (const uint8_t flags)
