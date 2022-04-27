@@ -6,12 +6,23 @@
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
 
+#define PIN_PWR 13 // Nano D13
+
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/CDS1307.hpp"
 #include "Common/CAT24C.hpp"
 
 CDS1307A gRTC;
 CAT24C gERM;
+
+void pwrRst (void)
+{
+  pinMode(PIN_PWR, OUTPUT); // force power transition to reset, prevent sync fail
+  digitalWrite(PIN_PWR, LOW); // power off
+  delay(50);
+  digitalWrite(PIN_PWR, HIGH); // power on
+  delay(50);
+} // pwrRst
 
 void bootMsg (Stream& s)
 {
@@ -23,6 +34,7 @@ void bootMsg (Stream& s)
 
 void setup (void)
 {
+  pwrRst();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   I2C.begin(); // join i2c bus (address optional for master)
   //gRTC.testDays(DEBUG,__DATE__);
@@ -41,9 +53,9 @@ void buffTest (void)
   //const char s1[]="Lorem ipsum dolor sit amet";
   //const char s2[]="consectetur adipiscing elit, sed do eiusmod"; // truncated by Wire buffer
   uint8_t b[32];
-  int r, q= sizeof(b);
-  for (int i=0; i<q; i++) { b[i]= 1+i; }
-  r= gERM.writePage(5,b,q);
+  int r=0, q= sizeof(b);
+  //for (int i=0; i<q; i++) { b[i]= 1+i; }
+  //r= gERM.writePage(5,b,q);
   DEBUG.print("gERM.writePage() - q,r= ");
   DEBUG.print(q); DEBUG.print(','); DEBUG.println(r);
   if (r > 0) { gERM.sync(); }
@@ -77,7 +89,8 @@ void loop (void)
 */
 #endif
   int vB= analogRead(A7);
-  r= gRTC.printTime(DEBUG,' '); DEBUG.print(": vB="); DEBUG.println(vB);
+  r= gRTC.printTime(DEBUG,' '); 
+  DEBUG.print(": vB="); DEBUG.println(vB);
   delay(1000);
   if (r < 0) 
   {

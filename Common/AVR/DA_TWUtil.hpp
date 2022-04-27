@@ -3,9 +3,6 @@
 // Licence: GPL V3A
 // (c) Project Contributors Mar - Apr 2022
 
-// Hacky forward declaration (transitional)
-struct Frag { uint8_t *pB, nB, f; };
-
 //#include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
 
@@ -108,23 +105,23 @@ public:
       return sync();
    } // sync
 
-   int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, const TWM::FragMode f=TWM::FWD, uint8_t t=3)
    {
       int r;
       do
       {
-         r= readFrom(devAddr,b,n);
+         r= readFrom(devAddr,b,n,f);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
       return(r);
    } // readFromSync
 
-   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, const TWM::FragMode f=TWM::FWD, uint8_t t=3)
    {
       int r;
       do
       {
-         r= writeTo(devAddr,b,n);
+         r= writeTo(devAddr,b,n,f);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
       return(r);

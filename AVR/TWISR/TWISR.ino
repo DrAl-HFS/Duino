@@ -34,6 +34,14 @@ void setAddr (uint8_t b[], const uint16_t a)
 
 DNTimer gT(500); // 500ms / 2Hz
 
+void pwrRst (void)
+{
+  pinMode(PIN_PWR, OUTPUT); // force power transition to reset, prevent sync fail
+  digitalWrite(PIN_PWR, LOW); // power off
+  delay(50);
+  digitalWrite(PIN_PWR, HIGH); // power on
+  delay(50);
+} // pwrRst
 
 void bootMsg (Stream& s)
 {
@@ -45,11 +53,7 @@ void bootMsg (Stream& s)
 
 void setup (void)
 {
-  pinMode(PIN_PWR, OUTPUT); // force power transition to reset, prevent sync fail
-  digitalWrite(PIN_PWR, LOW); // power off
-  delay(50);
-  digitalWrite(PIN_PWR, HIGH); // power on
-  delay(50);
+  pwrRst();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   gTWI.reset(TWUtil::CLK_400);
   interrupts();
@@ -105,28 +109,28 @@ void loop (void)
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
     if ('W' == gEv) { delay(10); }
-    r[0]= gTWI.writeToSync(0x50,gTWTB,2);  // select page
+    r[0]= gTWI.writeToSync(0x50,gTWTB+2,2,TWM::REV);  // select page
     if (r[0] > 0)
     {
       //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
       gTWTB[2]= gTWTB[31]= 0xA5;
       r[1]= gTWI.readFromSync(0x50, gTWTB+2, qP); // retrieve data
-    }// else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
+    }
+    // else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
     //dump<uint8_t>(DEBUG, ub, 2, "ub", "\n");
     //dump<int>(DEBUG, r, 2, "r", " nEV="); DEBUG.println(gTWI.iQ); //gNISR);
     //dump<uint32_t>(DEBUG, u, 5, "u", "\n");
     if ((r[0] > 0) && (r[1] > 0))
     { gTWI.sync();
       dumpHexTab(DEBUG, gTWTB, sizeof(gTWTB));
-    }// else {  }
-    gTWI.logEv(DEBUG); gTWI.clrEv();
+    }
     gFlags&= ~0x1;
   }
   if (gFlags & 0x4)
   {
     setAddr(gTWTB, (++gIter & 0x7F) << 5); // 4kB -> 128pages of 32Bytes
     DEBUG.print('I'); DEBUG.print(gIter); DEBUG.println(": ");
-    //gTWI.log(DEBUG); gTWI.clrEv();
+    gTWI.logEv(DEBUG); gTWI.clrEv();
     gFlags&= ~0x4;
   }
 } // loop

@@ -51,8 +51,9 @@ public:
    {
       I2C.beginTransmission(devAddr);
       n= write(b,n);
-      I2C.endTransmission();
-      return(n);
+      int r= I2C.endTransmission();
+      if (0 == r) { return(n); } //else
+      return(-r);
    } // writeTo
 
    // convenience wrapper
@@ -94,8 +95,9 @@ public:
       if (n <= 0) { return(0); }
       I2C.beginTransmission(devAddr);
       n= writeRev(b,n);
-      I2C.endTransmission();
-      return(n);
+      int r= I2C.endTransmission();
+      if (0 == r) { return(n); } //else
+      return(-r);
    } // writeToRev
 
    // Useful for transactions requiring big-endian address followed by arbitrary byte data
@@ -105,8 +107,9 @@ public:
       I2C.beginTransmission(devAddr);
       int n= writeRev(bR,nR);
       n+= write(bF,nF);
-      I2C.endTransmission();
-      return(n);
+      int r= I2C.endTransmission();
+      if (0 == r) { return(n); } //else
+      return(-r);
    } // writeToRevThenFwd
 
 }; // CCommonI2CX1

@@ -72,6 +72,10 @@ public:
 
 }; // class SWS
 
+#ifndef Frag
+struct Frag { uint8_t *pB, nB, f; };
+#endif
+
 class Buffer
 {
 protected:

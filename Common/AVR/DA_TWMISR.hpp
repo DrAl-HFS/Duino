@@ -26,6 +26,10 @@ enum StateFlag : uint8_t {
    RECV=0x40, RACK=0x80
 };
 
+enum FragMode : uint8_t { FWD=0x00, REV= 0x80 };
+
+struct Frag { uint8_t *pB, nB; FragMode m; };
+
 // Buffer management
 #define BUFF_FRAG_MAX 2
 class Buffer
@@ -51,26 +55,27 @@ protected:
 
    void clearFrags (void) { nF=0; resetFrags(); }
    
-   void addFrag (uint8_t b[], const uint8_t n, const uint8_t f=0)
+   void addFrag (uint8_t b[], const uint8_t n, const FragMode m)
    {
       if (nF >= BUFF_FRAG_MAX) { return; }
       frag[nF].pB= b;
       frag[nF].nB= n;
-      frag[nF].f=  f;
+      frag[nF].m=  m;
       nF++;
    } // addFrag
 
    bool nextFragValid (uint8_t i) const
    {
-      return(((i+1) < nF) && (0 == (0x80 & frag[i+1].f)) && (frag[i+1].nB > 0));
+      return(((i+1) < nF) && (frag[i].m == frag[i+1].m) && (frag[i+1].nB > 0));
    }
    
    uint8_t& next (void)
    {
       uint8_t i= iB;
-      if (iB < frag[iF].nB) { iB++; } // usual advancement
-      else if (nextFragValid(iF)) { i= 0; iB= 1; iF++; }
+      if (iB < frag[iF].nB) { iB++; } // next byte
+      else if (nextFragValid(iF)) { i= 0; iB= 1; iF++; } // next frag
       else { i= frag[iF].nB - 1; } // else error - repeat last (should never happen...)
+      if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); }
       return(frag[iF].pB[i]);
    } // next
    
@@ -195,26 +200,26 @@ class RW1 : public ISR
 public:
    //RW1 (void) { ; }
 
-   int readFrom (const uint8_t devAddr, uint8_t b[], const uint8_t n)
+   int readFrom (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m=FWD)
    {
       if (lock())
       {
          setAddr(devAddr, TW_READ);
          clearFrags();
-         addFrag(b, n);
+         addFrag(b, n, m);
          start();
          return(n);
       }
       return(0);
    } // readFrom
    
-   int writeTo (uint8_t devAddr, const uint8_t b[], const uint8_t n)
+   int writeTo (uint8_t devAddr, const uint8_t b[], const uint8_t n, const FragMode m=FWD)
    {
       if (lock())
       {
          setAddr(devAddr, TW_WRITE);
          clearFrags();
-         addFrag(b, n);
+         addFrag(b, n, m);
          start();
          return(n);
       }
