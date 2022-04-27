@@ -6,12 +6,13 @@
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
 
+#define PIN_PWR 13 // Nano D13
 
 //#include "TWI/KK/CTWI.hpp"
 //#include "TWI/SN/CTWI.hpp"
+#include "Common/DN_Util.hpp"
 #include "Common/AVR/DA_TWUtil.hpp"
 #include "Common/AVR/DA_Config.hpp"
-#include "Common/DN_Util.hpp"
 //#include "Common/Timing.hpp"
 
 uint16_t gIter=0;
@@ -21,7 +22,7 @@ const char *gS[]=
   "* Nemo enim ipsam voluptatem *"
 };
 const uint8_t qS= 30;
-const uint8_t qP= 33;
+const uint8_t qP= 32;
 char gEv=0x00;
 uint8_t gFlags=0x01;
 
@@ -44,10 +45,15 @@ void bootMsg (Stream& s)
 
 void setup (void)
 {
-  delay(100);
+  pinMode(PIN_PWR, OUTPUT); // force power transition to reset, prevent sync fail
+  digitalWrite(PIN_PWR, LOW); // power off
+  delay(50);
+  digitalWrite(PIN_PWR, HIGH); // power on
+  delay(50);
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  gTWI.set(TWUtil::CLK_400);
+  gTWI.reset(TWUtil::CLK_400);
   interrupts();
+  for (int8_t i=0; i<sizeof(gTWTB); i++) { gTWTB[i]= 0xA5; }
   //uint32_t f= gTWI.set(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
   setAddr(gTWTB, 0);
@@ -67,12 +73,13 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
     if (gTWI.readFromSync(0x50,t,sizeof(t))) // retrieve leading Bytes
     {
       s.print("Hdr:"); dumpHexFmt(s, t, 6);
+      s.println();
       gEv= '-';
       if ((b[endSwap^1] != t[1]) || (b[endSwap] != t[0]) || (gS[i][3] != t[5])) // Check for stored page content match
       {
         b[2]= b[endSwap]; b[3]= b[endSwap^1]; // page begins with its own address, possibly swapped endian order
         if (gS[i][3] != b[7]) { memcpy(b+4, gS[i], qS); } // Fill with text as necessary
-        gTWI.writeTo(0x50, b, 2+qP); // store 32bytes (prefixed with BE page address)
+        gTWI.writeToSync(0x50, b, 2+qP); // store 32bytes (prefixed with BE page address)
         gEv= 'W';
       }
     }
@@ -86,7 +93,7 @@ void loop (void)
   if (gT.update())
   { 
     gFlags|= 0x5;
-    if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
+    //if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
   }
   if ((gFlags & 0x2) && gTWI.sync())
   {
@@ -95,39 +102,31 @@ void loop (void)
   }
   if (gFlags & 0x1)
   {
-    uint32_t u[5];
-    uint8_t ub[2];
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
     if ('W' == gEv) { delay(10); }
-    u[0]= micros(); 
-    ub[0]= TCNT0 * 4;
-    r[0]= gTWI.writeTo(0x50,gTWTB,2);  // select page
-    ub[1]= TCNT0 * 4;
-    u[1]= micros(); 
+    r[0]= gTWI.writeToSync(0x50,gTWTB,2);  // select page
     if (r[0] > 0)
     {
       //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
-      gTWTB[3]= gTWTB[31]= 0xA5;
-      r[1]= gTWI.readFromSync(0x50, gTWTB+2, 40); // retrieve data
-    } else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
-    u[2]= micros(); 
-    u[3]= u[1]-u[0];
-    u[4]= u[2]-u[1];
-    dump<uint8_t>(DEBUG, ub, 2, "ub", "\n");
+      gTWTB[2]= gTWTB[31]= 0xA5;
+      r[1]= gTWI.readFromSync(0x50, gTWTB+2, qP); // retrieve data
+    }// else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
+    //dump<uint8_t>(DEBUG, ub, 2, "ub", "\n");
     //dump<int>(DEBUG, r, 2, "r", " nEV="); DEBUG.println(gTWI.iQ); //gNISR);
-    dump<uint32_t>(DEBUG, u, 5, "u", "\n");
-    if (r[0] > 0)
-    {
-      dumpHexTab(DEBUG, gTWTB+2, sizeof(gTWTB)-2);
-    } else { gTWI.dump(DEBUG); }
+    //dump<uint32_t>(DEBUG, u, 5, "u", "\n");
+    if ((r[0] > 0) && (r[1] > 0))
+    { gTWI.sync();
+      dumpHexTab(DEBUG, gTWTB, sizeof(gTWTB));
+    }// else {  }
+    gTWI.logEv(DEBUG); gTWI.clrEv();
     gFlags&= ~0x1;
   }
   if (gFlags & 0x4)
   {
     setAddr(gTWTB, (++gIter & 0x7F) << 5); // 4kB -> 128pages of 32Bytes
     DEBUG.print('I'); DEBUG.print(gIter); DEBUG.println(": ");
-    gTWI.dump(DEBUG); gTWI.clrEv();
+    //gTWI.log(DEBUG); gTWI.clrEv();
     gFlags&= ~0x4;
   }
 } // loop

@@ -21,7 +21,8 @@ enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for pres
    CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
    CLK_200=0x20, CLK_250=0x18, 
    CLK_300=0x12, CLK_350=0x0E, 
-   CLK_400=0x0C   // Higher rates presumed unreliable.
+   CLK_400=0x0C,   // Higher rates presumed unreliable.
+   CLK_INVALID=0x00 // -> 1MHz but not usable
 };
 
 class Clk
@@ -107,17 +108,6 @@ public:
       return sync();
    } // sync
 
-   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
-   {
-      int r;
-      do
-      {
-         r= writeTo(devAddr,b,n);
-         sync(-1);
-      } while ((r <= 0) && (t-- > 0));
-      return(r);
-   } // writeToSync
-
    int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
    {
       int r;
@@ -128,6 +118,17 @@ public:
       } while ((r <= 0) && (t-- > 0));
       return(r);
    } // readFromSync
+
+   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   {
+      int r;
+      do
+      {
+         r= writeTo(devAddr,b,n);
+         sync(-1);
+      } while ((r <= 0) && (t-- > 0));
+      return(r);
+   } // writeToSync
 
 }; // class Sync
 
@@ -142,30 +143,93 @@ public:
 
    TWDebug (void) { clrEv(); }
 
-   using Clk::set;
-   
+   //using Clk::set;
+   void reset (ClkTok c)
+   {
+      HWRC::stop(); // ineffective? better to rely on power off-on...
+      if (CLK_INVALID != c) { Clk::set(c); }
+   } // reset
+
    void clrEv (void) { iEQ= 0; iSQ=0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
 
    int8_t event (const uint8_t flags)
    {
-      int8_t iE= Sync::event(flags);
+      const int8_t iE= Sync::event(flags);
       if (iSQ < sizeof(stQ)) { stQ[iSQ++]= Buffer::state; }
       if (iE < sizeof(evF)) { evF[iE]+= (evF[iE] < 0xFF); }  // saturating increment
       if (iEQ < sizeof(evQ)) { evQ[iEQ++]= iE; }
+      return(iE);
    } // event
 
-   void dump (Stream& s, const uint8_t sf=0xFE) const
+   void logEv (Stream& s, const uint8_t sf=0xFE) const
    {
       s.print("SQ:");
       for (int8_t i=0; i<iSQ; i++) { s.print(" 0x"); s.print(stQ[i] & sf, HEX); }
       s.print("\nEQ:");
       for (int8_t i=0; i<iEQ; i++) { s.print(' '); s.print(evQ[i]); }
+#if 0
       s.print("\nF:");
       for (int8_t i=0; i<sizeof(evF); i++) { s.print(' '); s.print(evF[i]); }
+#endif
       s.println();
-   } // dump
+   } // log
+   
+}; // class Debug
 
-}; // class TWDebug
+class Debug2 : public Debug // seems broken...
+{
+   using Sync::writeToSync;
+   using Sync::readFromSync;
+
+   void capt (uint8_t v[3])
+   {
+      v[0]= iF;
+      v[1]= frag[iF].nB;
+      v[2]= iB;
+   } // capt
+
+   void rmMon (Stream& s)
+   {
+      uint8_t bst[2][3], rm[32], i=0;
+      capt(bst[0]); rm[0]= remaining();
+      do
+      {
+         const uint8_t t= remaining();
+         if (t != rm[i]) { i+= (i < (sizeof(rm)-1)); rm[i]= t; }
+      } while (rm[i] > 0);
+      capt(bst[1]);
+      s.print("writeToSync() -\nbst: ");
+      dump<uint8_t>(s, bst[0], sizeof(bst[0]), "{", "} ");
+      dump<uint8_t>(s, bst[1], sizeof(bst[1]), "{", "}\n");
+      dump<uint8_t>(s, rm, i+1, "rm: ", "\n");
+   } // rmMon
+
+   int readFromSync (Stream& s, const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   {
+      int r, r0;
+      do
+      {
+         r= readFrom(devAddr,b,n);
+         //sync(-1);
+         if (r <= 0) { sync(-1); } else { rmMon(s); }
+     } while ((r <= 0) && (t-- > 0));
+      return(r);
+   } // readFromSync
+
+   int writeToSync (Stream& s, const uint8_t devAddr, const uint8_t b[], const uint8_t n, uint8_t t=3)
+   {
+      int r, r0;
+      do
+      {
+         r= writeTo(devAddr,b,n);
+         sync(-1);
+         if (r <= 0) { sync(-1); } else { rmMon(s); }
+      } while ((r <= 0) && (t-- > 0));
+      return(r);
+   } // writeToSync
+   
+}; // class Debug2
+
 
 }; // namespace TWUtil
 

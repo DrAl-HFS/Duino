@@ -62,16 +62,16 @@ protected:
 
    bool nextFragValid (uint8_t i) const
    {
-      return((i < (nF-1)) && (frag[i].f == frag[i+1].f) && (frag[i+1].nB > 0));
+      return(((i+1) < nF) && (0 == (0x80 & frag[i+1].f)) && (frag[i+1].nB > 0));
    }
    
    uint8_t& next (void)
    {
-      if (iB < frag[iF].nB) { return(frag[iF].pB[iB++]); } // most likely
-      //else try next frag
-      if (nextFragValid(iF)) { iB= 1; return(frag[++iF].pB[0]); }
-      //else error 
-      return(frag[iF].pB[frag[iF].nB-1]); // so just repeat last
+      uint8_t i= iB;
+      if (iB < frag[iF].nB) { iB++; } // usual advancement
+      else if (nextFragValid(iF)) { i= 0; iB= 1; iF++; }
+      else { i= frag[iF].nB - 1; } // else error - repeat last (should never happen...)
+      return(frag[iF].pB[i]);
    } // next
    
 public:
@@ -79,23 +79,30 @@ public:
 
    bool sync (void) const { return(LOCK != (LOCK & state)); }
 
-   int remaining (void) const // not yet working... ???
+   uint8_t remaining (bool lazy=true) const
    {
-      int r= (int)frag[iF].nB - (int)iB;
-      if (r > 1) { return(r); }
+      uint8_t r= frag[iF].nB - iB;
+      if (lazy && (r > 1)) { return(r); }
       // else sum (beware single byte frags)
       uint8_t i= iF; // 
       while (nextFragValid(i++))
       { 
          r+= frag[i].nB;
-         if (r > 1) { return(r); }
+         if (lazy && (r > 1)) { return(r); }
       }
       return(r);
    } // remaining
 
-   bool more (void) const { return(iB < frag[iF].nB); } // remaining() > 0; } // ???
+   bool more (void) const { remaining() > 0; } // 
    
-   bool notLast (void) const { return(iB < (frag[iF].nB-1)); } // remaining() > 1; } // 
+   bool notLast (void) const
+   { 
+#if 1
+      return(remaining() > 1);  // { 4 3 4 6 7 }* ???
+#else
+      return(iB < (frag[iF].nB-1)); // { 4 3 4 6 {1}* 7 }
+#endif
+   }
    
 }; // class Buffer
 
@@ -146,12 +153,12 @@ public:
             if (more())
             {
                send();
-               nack();
+               HWRC::nack();
             }
             else
             {
-               stop();
-               unlock();
+               HWRC::stop();
+               Buffer::unlock();
             }
             break;
 
@@ -159,7 +166,7 @@ public:
          case TW_REP_START: SZ(iE,5);
             state|= START; // sent OK
             HWRC::send(hwAddr);
-            nack();
+            HWRC::nack();
             break;
 
          case TW_MR_SLA_ACK: SZ(iE,6);
@@ -173,8 +180,8 @@ public:
          case TW_MR_SLA_NACK: SZ(iE,9);
          case TW_MT_DATA_NACK: SZ(iE,10);
          default: SZ(iE,11);
-            stop();
-            unlock();
+            HWRC::stop();
+            Buffer::unlock();
             break;
       }
       return(iE);
