@@ -19,14 +19,21 @@ static uint8_t gTWTB[TWI_BUFFER_LENGTH]; // test buffer
 
 namespace TWM { // Two Wire Master
 
-enum StateFlag : uint8_t { 
+enum StateFlag : uint8_t {
    LOCK=0x01, START=0x02,
    ADDR=0x04, AACK=0x08,
-   SEND=0x10, SACK=0x20,
-   RECV=0x40, RACK=0x80
+   SACK=0x10, RACK=0x20
 };
+enum CountId : uint8_t { NOUT, NIN, NVER, NUM };
 
-enum FragMode : uint8_t { FWD=0x00, REV= 0x80 };
+//enum RcvMode : uint8_t { MRCV, MVER, MVRL, MRWVM };
+
+#define RWVMASK 0x03
+enum FragMode : uint8_t {
+   WR=0x00, RD=0x01, // write, read,
+   VA=0x02, VF=0x03, // verify all, verify until fail (early terminate) mask
+   REV= 0x80
+};
 
 struct Frag { uint8_t *pB, nB; FragMode m; };
 
@@ -35,10 +42,12 @@ struct Frag { uint8_t *pB, nB; FragMode m; };
 class Buffer
 {
 protected:
-   volatile uint8_t state; // NB: more correctly an interface property (rather than buffer...)
+   volatile uint8_t state, count[3]; // NB: more correctly an interface property (rather than buffer...)
    uint8_t hwAddr;
    uint8_t nF, iF, iB;
    Frag frag[BUFF_FRAG_MAX]; // Consider: factor out?
+
+   FragMode getMode (uint8_t m=RWVMASK) { return(m & frag[iF].m); }
 
    bool lock (void)
    {
@@ -49,12 +58,17 @@ protected:
 
    void unlock (void) { state&= ~LOCK; }
 
-   void setAddr (const uint8_t devAddr, const uint8_t rwf) { hwAddr= (devAddr << 1) | (rwf & 0x1); }
-   
+   void setAddr (const uint8_t devAddr) { hwAddr= devAddr << 1; }
+
    void resetFrags (void) { iF=0; iB=0; }
 
-   void clearFrags (void) { nF=0; resetFrags(); }
-   
+   void clearAll (void)
+   {
+      nF=0;
+      resetFrags();
+      for (int8_t i=0; i < CountId::NUM; i++) { count[i]= 0; }
+   } // clearAll
+
    void addFrag (uint8_t b[], const uint8_t n, const FragMode m)
    {
       if (nF >= BUFF_FRAG_MAX) { return; }
@@ -68,7 +82,7 @@ protected:
    {
       return(((i+1) < nF) && (frag[i].m == frag[i+1].m) && (frag[i+1].nB > 0));
    }
-   
+
    uint8_t& next (void)
    {
       uint8_t i= iB;
@@ -78,9 +92,31 @@ protected:
       if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); }
       return(frag[iF].pB[i]);
    } // next
-   
+
+   uint8_t outgoing (void)
+   {
+      count[NOUT]++;
+      return next();
+   } // outgoing
+
+   bool incoming (const uint8_t b)
+   {
+      count[NIN]++;
+      switch(getMode())
+      {
+         case FragMode::RD : next()= b; return(true);
+         case FragMode::VA : count[NVER]+= (b == next()); return(true);
+         case FragMode::VF : if (b == next()) { count[NVER]++; return(true); } break;
+         //case FragMode::WR : return(false);
+      }
+      return(false);
+   } // incoming
+   //void verify (void) { nV+= (Buffer::next() == HWRC::recv()); Buffer::state|= RECV; }
+
 public:
    Buffer (void) : state{0} { ; }
+
+   uint8_t getHWAddr (void) const { return(hwAddr| getMode(FragMode::RD)); }
 
    bool sync (void) const { return(LOCK != (LOCK & state)); }
 
@@ -89,26 +125,26 @@ public:
       uint8_t r= frag[iF].nB - iB;
       if (lazy && (r > 1)) { return(r); }
       // else sum (beware single byte frags)
-      uint8_t i= iF; // 
+      uint8_t i= iF;
       while (nextFragValid(i++))
-      { 
+      {
          r+= frag[i].nB;
          if (lazy && (r > 1)) { return(r); }
       }
       return(r);
    } // remaining
 
-   bool more (void) const { remaining() > 0; } // 
-   
+   bool more (void) const { remaining() > 0; }
+
    bool notLast (void) const
-   { 
+   {
 #if 1
       return(remaining() > 1);  // { 4 3 4 6 7 }* ???
 #else
       return(iB < (frag[iF].nB-1)); // { 4 3 4 6 {1}* 7 }
 #endif
    }
-   
+
 }; // class Buffer
 
 // Hardware register commands
@@ -132,11 +168,10 @@ protected:
 
 class ISR : public HWRC, public Buffer
 {
-   void reply (void) { if (Buffer::notLast()) { HWRC::ack(); } else { HWRC::nack(); } }
+   void reply (bool accept=true) { if (accept && Buffer::notLast()) { HWRC::ack(); } else { HWRC::nack(); } }
 
-   void send (void) { HWRC::send( Buffer::next() ); state|= SEND; }
+   void send (void) { HWRC::send( Buffer::outgoing() ); }
 
-   void recv (void) { Buffer::next()= HWRC::recv(); state|= RECV; }
 
 public:
    // ISR (void) { ; } compile error on this ???
@@ -149,8 +184,7 @@ public:
       switch (flags)
       {
          case TW_MR_DATA_ACK: SZ(iE,1);
-            recv();
-            reply();
+            reply(Buffer::incoming(HWRC::recv()));
             break;
 
          case TW_MT_DATA_ACK: SZ(iE,2); state|= SACK;
@@ -169,18 +203,18 @@ public:
 
          case TW_START: SZ(iE,4);
          case TW_REP_START: SZ(iE,5);
-            state|= START; // sent OK
-            HWRC::send(hwAddr);
+            Buffer::state|= START; // sent OK
+            HWRC::send(Buffer::getHWAddr());
             HWRC::nack();
             break;
 
          case TW_MR_SLA_ACK: SZ(iE,6);
-            state|= AACK;
+            Buffer::state|= AACK;
             reply();
             break;
 
          case TW_MR_DATA_NACK: SZ(iE,7);
-            recv(); // fall through stop(); unlock(); break;
+            Buffer::incoming(HWRC::recv()); // fall through stop(); unlock(); break;
          case TW_MT_SLA_NACK: SZ(iE,8);
          case TW_MR_SLA_NACK: SZ(iE,9);
          case TW_MT_DATA_NACK: SZ(iE,10);
@@ -200,31 +234,30 @@ class RW1 : public ISR
 public:
    //RW1 (void) { ; }
 
-   int readFrom (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m=FWD)
+   int transfer (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m)
    {
       if (lock())
       {
-         setAddr(devAddr, TW_READ);
-         clearFrags();
+         clearAll();
+         setAddr(devAddr);
          addFrag(b, n, m);
          start();
          return(n);
       }
       return(0);
-   } // readFrom
-   
-   int writeTo (uint8_t devAddr, const uint8_t b[], const uint8_t n, const FragMode m=FWD)
-   {
-      if (lock())
-      {
-         setAddr(devAddr, TW_WRITE);
-         clearFrags();
-         addFrag(b, n, m);
-         start();
-         return(n);
-      }
-      return(0);
-   } // writeTo
+    } // transfer
+
+   int readFrom (const uint8_t devAddr, uint8_t b[], const uint8_t n)
+      { return transfer(devAddr,b,n,RD); }
+
+   int writeTo (uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transfer(devAddr,b,n,WR); }
+
+   int readFromRev (const uint8_t devAddr, uint8_t b[], const uint8_t n)
+      { return transfer(devAddr,b,n,REV|RD); }
+
+   int writeToRev (uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transfer(devAddr,b,n,REV|WR); }
 
 }; // class RW1
 

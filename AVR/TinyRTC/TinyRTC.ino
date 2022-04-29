@@ -8,10 +8,12 @@
 
 #define PIN_PWR 13 // Nano D13
 
+#include "Common/DN_Util.hpp"
 #include "Common/AVR/DA_Config.hpp"
 #include "Common/CDS1307.hpp"
 #include "Common/CAT24C.hpp"
 
+DNTimer gT(1000);
 CDS1307A gRTC;
 CAT24C gERM;
 
@@ -66,42 +68,24 @@ int ds= 15, err=3;
 
 void loop (void)
 {
-  int r=0;
-  
-  if (0 == gIter) { buffTest(); }
-#if 0
-  if (0 != ds) 
-  { 
-    DEBUG.print("ds="); DEBUG.print(ds);
-    ds-= gRTC.adjustSec(ds); // duff
-    DEBUG.print(" -> "); DEBUG.println(ds);
-  }
-/*
-  char c[4]="00,";
-  uint8_t ss[3]={0,0,0};
-  gRTC.readTimeBCD(ss,1); 
-  for (int i=0; i<3; i++)
+  if (gT.update())
   {
-    hexChFromU8(c,ss[i]);
-    DEBUG.print(c);
-  }
-  DEBUG.println();
-*/
-#endif
-  int vB= analogRead(A7);
-  r= gRTC.printTime(DEBUG,' '); 
-  DEBUG.print(": vB="); DEBUG.println(vB);
-  delay(1000);
-  if (r < 0) 
-  {
-    gRTC.dump(DEBUG);
-    if (err-- <= 0)
+    digitalWrite(PIN_PWR, HIGH);
+    int vB= analogRead(A7);
+    int r= gRTC.printTime(DEBUG,' '); 
+    DEBUG.print(": vB="); DEBUG.println(vB);
+    if (r < 0) 
     {
-      r= gRTC.setA(__TIME__,NULL,__DATE__,0);
-      DEBUG.print("gRTC.setA() -> "); DEBUG.println(r); 
-      err= 3;
+      gRTC.dump(DEBUG);
+      if (err-- <= 0)
+      {
+        r= gRTC.setA(__TIME__,NULL,__DATE__,0);
+        DEBUG.print("gRTC.setA() -> "); DEBUG.println(r); 
+        err= 3;
+      }
     }
+    gIter++;
+    gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
+    digitalWrite(PIN_PWR, LOW); // power off
   }
-  gIter++;
-  gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
 } // loop

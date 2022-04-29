@@ -5,6 +5,7 @@
 
 //#include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
+#include <avr/sleep.h>
 
 
 #ifndef CORE_CLK
@@ -16,8 +17,8 @@ namespace TWUtil {
 enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for prescaler=1 and CORE_CLK=16MHz)
 {
    CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
-   CLK_200=0x20, CLK_250=0x18, 
-   CLK_300=0x12, CLK_350=0x0E, 
+   CLK_200=0x20, CLK_250=0x18,
+   CLK_300=0x12, CLK_350=0x0E,
    CLK_400=0x0C,   // Higher rates presumed unreliable.
    CLK_INVALID=0x00 // -> 1MHz but not usable
 };
@@ -38,7 +39,7 @@ protected:
          }
       }
    } // getBT0
-   
+
    uint8_t getBT (void)
    {
       uint8_t t0= getBT0(TWBR);
@@ -69,7 +70,7 @@ public:
       {
          TWSR= 0x03;
          sc= CORE_CLK / 64;
-      } 
+      }
       if (sc > 0)
       {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
          TWBR= ((sc / fHz) - 16) / 2;
@@ -83,12 +84,12 @@ public:
 class Sync : public Clk, public TWM::RW1
 {
 public:
-   //TWUtil (void) { ; }
-   
+   Sync (void) { set_sleep_mode(SLEEP_MODE_IDLE); sleep_enable(); }
+
    /* Specific variant dependancy */
    //using TWI::SWS::sync;
    using TWM::ISR::sync;
-   
+
    bool sync (const uint8_t nB) const
    {
       bool r= sync();
@@ -100,32 +101,34 @@ public:
       do
       {
          if (sync()) { return(true); }
+         sleep_cpu();
          t= micros();
       } while ((t < u1) || (t > u0)); // wrap safe (order important)
       return sync();
    } // sync
 
-   int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, const TWM::FragMode f=TWM::FWD, uint8_t t=3)
+   int transferSync (const uint8_t devAddr, uint8_t b[], const uint8_t n, const TWM::FragMode m, uint8_t t=3)
    {
       int r;
       do
       {
-         r= readFrom(devAddr,b,n,f);
+         r= transfer(devAddr,b,n,m);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
       return(r);
-   } // readFromSync
+   } // transferSync
 
-   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n, const TWM::FragMode f=TWM::FWD, uint8_t t=3)
-   {
-      int r;
-      do
-      {
-         r= writeTo(devAddr,b,n,f);
-         sync(-1);
-      } while ((r <= 0) && (t-- > 0));
-      return(r);
-   } // writeToSync
+   int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transferSync(devAddr,b,n,TWM::RD,3); }
+
+   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transferSync(devAddr,b,n,TWM::WR,3); }
+
+   int readFromRevSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transferSync(devAddr,b,n,TWM::REV|TWM::RD,3); }
+
+   int writeToRevSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transferSync(devAddr,b,n,TWM::REV|TWM::WR,3); }
 
 }; // class Sync
 
@@ -170,7 +173,7 @@ public:
 #endif
       s.println();
    } // log
-   
+
 }; // class Debug
 
 class Debug2 : public Debug // seems broken...
@@ -224,7 +227,7 @@ class Debug2 : public Debug // seems broken...
       } while ((r <= 0) && (t-- > 0));
       return(r);
    } // writeToSync
-   
+
 }; // class Debug2
 
 

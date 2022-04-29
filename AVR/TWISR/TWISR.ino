@@ -109,7 +109,7 @@ void loop (void)
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
     if ('W' == gEv) { delay(10); }
-    r[0]= gTWI.writeToSync(0x50,gTWTB+2,2,TWM::REV);  // select page
+    r[0]= gTWI.writeToRevSync(0x50, gTWTB+2, 2);  // select page
     if (r[0] > 0)
     {
       //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
