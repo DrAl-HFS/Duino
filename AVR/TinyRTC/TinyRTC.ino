@@ -44,7 +44,7 @@ void setup (void)
   gRTC.printTime(DEBUG);
   //analogReadResolution(8);
   pinMode(A7,INPUT);//ANALOGUE);
-  
+
 #ifdef TWI_BUFFER_LENGTH
   DEBUG.print("I2C buffers:"); DEBUG.print(TWI_BUFFER_LENGTH); DEBUG.print(','); DEBUG.println(BUFFER_LENGTH);
 #endif
@@ -72,15 +72,15 @@ void loop (void)
   {
     digitalWrite(PIN_PWR, HIGH);
     int vB= analogRead(A7);
-    int r= gRTC.printTime(DEBUG,' '); 
+    int r= gRTC.printTime(DEBUG,' ');
     DEBUG.print(": vB="); DEBUG.println(vB);
-    if (r < 0) 
+    if (r < 0)
     {
       gRTC.dump(DEBUG);
       if (err-- <= 0)
       {
         r= gRTC.setA(__TIME__,NULL,__DATE__,0);
-        DEBUG.print("gRTC.setA() -> "); DEBUG.println(r); 
+        DEBUG.print("gRTC.setA() -> "); DEBUG.println(r);
         err= 3;
       }
     }

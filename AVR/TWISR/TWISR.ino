@@ -28,7 +28,7 @@ uint8_t gFlags=0x01;
 
 void setAddr (uint8_t b[], const uint16_t a)
 {
-  b[0]= a >> 8; 
+  b[0]= a >> 8;
   b[1]= a & 0xFF; // form (big endian) page address
 } // setAddr
 
@@ -69,7 +69,7 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
 {
   const uint8_t i= ((b[1] & 0x40) > 0);
   uint8_t t[6];
-  
+
   gEv= 0x0;
   if (gTWI.writeToSync(0x50,b,2)) // set page address
   {
@@ -95,7 +95,7 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
 void loop (void)
 {
   if (gT.update())
-  { 
+  {
     gFlags|= 0x5;
     //if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
   }
