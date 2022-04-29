@@ -28,26 +28,26 @@ enum CountId : uint8_t { NOUT, NIN, NVER, NUM };
 
 //enum RcvMode : uint8_t { MRCV, MVER, MVRL, MRWVM };
 
-#define RWVMASK 0x03
 enum FragMode : uint8_t {
-   WR=0x00, RD=0x01, // write, read,
-   VA=0x02, VF=0x03, // verify all, verify until fail (early terminate) mask
-   REV= 0x80
+   RD=0x01, VA=0x03, VF=0x05, // read, verify all, verify until fail (early terminate) mask (all contain TW_READ flag)
+   WR=0x02, // write (compatible with TW_WRITE flag)
+   RWVM=0x07, // read/write/verify mask
+   REV= 0x08 // reverse byte order
 };
 
 struct Frag { uint8_t *pB, nB; FragMode m; };
 
 // Buffer management
 #define BUFF_FRAG_MAX 2
-class Buffer
+class Buffer // NB: includes interface properties
 {
 protected:
-   volatile uint8_t state, count[3]; // NB: more correctly an interface property (rather than buffer...)
+   volatile uint8_t state, count[3];
    uint8_t hwAddr;
    uint8_t nF, iF, iB;
    Frag frag[BUFF_FRAG_MAX]; // Consider: factor out?
 
-   FragMode getMode (uint8_t m=RWVMASK) { return(m & frag[iF].m); }
+   FragMode getMode (uint8_t m=RWVM) { return(m & frag[iF].m); }
 
    bool lock (void)
    {
@@ -78,16 +78,15 @@ protected:
       nF++;
    } // addFrag
 
-   bool nextFragValid (uint8_t i) const
-   {
-      return(((i+1) < nF) && (frag[i].m == frag[i+1].m) && (frag[i+1].nB > 0));
-   }
+   bool nextFragValid (uint8_t i) const { return(((i+1) < nF) && (frag[i+1].nB > 0)); }
+   
+   bool continuation (uint8_t i) const { return( nextFragValid(i) && (frag[i].m == frag[i+1].m) ); }
 
    uint8_t& next (void)
    {
       uint8_t i= iB;
       if (iB < frag[iF].nB) { iB++; } // next byte
-      else if (nextFragValid(iF)) { i= 0; iB= 1; iF++; } // next frag
+      else if (continuation(iF)) { i= 0; iB= 1; iF++; } // next frag
       else { i= frag[iF].nB - 1; } // else error - repeat last (should never happen...)
       if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); }
       return(frag[iF].pB[i]);
@@ -111,7 +110,6 @@ protected:
       }
       return(false);
    } // incoming
-   //void verify (void) { nV+= (Buffer::next() == HWRC::recv()); Buffer::state|= RECV; }
 
 public:
    Buffer (void) : state{0} { ; }
@@ -126,7 +124,7 @@ public:
       if (lazy && (r > 1)) { return(r); }
       // else sum (beware single byte frags)
       uint8_t i= iF;
-      while (nextFragValid(i++))
+      while (continuation(i++))
       {
          r+= frag[i].nB;
          if (lazy && (r > 1)) { return(r); }
@@ -194,7 +192,7 @@ public:
                send();
                HWRC::nack();
             }
-            else
+            else // TODO : if another frag, issue restart
             {
                HWRC::stop();
                Buffer::unlock();
@@ -259,6 +257,21 @@ public:
    int writeToRev (uint8_t devAddr, const uint8_t b[], const uint8_t n)
       { return transfer(devAddr,b,n,REV|WR); }
 
+   // Test hack
+   int writeTo2RF (uint8_t devAddr, const uint8_t bR[], const uint8_t nR, const uint8_t bF[], const uint8_t nF)
+   {
+      if (lock())
+      {
+         clearAll();
+         setAddr(devAddr);
+         addFrag(bR, nR, REV|WR);
+         addFrag(bF, nF, WR);
+         start();
+         return(nR+nF);
+      }
+      return(0);
+   } // writeTo2RF
+   
 }; // class RW1
 
 }; // namespace TWM

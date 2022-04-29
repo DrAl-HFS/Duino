@@ -26,10 +26,10 @@ const uint8_t qP= 32;
 char gEv=0x00;
 uint8_t gFlags=0x01;
 
-void setAddr (uint8_t b[], const uint16_t a)
+void setAddr (uint8_t b[], const uint16_t a, bool rev=true)
 {
-  b[0]= a >> 8;
-  b[1]= a & 0xFF; // form (big endian) page address
+  b[!rev]= a >> 8;
+  b[rev]= a & 0xFF; // form (big endian) page address
 } // setAddr
 
 DNTimer gT(500); // 500ms / 2Hz
@@ -51,6 +51,14 @@ void bootMsg (Stream& s)
   s.println(__TIME__);
 } // bootMsg
 
+char test2 (uint8_t b[], uint8_t n)
+{
+  memcpy(b+2, "! consectetur adipiscing elit *", n-2); // 31ch
+  int r= gTWI.writeTo2RF(0x50,b,2,b,n);
+  if (r > 0) { return('W'); }
+  return(0);
+} // test2
+
 void setup (void)
 {
   pwrRst();
@@ -60,7 +68,8 @@ void setup (void)
   for (int8_t i=0; i<sizeof(gTWTB); i++) { gTWTB[i]= 0xA5; }
   //uint32_t f= gTWI.set(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
-  setAddr(gTWTB, 0);
+  setAddr(gTWTB, 0x0120,false);
+  gEv= test2(gTWTB,32);
   //DEBUG.print("sizeof(fragTWTB)="); DEBUG.println(sizeof(fragTWTB));
 } // setup
 
@@ -92,8 +101,10 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
   return(gEv);
 } // fillTest
 
+
 void loop (void)
 {
+  if ('W' == gEv) { DEBUG.println(gEv); delay(10); gEv= 0x0; }
   if (gT.update())
   {
     gFlags|= 0x5;
@@ -108,7 +119,6 @@ void loop (void)
   {
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
-    if ('W' == gEv) { delay(10); }
     r[0]= gTWI.writeToRevSync(0x50, gTWTB+2, 2);  // select page
     if (r[0] > 0)
     {
@@ -121,7 +131,7 @@ void loop (void)
     //dump<int>(DEBUG, r, 2, "r", " nEV="); DEBUG.println(gTWI.iQ); //gNISR);
     //dump<uint32_t>(DEBUG, u, 5, "u", "\n");
     if ((r[0] > 0) && (r[1] > 0))
-    { gTWI.sync();
+    {
       dumpHexTab(DEBUG, gTWTB, sizeof(gTWTB));
     }
     gFlags&= ~0x1;
