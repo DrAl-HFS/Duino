@@ -101,7 +101,7 @@ public:
       do
       {
          if (sync()) { return(true); }
-         sleep_cpu();
+         //sleep_cpu();
          t= micros();
       } while ((t < u1) || (t > u0)); // wrap safe (order important)
       return sync();
@@ -137,7 +137,6 @@ class Debug : public Sync
 {
 public:
    uint8_t evQ[64];
-   uint8_t evF[12];
    uint8_t stQ[8];
    int8_t iEQ, iSQ;
 
@@ -150,27 +149,25 @@ public:
       if (CLK_INVALID != c) { Clk::set(c); }
    } // reset
 
-   void clrEv (void) { iEQ= 0; iSQ=0; for (int8_t i=0; i<sizeof(evF); i++) { evF[i]= 0; } }
+   void clrEv (void) { iEQ= 0; iSQ=0; }
 
    int8_t event (const uint8_t flags)
    {
       const int8_t iE= Sync::event(flags);
       if (iSQ < sizeof(stQ)) { stQ[iSQ++]= Buffer::state; }
-      if (iE < sizeof(evF)) { evF[iE]+= (evF[iE] < 0xFF); }  // saturating increment
       if (iEQ < sizeof(evQ)) { evQ[iEQ++]= iE; }
       return(iE);
    } // event
 
    void logEv (Stream& s, const uint8_t sf=0xFE) const
    {
+      //s.print("dR="); s.println(dR);
       s.print("SQ:");
       for (int8_t i=0; i<iSQ; i++) { s.print(" 0x"); s.print(stQ[i] & sf, HEX); }
       s.print("\nEQ:");
       for (int8_t i=0; i<iEQ; i++) { s.print(' '); s.print(evQ[i]); }
-#if 0
-      s.print("\nF:");
-      for (int8_t i=0; i<sizeof(evF); i++) { s.print(' '); s.print(evF[i]); }
-#endif
+      s.print("\nCounts:"); 
+      for (int8_t i=0; i < TWM::NUM; i++) { s.print(' '); s.print(count[i]); }
       s.println();
    } // log
 

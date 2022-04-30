@@ -53,9 +53,17 @@ void bootMsg (Stream& s)
 
 char test2 (uint8_t b[], uint8_t n)
 {
-  memcpy(b+2, "! consectetur adipiscing elit *", n-2); // 31ch
-  int r= gTWI.writeTo2RF(0x50,b,2,b,n);
-  if (r > 0) { return('W'); }
+  setAddr(b, 0);
+  memcpy(b+2, "! consectetur adipiscing elit !", n); // 31ch(+nul)
+  int r; //= gTWI.writeToSync(0x50,b,n);
+  r= gTWI.writeTo2RF(0x50,b,2,b,n);
+  if (r > 0)
+  { 
+     gTWI.sync(-1);
+     gTWI.logEv(DEBUG);
+     gTWI.clrEv();
+     return('W'); 
+  }
   return(0);
 } // test2
 
@@ -68,7 +76,7 @@ void setup (void)
   for (int8_t i=0; i<sizeof(gTWTB); i++) { gTWTB[i]= 0xA5; }
   //uint32_t f= gTWI.set(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
-  setAddr(gTWTB, 0x0120,false);
+  
   gEv= test2(gTWTB,32);
   //DEBUG.print("sizeof(fragTWTB)="); DEBUG.println(sizeof(fragTWTB));
 } // setup

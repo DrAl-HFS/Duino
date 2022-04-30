@@ -26,8 +26,6 @@ enum StateFlag : uint8_t {
 };
 enum CountId : uint8_t { NOUT, NIN, NVER, NUM };
 
-//enum RcvMode : uint8_t { MRCV, MVER, MVRL, MRWVM };
-
 enum FragMode : uint8_t {
    RD=0x01, VA=0x03, VF=0x05, // read, verify all, verify until fail (early terminate) mask (all contain TW_READ flag)
    WR=0x02, // write (compatible with TW_WRITE flag)
@@ -42,7 +40,7 @@ struct Frag { uint8_t *pB, nB; FragMode m; };
 class Buffer // NB: includes interface properties
 {
 protected:
-   volatile uint8_t state, count[3];
+   volatile uint8_t state, count[3];//, dR;
    uint8_t hwAddr;
    uint8_t nF, iF, iB;
    Frag frag[BUFF_FRAG_MAX]; // Consider: factor out?
@@ -80,7 +78,7 @@ protected:
 
    bool nextFragValid (uint8_t i) const { return(((i+1) < nF) && (frag[i+1].nB > 0)); }
    
-   bool continuation (uint8_t i) const { return( nextFragValid(i) && (frag[i].m == frag[i+1].m) ); }
+   bool continuation (uint8_t i) const { return( nextFragValid(i) && ((RD & frag[i].m) == (RD & frag[i+1].m)) ); }
 
    uint8_t& next (void)
    {
@@ -88,7 +86,7 @@ protected:
       if (iB < frag[iF].nB) { iB++; } // next byte
       else if (continuation(iF)) { i= 0; iB= 1; iF++; } // next frag
       else { i= frag[iF].nB - 1; } // else error - repeat last (should never happen...)
-      if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); }
+      if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); } // invert index
       return(frag[iF].pB[i]);
    } // next
 
@@ -132,16 +130,11 @@ public:
       return(r);
    } // remaining
 
-   bool more (void) const { remaining() > 0; }
+   //uint8_t dremaining (bool lazy=true) { dR= remaining(lazy); return(dR); }
 
-   bool notLast (void) const
-   {
-#if 1
-      return(remaining() > 1);  // { 4 3 4 6 7 }* ???
-#else
-      return(iB < (frag[iF].nB-1)); // { 4 3 4 6 {1}* 7 }
-#endif
-   }
+   bool more (void) const { return( remaining() > 0 ); }
+
+   bool notLast (void) const { return( remaining() > 1 ); }
 
 }; // class Buffer
 
@@ -192,7 +185,7 @@ public:
                send();
                HWRC::nack();
             }
-            else // TODO : if another frag, issue restart
+            else // TODO : if non-continuation frag, issue restart
             {
                HWRC::stop();
                Buffer::unlock();
@@ -213,8 +206,8 @@ public:
 
          case TW_MR_DATA_NACK: SZ(iE,7);
             Buffer::incoming(HWRC::recv()); // fall through stop(); unlock(); break;
-         case TW_MT_SLA_NACK: SZ(iE,8);
-         case TW_MR_SLA_NACK: SZ(iE,9);
+         case TW_MR_SLA_NACK: SZ(iE,8);
+         case TW_MT_SLA_NACK: SZ(iE,9);
          case TW_MT_DATA_NACK: SZ(iE,10);
          default: SZ(iE,11);
             HWRC::stop();
