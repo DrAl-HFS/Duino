@@ -1,7 +1,7 @@
 // Duino/Common/AVR/DA_TWUtil.hpp - AVR two wire (I2C-like) utility code, C++ classes.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Mar - Apr 2022
+// (c) Project Contributors Mar - May 2022
 
 //#include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
@@ -96,7 +96,7 @@ public:
       if (r || (nB <= 0)) { return(r); }
       //else
       const uint16_t u0= micros();
-      const uint16_t u1= u0 + nB * Clk::getBT();
+      const uint16_t u1= u0 + nB * Clk::getBT(); // (uint16_t) ?
       uint16_t t;
       do
       {
@@ -166,7 +166,7 @@ public:
       for (int8_t i=0; i<iSQ; i++) { s.print(" 0x"); s.print(stQ[i] & sf, HEX); }
       s.print("\nEQ:");
       for (int8_t i=0; i<iEQ; i++) { s.print(' '); s.print(evQ[i]); }
-      s.print("\nCounts:"); 
+      s.print("\nCounts:");
       for (int8_t i=0; i < TWM::NUM; i++) { s.print(' '); s.print(count[i]); }
       s.println();
    } // log

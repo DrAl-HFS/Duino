@@ -6,7 +6,7 @@
 // ---
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Apr 2022
+// (c) Project Contributors Apr-May 2022
 
 #include <util/twi.h>
 
@@ -30,7 +30,8 @@ enum FragMode : uint8_t {
    RD=0x01, VA=0x03, VF=0x05, // read, verify all, verify until fail (early terminate) mask (all contain TW_READ flag)
    WR=0x02, // write (compatible with TW_WRITE flag)
    RWVM=0x07, // read/write/verify mask
-   REV= 0x08 // reverse byte order
+   REV= 0x08, // reverse byte order
+   REP= 0x10  // repeated single byte
 };
 
 struct Frag { uint8_t *pB, nB; FragMode m; };
@@ -77,7 +78,7 @@ protected:
    } // addFrag
 
    bool nextFragValid (uint8_t i) const { return(((i+1) < nF) && (frag[i+1].nB > 0)); }
-   
+
    bool continuation (uint8_t i) const { return( nextFragValid(i) && ((RD & frag[i].m) == (RD & frag[i+1].m)) ); }
 
    uint8_t& next (void)
@@ -86,7 +87,8 @@ protected:
       if (iB < frag[iF].nB) { iB++; } // next byte
       else if (continuation(iF)) { i= 0; iB= 1; iF++; } // next frag
       else { i= frag[iF].nB - 1; } // else error - repeat last (should never happen...)
-      if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); } // invert index
+      if (frag[iF].m & REP) { i= 0; } // single byte repeated
+      else if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); } // reverse order -> invert index
       return(frag[iF].pB[i]);
    } // next
 
@@ -251,20 +253,20 @@ public:
       { return transfer(devAddr,b,n,REV|WR); }
 
    // Test hack
-   int writeTo2RF (uint8_t devAddr, const uint8_t bR[], const uint8_t nR, const uint8_t bF[], const uint8_t nF)
+   int writeTo2RF (uint8_t devAddr, const uint8_t bRev[], const uint8_t nRev, const uint8_t bFwd[], const uint8_t nFwd)
    {
       if (lock())
       {
          clearAll();
          setAddr(devAddr);
-         addFrag(bR, nR, REV|WR);
-         addFrag(bF, nF, WR);
+         addFrag(bRev, nRev, REV|WR);
+         addFrag(bFwd, nFwd, WR); // REP|
          start();
-         return(nR+nF);
+         return(nRev+nFwd);
       }
       return(0);
    } // writeTo2RF
-   
+
 }; // class RW1
 
 }; // namespace TWM

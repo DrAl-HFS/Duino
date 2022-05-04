@@ -1,7 +1,7 @@
 // Duino/AVR/TinyRTC/TinyRTC.ino
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Mar 2022
+// (c) Project Contributors Mar-May 2022
 
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
@@ -34,14 +34,23 @@ void bootMsg (Stream& s)
   s.println(__TIME__);
 } // bootMsg
 
+void setRTC (Stream& s)
+{
+  int8_t r= gRTC.setA(__TIME__,NULL,__DATE__,0);
+  DEBUG.print("gRTC.setA() -> "); DEBUG.println(r);
+} // setRTC
+
 void setup (void)
 {
+  int8_t r;
+
   pwrRst();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
   I2C.begin(); // join i2c bus (address optional for master)
   //gRTC.testDays(DEBUG,__DATE__);
-  gRTC.printDate(DEBUG,' ');
-  gRTC.printTime(DEBUG);
+  r= gRTC.printTime(DEBUG,' ');
+  if (r > 0) { gRTC.printDate(DEBUG); }
+  else { setRTC(DEBUG); }
   //analogReadResolution(8);
   pinMode(A7,INPUT);//ANALOGUE);
 
@@ -64,13 +73,14 @@ void buffTest (void)
 } // buffTest
 
 uint16_t gIter=0;
-int ds= 15, err=3;
+uint8_t mode=0x1; // power cycle
+int8_t err=3;
 
 void loop (void)
 {
   if (gT.update())
   {
-    digitalWrite(PIN_PWR, HIGH);
+    if (digitalRead(PIN_PWR) < HIGH) { digitalWrite(PIN_PWR, HIGH); }
     int vB= analogRead(A7);
     int r= gRTC.printTime(DEBUG,' ');
     DEBUG.print(": vB="); DEBUG.println(vB);
@@ -79,13 +89,12 @@ void loop (void)
       gRTC.dump(DEBUG);
       if (err-- <= 0)
       {
-        r= gRTC.setA(__TIME__,NULL,__DATE__,0);
-        DEBUG.print("gRTC.setA() -> "); DEBUG.println(r);
+        setRTC(DEBUG);
         err= 3;
       }
     }
     gIter++;
     gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
-    digitalWrite(PIN_PWR, LOW); // power off
+    if (mode & 0x1) { digitalWrite(PIN_PWR, LOW); }
   }
 } // loop

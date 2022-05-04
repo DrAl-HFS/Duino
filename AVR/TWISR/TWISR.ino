@@ -1,7 +1,7 @@
-// Duino/AVR/TWISR/TWISR.ino
+// Duino/AVR/TWISR/TWISR.ino - Test of interrupt driven 2wire (I2C compatible) interface
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Mar 2022
+// (c) Project Contributors Mar-May 2022
 
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
@@ -53,18 +53,20 @@ void bootMsg (Stream& s)
 
 char test2 (uint8_t b[], uint8_t n)
 {
+  char c=0x0;
   setAddr(b, 0);
   memcpy(b+2, "! consectetur adipiscing elit !", n); // 31ch(+nul)
   int r; //= gTWI.writeToSync(0x50,b,n);
   r= gTWI.writeTo2RF(0x50,b,2,b,n);
   if (r > 0)
-  { 
+  {
      gTWI.sync(-1);
      gTWI.logEv(DEBUG);
      gTWI.clrEv();
-     return('W'); 
+     c= 'W';
   }
-  return(0);
+  memset(b,0,n);
+  return(c);
 } // test2
 
 void setup (void)
@@ -76,7 +78,7 @@ void setup (void)
   for (int8_t i=0; i<sizeof(gTWTB); i++) { gTWTB[i]= 0xA5; }
   //uint32_t f= gTWI.set(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
-  
+
   gEv= test2(gTWTB,32);
   //DEBUG.print("sizeof(fragTWTB)="); DEBUG.println(sizeof(fragTWTB));
 } // setup
@@ -127,7 +129,7 @@ void loop (void)
   {
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
-    r[0]= gTWI.writeToRevSync(0x50, gTWTB+2, 2);  // select page
+    r[0]= gTWI.writeToSync(0x50, gTWTB, 2);  // select page
     if (r[0] > 0)
     {
       //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
