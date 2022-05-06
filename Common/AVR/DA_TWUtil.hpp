@@ -1,4 +1,5 @@
-// Duino/Common/AVR/DA_TWUtil.hpp - AVR two wire (I2C-like) utility code, C++ classes.
+// Duino/Common/AVR/DA_TWUtil.hpp - AVR two wire (I2C-like) adaptor/utility
+// code, C++ classes.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Mar - May 2022
@@ -50,7 +51,7 @@ protected:
          //case 0x02 : return(16*t0); // >= 360us per byte
          //case 0x03 : return(64*t0); // >= 1.44ms per byte
       }
-      return(250);
+      return(250); // just a hack...
    } // setBT
 
 public:
@@ -80,19 +81,22 @@ public:
 
 }; // class Clk
 
+/* using Clk::set;
+   void reset (ClkTok c)
+   {
+      HWRC::stop(); // ineffective? better to rely on power off-on...
+      if (CLK_INVALID != c) { Clk::set(c); }
+   } // reset
+*/
 
-class Sync : public Clk, public TWM::RW1
+class Sync : public Clk
 {
 public:
    Sync (void) { set_sleep_mode(SLEEP_MODE_IDLE); sleep_enable(); }
 
-   /* Specific variant dependancy */
-   //using TWI::SWS::sync;
-   using TWM::ISR::sync;
-
    bool sync (const uint8_t nB) const
    {
-      bool r= sync();
+      bool r= I2C.sync();
       if (r || (nB <= 0)) { return(r); }
       //else
       const uint16_t u0= micros();
@@ -100,84 +104,51 @@ public:
       uint16_t t;
       do
       {
-         if (sync()) { return(true); }
+         if (I2C.sync()) { return(true); }
          //sleep_cpu();
          t= micros();
       } while ((t < u1) || (t > u0)); // wrap safe (order important)
-      return sync();
+      return I2C.sync();
    } // sync
 
-   int transferSync (const uint8_t devAddr, uint8_t b[], const uint8_t n, const TWM::FragMode m, uint8_t t=3)
+}; // class Sync
+
+class CCommonTW : public Sync, public CCommonTWAS
+{
+public:
+   using Sync::sync;
+
+protected:
+
+   int transfer1 (const uint8_t devAddr, uint8_t b[], const uint8_t n, const TWM::FragMode m, uint8_t t=3)
    {
       int r;
       do
       {
-         r= transfer(devAddr,b,n,m);
+         r= I2C.transfer1AS(devAddr,b,n,m);
          sync(-1);
       } while ((r <= 0) && (t-- > 0));
       return(r);
-   } // transferSync
+   } // transfer1
 
-   int readFromSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transferSync(devAddr,b,n,TWM::RD,3); }
-
-   int writeToSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transferSync(devAddr,b,n,TWM::WR,3); }
-
-   int readFromRevSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transferSync(devAddr,b,n,TWM::REV|TWM::RD,3); }
-
-   int writeToRevSync (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transferSync(devAddr,b,n,TWM::REV|TWM::WR,3); }
-
-}; // class Sync
-
-// Debug extension
-class Debug : public Sync
-{
 public:
-   uint8_t evQ[64];
-   uint8_t stQ[8];
-   int8_t iEQ, iSQ;
+   int readFrom (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transfer1(devAddr,b,n,TWM::RD,3); }
 
-   TWDebug (void) { clrEv(); }
+   int writeTo (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transfer1(devAddr,b,n,TWM::WR,3); }
 
-   //using Clk::set;
-   void reset (ClkTok c)
-   {
-      HWRC::stop(); // ineffective? better to rely on power off-on...
-      if (CLK_INVALID != c) { Clk::set(c); }
-   } // reset
+   int readFromRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transfer1(devAddr,b,n,TWM::REV|TWM::RD,3); }
 
-   void clrEv (void) { iEQ= 0; iSQ=0; }
+   int writeToRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
+      { return transfer1(devAddr,b,n,TWM::REV|TWM::WR,3); }
 
-   int8_t event (const uint8_t flags)
-   {
-      const int8_t iE= Sync::event(flags);
-      if (iSQ < sizeof(stQ)) { stQ[iSQ++]= Buffer::state; }
-      if (iEQ < sizeof(evQ)) { evQ[iEQ++]= iE; }
-      return(iE);
-   } // event
+}; // class CCommonTW
 
-   void logEv (Stream& s, const uint8_t sf=0xFE) const
-   {
-      //s.print("dR="); s.println(dR);
-      s.print("SQ:");
-      for (int8_t i=0; i<iSQ; i++) { s.print(" 0x"); s.print(stQ[i] & sf, HEX); }
-      s.print("\nEQ:");
-      for (int8_t i=0; i<iEQ; i++) { s.print(' '); s.print(evQ[i]); }
-      s.print("\nCounts:");
-      for (int8_t i=0; i < TWM::NUM; i++) { s.print(' '); s.print(count[i]); }
-      s.println();
-   } // log
-
-}; // class Debug
-
-class Debug2 : public Debug // seems broken...
+#if 0 // deprecated
+class Debug2
 {
-   using Sync::writeToSync;
-   using Sync::readFromSync;
-
    void capt (uint8_t v[3])
    {
       v[0]= iF;
@@ -226,15 +197,7 @@ class Debug2 : public Debug // seems broken...
    } // writeToSync
 
 }; // class Debug2
-
+#endif
 
 }; // namespace TWUtil
 
-// Instance and link to ISR
-
-TWUtil::Debug gTWI;
-
-SIGNAL(TWI_vect)
-{
-   gTWI.event( TWSR & TW_STATUS_MASK ); // Mask out prescaler bits to get TWI status
-}

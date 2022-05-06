@@ -10,8 +10,8 @@
 
 #include "Common/DN_Util.hpp"
 #include "Common/AVR/DA_Config.hpp"
-#include "Common/CDS1307.hpp"
 #include "Common/CAT24C.hpp"
+#include "Common/CDS1307.hpp"
 
 DNTimer gT(1000);
 CDS1307A gRTC;

@@ -138,6 +138,8 @@ public:
 
    bool notLast (void) const { return( remaining() > 1 ); }
 
+   friend class Sync; // allow protected access - ineffective (?)
+
 }; // class Buffer
 
 // Hardware register commands
@@ -159,12 +161,27 @@ protected:
 
 }; // class HWRC
 
+//class CCommonTWAS; // forward decl.
+
 class ISR : public HWRC, public Buffer
 {
+private:
    void reply (bool accept=true) { if (accept && Buffer::notLast()) { HWRC::ack(); } else { HWRC::nack(); } }
 
    void send (void) { HWRC::send( Buffer::outgoing() ); }
 
+protected:
+
+   bool beginTransfer (const uint8_t devAddr)
+   {
+      if (lock())
+      {
+         clearAll();
+         setAddr(devAddr);
+         return(true);
+      }
+      return(false);
+   } // beginTransfer
 
 public:
    // ISR (void) { ; } compile error on this ???
@@ -221,52 +238,134 @@ public:
 
 }; // class ISR
 
-// Basic functionality...
-class RW1 : public ISR
+class TransferAS : public ISR
 {
 public:
-   //RW1 (void) { ; }
+   TransferAS (void) { ; }
 
-   int transfer (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m)
+public:
+   void begin (uint8_t dummyHWAddr=0x00) { ; } // compatibility hack
+
+   int transfer1AS (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m)
    {
-      if (lock())
+      if (beginTransfer(devAddr))
       {
-         clearAll();
-         setAddr(devAddr);
          addFrag(b, n, m);
          start();
          return(n);
       }
       return(0);
-    } // transfer
+    } // transfer1AS
 
-   int readFrom (const uint8_t devAddr, uint8_t b[], const uint8_t n)
-      { return transfer(devAddr,b,n,RD); }
-
-   int writeTo (uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer(devAddr,b,n,WR); }
-
-   int readFromRev (const uint8_t devAddr, uint8_t b[], const uint8_t n)
-      { return transfer(devAddr,b,n,REV|RD); }
-
-   int writeToRev (uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer(devAddr,b,n,REV|WR); }
-
-   // Test hack
-   int writeTo2RF (uint8_t devAddr, const uint8_t bRev[], const uint8_t nRev, const uint8_t bFwd[], const uint8_t nFwd)
+   // long winded but seemingly necessary until friendship issues resolved...
+   int transfer2AS
+   (
+      const uint8_t devAddr,
+      uint8_t b1[], const uint8_t n1, const FragMode m1,
+      uint8_t b2[], const uint8_t n2, const FragMode m2
+   )
    {
-      if (lock())
+      if (beginTransfer(devAddr))
       {
-         clearAll();
-         setAddr(devAddr);
-         addFrag(bRev, nRev, REV|WR);
-         addFrag(bFwd, nFwd, WR); // REP|
+         addFrag(b1, n1, m1);
+         addFrag(b2, n2, m2);
          start();
-         return(nRev+nFwd);
+         return(n1+n2);
       }
       return(0);
-   } // writeTo2RF
+    } // transfer2AS
 
-}; // class RW1
+}; // class TransferAS
+
+// Debug extension
+class Debug : public TransferAS
+{
+public:
+   uint8_t evQ[64];
+   uint8_t stQ[8];
+   int8_t iEQ, iSQ;
+
+   TWDebug (void) { clrEv(); }
+
+   void clrEv (void) { iEQ= 0; iSQ=0; }
+
+   int8_t event (const uint8_t flags)
+   {
+      const int8_t iE= ISR::event(flags);
+      if (iSQ < sizeof(stQ)) { stQ[iSQ++]= Buffer::state; }
+      if (iEQ < sizeof(evQ)) { evQ[iEQ++]= iE; }
+      return(iE);
+   } // event
+
+   void logEv (Stream& s, const uint8_t sf=0xFE) const
+   {
+      //s.print("dR="); s.println(dR);
+      s.print("SQ:");
+      for (int8_t i=0; i<iSQ; i++) { s.print(" 0x"); s.print(stQ[i] & sf, HEX); }
+      s.print("\nEQ:");
+      for (int8_t i=0; i<iEQ; i++) { s.print(' '); s.print(evQ[i]); }
+      s.print("\nCounts:");
+      for (int8_t i=0; i < TWM::NUM; i++) { s.print(' '); s.print(count[i]); }
+      s.println();
+   } // log
+
+}; // class Debug
 
 }; // namespace TWM
+
+// Interface instance and link to ISR
+
+TWM::Debug gTWM;
+
+SIGNAL(TWI_vect)
+{
+   gTWM.event( TWSR & TW_STATUS_MASK ); // Mask out prescaler bits to get TWI status
+} // SIGNAL(TWI_vect)
+
+// Interface name wrapper (for 'Duino / Wire compatibility)
+#ifndef I2C
+#define I2C gTWM
+#endif
+
+// Now basic functionality provided by accessability layer, 
+// stateless hence easily inheritable by device drivers 
+class CCommonTWAS
+{
+public:
+   CCommonTWAS (void) { ; }
+
+   int readFromAsync (const uint8_t devAddr, uint8_t b[], const int n)
+   {
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::RD); }
+      else return(0);
+   } // readFromAsync
+
+   int writeToAsync (const uint8_t devAddr, const uint8_t b[], const int n)
+   {
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::WR); }
+      else return(0);
+   } // writeToAsync
+
+   int readFromRevAsync (const uint8_t devAddr, uint8_t b[], const int n)
+   {
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::RD); }
+      else return(0);
+   } // readFromRevAsync
+
+   int writeToRevAsync (const uint8_t devAddr, const uint8_t b[], const int n)
+   {
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::WR); }
+      else return(0);
+   } // writeToRevAsync
+
+   // Test hack
+   int writeToRevThenFwdAsync (uint8_t devAddr, const uint8_t bRev[], const int nRev, const uint8_t bFwd[], const int nFwd)
+   {
+      if ((nRev > 0) && (nFwd > 0))
+      {
+         return I2C.transfer2AS(devAddr, bRev, nRev, TWM::REV|TWM::WR, bFwd, nFwd, TWM::WR);
+      }
+      else return(0);
+   } // writeToRevThenFwdAsync
+
+}; // class CCommonTWAS

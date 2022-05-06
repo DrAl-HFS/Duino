@@ -26,6 +26,8 @@ const uint8_t qP= 32;
 char gEv=0x00;
 uint8_t gFlags=0x01;
 
+TWUtil::CCommonTW gTWI;
+
 void setAddr (uint8_t b[], const uint16_t a, bool rev=true)
 {
   b[!rev]= a >> 8;
@@ -57,12 +59,12 @@ char test2 (uint8_t b[], uint8_t n)
   setAddr(b, 0);
   memcpy(b+2, "! consectetur adipiscing elit !", n); // 31ch(+nul)
   int r; //= gTWI.writeToSync(0x50,b,n);
-  r= gTWI.writeTo2RF(0x50,b,2,b,n);
+  r= gTWI.writeToRevThenFwdAsync(0x50,b,2,b,n);
   if (r > 0)
   {
      gTWI.sync(-1);
-     gTWI.logEv(DEBUG);
-     gTWI.clrEv();
+     I2C.logEv(DEBUG);
+     I2C.clrEv();
      c= 'W';
   }
   memset(b,0,n);
@@ -73,13 +75,13 @@ void setup (void)
 {
   pwrRst();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  gTWI.reset(TWUtil::CLK_400);
+  gTWI.set(TWUtil::CLK_400);
   interrupts();
   for (int8_t i=0; i<sizeof(gTWTB); i++) { gTWTB[i]= 0xA5; }
   //uint32_t f= gTWI.set(200000);
   //DEBUG.print("setClk() -> "); DEBUG.println(f);
 
-  gEv= test2(gTWTB,32);
+  //gEv= test2(gTWTB,32);
   //DEBUG.print("sizeof(fragTWTB)="); DEBUG.println(sizeof(fragTWTB));
 } // setup
 
@@ -90,10 +92,10 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
   uint8_t t[6];
 
   gEv= 0x0;
-  if (gTWI.writeToSync(0x50,b,2)) // set page address
+  if (gTWI.writeTo(0x50,b,2)) // set page address
   {
     for (int8_t i=0; i<sizeof(t); i++) { t[i]= 0xA5; }
-    if (gTWI.readFromSync(0x50,t,sizeof(t))) // retrieve leading Bytes
+    if (gTWI.readFrom(0x50,t,sizeof(t))) // retrieve leading Bytes
     {
       s.print("Hdr:"); dumpHexFmt(s, t, 6);
       s.println();
@@ -102,7 +104,7 @@ char fillTest (Stream& s, uint8_t b[], uint8_t endSwap=0)
       {
         b[2]= b[endSwap]; b[3]= b[endSwap^1]; // page begins with its own address, possibly swapped endian order
         if (gS[i][3] != b[7]) { memcpy(b+4, gS[i], qS); } // Fill with text as necessary
-        gTWI.writeToSync(0x50, b, 2+qP); // store 32bytes (prefixed with BE page address)
+        gTWI.writeTo(0x50, b, 2+qP); // store 32bytes (prefixed with BE page address)
         gEv= 'W';
       }
     }
@@ -120,7 +122,7 @@ void loop (void)
     gFlags|= 0x5;
     //if ((gIter > 4) && (gIter & 0x1)) { gFlags|= 0x2; }
   }
-  if ((gFlags & 0x2) && gTWI.sync())
+  if (gFlags & 0x2)
   {
     fillTest(DEBUG,gTWTB,1);
     gFlags&= ~0x2;
@@ -129,12 +131,12 @@ void loop (void)
   {
     int r[2]= {0};
     if (0x0 != gEv) { gTWI.sync(-1); }
-    r[0]= gTWI.writeToSync(0x50, gTWTB, 2);  // select page
+    r[0]= gTWI.writeTo(0x50, gTWTB, 2);  // select page
     if (r[0] > 0)
     {
       //memset(gTWTB+32, 0xA5, sizeof(gTWTB)-34);
       gTWTB[2]= gTWTB[31]= 0xA5;
-      r[1]= gTWI.readFromSync(0x50, gTWTB+2, qP); // retrieve data
+      r[1]= gTWI.readFrom(0x50, gTWTB+2, qP); // retrieve data
     }
     // else { memset(gTWTB+2, 0xA5, sizeof(gTWTB)-2); } // paranoid
     //dump<uint8_t>(DEBUG, ub, 2, "ub", "\n");
@@ -150,7 +152,7 @@ void loop (void)
   {
     setAddr(gTWTB, (++gIter & 0x7F) << 5); // 4kB -> 128pages of 32Bytes
     DEBUG.print('I'); DEBUG.print(gIter); DEBUG.println(": ");
-    gTWI.logEv(DEBUG); gTWI.clrEv();
+    I2C.logEv(DEBUG); I2C.clrEv();
     gFlags&= ~0x4;
   }
 } // loop
