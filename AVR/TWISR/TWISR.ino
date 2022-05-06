@@ -15,6 +15,14 @@
 #include "Common/AVR/DA_Config.hpp"
 //#include "Common/Timing.hpp"
 
+
+#ifndef TWI_BUFFER_LENGTH
+#define TWI_BUFFER_LENGTH 48
+#endif
+#ifdef TWI_BUFFER_LENGTH
+static uint8_t gTWTB[TWI_BUFFER_LENGTH]; // test buffer
+#endif
+
 uint16_t gIter=0;
 const char *gS[]=
 {

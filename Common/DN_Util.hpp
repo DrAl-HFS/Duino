@@ -264,7 +264,7 @@ bool beginSync (SERIAL_TYPE& s, const uint32_t bd=DEBUG_BAUD, const SerialDelayP
    return(false);
 } // beginSync
 
-#endif // DA_UTIL
+#endif // ifndef DA_UTIL_HPP
 // namespace ???
 
 typedef uint32_t TickCount;

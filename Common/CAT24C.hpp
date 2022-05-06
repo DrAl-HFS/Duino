@@ -7,10 +7,9 @@
 #define CAT24C_HPP
 
 #include "DN_Util.hpp"
-
-#if 0 // def ARDUINO_ARCH_AVR
+#ifdef ARDUINO_ARCH_AVR1
 #include "AVR/DA_TWUtil.hpp"
-#define I2C_BASE_CLASS CCommonTW
+#define I2C_BASE_CLASS TWUtil::CCommonTW
 #else
 #include "CCommonI2C.hpp"
 #define I2C_BASE_CLASS CCommonI2CX1
@@ -25,7 +24,7 @@ namespace AT24CHW
 extern "C" { typedef union {uint16_t u16; uint8_t u8[2]; } UU16; }
 #endif
 
-class CAT24C : public I2C_BASE_CLASS // CCommonI2CX1
+class CAT24C : public I2C_BASE_CLASS
 {
 protected:
    uint8_t devAddr (void) { return(AT24CHW::BASE_ADDR); }

@@ -7,11 +7,17 @@
 #define CDS1307_HPP
 
 #include "DN_Util.hpp"
+#ifdef ARDUINO_ARCH_AVR1
+#include "AVR/DA_TWUtil.hpp"
+#define I2C_BASE_CLASS TWUtil::CCommonTW
+#else
 #include "CCommonI2C.hpp"
+#define I2C_BASE_CLASS CCommonI2CX1
+#endif
 
 namespace DS1307HW
 {
-  enum Device : uint8_t { ADDR=0x68 };  // NB: 7msb -> 0xD0|RNW on wire
+  enum Device : uint8_t { ADDR=0x68 };  // NB: 7msb -> 0xD0|RNW on wire1
   enum Reg : uint8_t {
     T_SS, T_MM, T_HH,   DOW,
     D_DD, D_MM, D_YY,   SQ_CTRL };
@@ -22,7 +28,7 @@ namespace DS1307HW
   //_B6=0x80
 }; // namespace DS1307HW
 
-class CDS1307 : protected CCommonI2CX1
+class CDS1307 : protected I2C_BASE_CLASS
 {
 protected:
    // CAVEATS:

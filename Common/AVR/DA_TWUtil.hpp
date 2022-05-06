@@ -4,6 +4,9 @@
 // Licence: GPL V3A
 // (c) Project Contributors Mar - May 2022
 
+#ifndef DA_TWUTIL_HPP
+#define DA_TWUTIL_HPP
+
 //#include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
 #include <avr/sleep.h>
@@ -115,11 +118,11 @@ public:
 
 class CCommonTW : public Sync, public CCommonTWAS
 {
-public:
-   using Sync::sync;
-
+//public:
+//   using Sync::sync;
 protected:
-
+   uint8_t ub[1];
+   
    int transfer1 (const uint8_t devAddr, uint8_t b[], const uint8_t n, const TWM::FragMode m, uint8_t t=3)
    {
       int r;
@@ -131,18 +134,54 @@ protected:
       return(r);
    } // transfer1
 
+   int transfer2 
+   (
+      const uint8_t devAddr,
+      uint8_t b1[], const uint8_t n1, const TWM::FragMode m1,
+      uint8_t b2[], const uint8_t n2, const TWM::FragMode m2,
+      uint8_t t=3
+   )
+   {
+      int r;
+      do
+      {
+         r= I2C.transfer2AS(devAddr,b1,n1,m1,b2,n2,m2);
+         sync(-1);
+      } while ((r <= 0) && (t-- > 0));
+      return(r);
+   } // transfer1
+
 public:
    int readFrom (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::RD,3); }
+      { return transfer1(devAddr,b,n,TWM::RD); }
 
    int writeTo (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::WR,3); }
+      { return transfer1(devAddr,b,n,TWM::WR); }
+      
+   int writeTo (const uint8_t devAddr, const uint8_t b)
+   {
+      if (I2C.sync())
+      {
+         ub[0]= b;
+         return writeTo(devAddr,ub,1);
+      }
+      else { return(0); }
+   } // writeTo
 
    int readFromRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::REV|TWM::RD,3); }
+      { return transfer1(devAddr,b,n,TWM::REV|TWM::RD); }
 
    int writeToRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::REV|TWM::WR,3); }
+      { return transfer1(devAddr,b,n,TWM::REV|TWM::WR); }
+
+   int writeToRevThenFwd (uint8_t devAddr, const uint8_t bRev[], const int nRev, const uint8_t bFwd[], const int nFwd)
+   {
+      if ((nRev > 0) && (nFwd > 0))
+      {
+         return transfer2(devAddr, bRev, nRev, TWM::REV|TWM::WR, bFwd, nFwd, TWM::WR);
+      }
+      else return(0);
+   } // writeToRevThenFwd
 
 }; // class CCommonTW
 
@@ -200,4 +239,6 @@ class Debug2
 #endif
 
 }; // namespace TWUtil
+
+#endif // DA_TWUTIL_HPP
 

@@ -8,14 +8,10 @@
 // Licence: GPL V3A
 // (c) Project Contributors Apr-May 2022
 
-#include <util/twi.h>
+#ifndef DA_TWMISR_HPP
+#define DA_TWMISR_HPP
 
-#ifndef TWI_BUFFER_LENGTH
-#define TWI_BUFFER_LENGTH 48
-#endif
-#ifdef TWI_BUFFER_LENGTH
-static uint8_t gTWTB[TWI_BUFFER_LENGTH]; // test buffer
-#endif
+#include <util/twi.h>
 
 namespace TWM { // Two Wire Master
 
@@ -334,38 +330,40 @@ class CCommonTWAS
 public:
    CCommonTWAS (void) { ; }
 
-   int readFromAsync (const uint8_t devAddr, uint8_t b[], const int n)
+   int readFromAS (const uint8_t devAddr, uint8_t b[], const int n)
    {
       if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::RD); }
       else return(0);
-   } // readFromAsync
+   } // readFromAS
 
-   int writeToAsync (const uint8_t devAddr, const uint8_t b[], const int n)
+   int writeToAS (const uint8_t devAddr, const uint8_t b[], const int n)
    {
       if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::WR); }
       else return(0);
-   } // writeToAsync
+   } // writeToAS
 
-   int readFromRevAsync (const uint8_t devAddr, uint8_t b[], const int n)
+   int readFromRevAS (const uint8_t devAddr, uint8_t b[], const int n)
    {
       if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::RD); }
       else return(0);
-   } // readFromRevAsync
+   } // readFromRevAS
 
-   int writeToRevAsync (const uint8_t devAddr, const uint8_t b[], const int n)
+   int writeToRevAS (const uint8_t devAddr, const uint8_t b[], const int n)
    {
       if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::WR); }
       else return(0);
-   } // writeToRevAsync
+   } // writeToRevAS
 
    // Test hack
-   int writeToRevThenFwdAsync (uint8_t devAddr, const uint8_t bRev[], const int nRev, const uint8_t bFwd[], const int nFwd)
+   int writeToRevThenFwdAS (uint8_t devAddr, const uint8_t bRev[], const int nRev, const uint8_t bFwd[], const int nFwd)
    {
       if ((nRev > 0) && (nFwd > 0))
       {
          return I2C.transfer2AS(devAddr, bRev, nRev, TWM::REV|TWM::WR, bFwd, nFwd, TWM::WR);
       }
       else return(0);
-   } // writeToRevThenFwdAsync
+   } // writeToRevThenFwdAS
 
 }; // class CCommonTWAS
+
+#endif // DA_TWMISR_HPP
