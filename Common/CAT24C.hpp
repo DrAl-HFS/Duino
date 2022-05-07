@@ -7,7 +7,7 @@
 #define CAT24C_HPP
 
 #include "DN_Util.hpp"
-#ifdef ARDUINO_ARCH_AVR1
+#ifdef ARDUINO_ARCH_AVR
 #include "AVR/DA_TWUtil.hpp"
 #define I2C_BASE_CLASS TWUtil::CCommonTW
 #else
@@ -29,17 +29,18 @@ class CAT24C : public I2C_BASE_CLASS
 protected:
    uint8_t devAddr (void) { return(AT24CHW::BASE_ADDR); }
 
-   void setAddr (const UU16 a) { writeToRev(devAddr(), a.u8, 2); }
+   int setAddr (const UU16 a) { return writeToRev(devAddr(), a.u8, 2); }
 
-   void setPageAddr (uint8_t page) { UU16 a; a.u16= page<<5; setAddr(a); }
+   int setPageAddr (uint8_t page) { UU16 a; a.u16= page<<5; return setAddr(a); }
 
 public:
    CAT24C (void) { ; }
 
    int readPage (const uint8_t page, uint8_t b[], int n)
    {
-      setPageAddr(page);
-      return readFrom(devAddr(), b, n);
+      int r= setPageAddr(page);
+      if (r > 0) { r= readFrom(devAddr(), b, n); }
+      return(r);
    } // readPage
 
    int writeAddr (const UU16 a, const uint8_t b[], int n)

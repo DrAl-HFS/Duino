@@ -7,7 +7,7 @@
 #define CDS1307_HPP
 
 #include "DN_Util.hpp"
-#ifdef ARDUINO_ARCH_AVR1
+#ifdef ARDUINO_ARCH_AVR
 #include "AVR/DA_TWUtil.hpp"
 #define I2C_BASE_CLASS TWUtil::CCommonTW
 #else
@@ -17,7 +17,7 @@
 
 namespace DS1307HW
 {
-  enum Device : uint8_t { ADDR=0x68 };  // NB: 7msb -> 0xD0|RNW on wire1
+  enum Device : uint8_t { ADDR=0x68 };  // NB: 7msb -> 0xD0|RNW on wire
   enum Reg : uint8_t {
     T_SS, T_MM, T_HH,   DOW,
     D_DD, D_MM, D_YY,   SQ_CTRL };
@@ -46,18 +46,21 @@ protected:
    } // setDateTimeBCD
 
 public:
+   //using Clk::set;
    //CDS1307 (void) { ; }
 
    int readTimeBCD (uint8_t hms[], int n=3)
    {
-      writeTo(DS1307HW::ADDR, DS1307HW::T_SS);
-      return readFromRev(DS1307HW::ADDR, hms, n);
+      int r= writeTo(DS1307HW::ADDR, DS1307HW::T_SS);
+      if (r > 0) { r= readFromRev(DS1307HW::ADDR, hms, n); }
+      return(r);
    } // readTimeBCD
 
    int readDateBCD (uint8_t ymdw[], int n=3)
    {
-      writeTo(DS1307HW::ADDR, DS1307HW::D_DD-(4 == n));
-      return readFromRev(DS1307HW::ADDR, ymdw, n);
+      int r= writeTo(DS1307HW::ADDR, DS1307HW::D_DD-(4 == n));
+      if (r > 0) { r= readFromRev(DS1307HW::ADDR, ymdw, n); }
+      return(r);
    } // readDateBCD
 
 }; // CDS1307
