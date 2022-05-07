@@ -15,6 +15,15 @@
 
 namespace TWM { // Two Wire Master
 
+enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for prescaler=1 and CORE_CLK=16MHz)
+{
+   CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
+   CLK_200=0x20, CLK_250=0x18,
+   CLK_300=0x12, CLK_350=0x0E,
+   CLK_400=0x0C,   // Higher rates presumed unreliable.
+   CLK_INVALID=0x00 // -> 1MHz but not usable
+};
+
 enum StateFlag : uint8_t {
    LOCK=0x01, START=0x02,
    ADDR=0x04, AACK=0x08,
@@ -155,6 +164,19 @@ protected:
 
    uint8_t recv (void) { return(TWDR); }
 
+   void setClkT (ClkTok t)
+   {
+      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
+      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
+      TWBR= t;
+   } // set
+   
+   ClkTok getClkT (void) { return(TWSR); }
+
+   void setClkPS (uint8_t s) { TWSR= s; } //& 0x3);
+
+   uint8_t getClkPS (void) { return(TWSR & 0x3); }
+   
 }; // class HWRC
 
 //class CCommonTWAS; // forward decl.
@@ -180,7 +202,7 @@ protected:
    } // beginTransfer
 
 public:
-   // ISR (void) { ; } compile error on this ???
+   //ISR (void) { HWRC::setClk(CLK_100); }
 
 #define SZ(i,v)  if (0 == i) { i= v; }
 
@@ -237,10 +259,15 @@ public:
 class TransferAS : public ISR
 {
 public:
-   TransferAS (void) { ; }
+   //TransferAS (ClkTok t=CLK_100) { setClkT(t); }
 
-public:
-   void begin (uint8_t dummyHWAddr=0x00) { ; } // compatibility hack
+   using HWRC::setClkT;
+   using HWRC::getClkT;
+   using HWRC::setClkPS;
+   using HWRC::getClkPS;
+
+   // Wire compatibility hack
+   void begin (uint8_t dummyHWAddr=0x00) { setClkT(CLK_100); }
 
    int transfer1AS (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m)
    {

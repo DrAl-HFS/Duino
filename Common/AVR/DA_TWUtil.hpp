@@ -2,12 +2,11 @@
 // code, C++ classes.
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
-// (c) Project Contributors Mar - May 2022
+// (c) Project Contributors Mar-May 2022
 
 #ifndef DA_TWUTIL_HPP
 #define DA_TWUTIL_HPP
 
-//#include "DA_TWISR.hpp"
 #include "DA_TWMISR.hpp"
 #include <avr/sleep.h>
 
@@ -18,15 +17,6 @@
 
 namespace TWUtil {
 
-enum ClkTok : uint8_t   // Tokens -> magic numbers for wire clock rate (for prescaler=1 and CORE_CLK=16MHz)
-{
-   CLK_100=0x48, CLK_150=0x2D, // Some approximate ~ +300Hz
-   CLK_200=0x20, CLK_250=0x18,
-   CLK_300=0x12, CLK_350=0x0E,
-   CLK_400=0x0C,   // Higher rates presumed unreliable.
-   CLK_INVALID=0x00 // -> 1MHz but not usable
-};
-
 class Clk
 {
 protected:
@@ -34,11 +24,11 @@ protected:
    {
       switch(r)
       {
-         case CLK_400 : return(23); // 22.5us
-         case CLK_100 : return(90);
+         case TWM::CLK_400 : return(23); // 22.5us
+         case TWM::CLK_100 : return(90);
          default :
          {
-            uint8_t n= r / CLK_400;
+            uint8_t n= r / TWM::CLK_400;
             return( (22 * n) + (n / 2) + (n & 0x1) ); // = (22.5 * n) + 0.5
          }
       }
@@ -46,11 +36,12 @@ protected:
 
    uint8_t getBT (void)
    {
-      uint8_t t0= getBT0(TWBR);
-      switch (TWSR & 0x3)
+      uint8_t t0= getBT0(I2C.getClkT());
+      switch (I2C.getClkPS())
       {
          case 0x00 : return(t0);
          case 0x01 : return(4*t0);
+         // others hopelessly slow...
          //case 0x02 : return(16*t0); // >= 360us per byte
          //case 0x03 : return(64*t0); // >= 1.44ms per byte
       }
@@ -59,25 +50,19 @@ protected:
 
 public:
 
-   void set (ClkTok c)
-   {
-      //TWSR&= ~0x3; // unnecessary, status bits not writable anyway
-      TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
-      TWBR= c;
-   } // set
-
    uint32_t set (uint32_t fHz)
    {
       uint32_t sc= 0;
       if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
       else if (fHz >= 475)
       {
-         TWSR= 0x03;
+         I2C.setClkPS(0x3); 
          sc= CORE_CLK / 64;
       }
       if (sc > 0)
-      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX);
-         TWBR= ((sc / fHz) - 16) / 2;
+      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX); TWBR=
+         uint8_t t= ((sc / fHz) - 16) / 2;
+         I2C.setClkT(t); 
       }
       return(sc / ((TWBR * 2) + 16));
    } // set
@@ -152,6 +137,8 @@ protected:
    } // transfer1
 
 public:
+   using Clk::set;
+   
    int readFrom (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
       { return transfer1(devAddr,b,n,TWM::RD); }
 
