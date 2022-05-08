@@ -73,7 +73,7 @@ void buffTest (void)
 } // buffTest
 
 uint16_t gIter=0;
-uint8_t mode=0x1; // power cycle
+uint8_t mode=0;//0x1; // power cycle
 int8_t err=3;
 
 void loop (void)

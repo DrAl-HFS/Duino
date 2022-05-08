@@ -53,7 +53,7 @@ public:
 
    int readTimeBCD (uint8_t hms[], int n=3)
    {
-#if 0
+#if 1
       uint8_t w[1]={ DS1307HW::T_SS }; // Garbage...
       int r= writeToThenReadFromRev(devAddr(), w, sizeof(w), hms, n);
       if (r >= n) { return(n); } else { return(0); }

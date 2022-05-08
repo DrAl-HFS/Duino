@@ -88,7 +88,8 @@ protected:
    {
       if (nextFragValid(iF))
       {
-         return(1 + (frag[++iF].m & RESTART));
+         iB= 0;
+         return(1 + (0 != (frag[++iF].m & RESTART)));
       }
       //else
       return(0);

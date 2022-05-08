@@ -40,7 +40,7 @@ public:
 
    int readPage (const uint8_t page, uint8_t b[], int n)
    {
-#if 0
+#if 1
       UU16 a= { pageAddr(page) };
       int r= writeToRevThenReadFromFwd(devAddr(), a.u8, sizeof(a), b, n);
       if (r >= n) { return(n); } else { return(0); }
