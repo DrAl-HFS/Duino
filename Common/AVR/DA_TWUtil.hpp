@@ -56,13 +56,13 @@ public:
       if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
       else if (fHz >= 475)
       {
-         I2C.setClkPS(0x3); 
+         I2C.setClkPS(0x3);
          sc= CORE_CLK / 64;
       }
       if (sc > 0)
       {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX); TWBR=
          uint8_t t= ((sc / fHz) - 16) / 2;
-         I2C.setClkT(t); 
+         I2C.setClkT(t);
       }
       return(sc / ((TWBR * 2) + 16));
    } // set
@@ -107,7 +107,7 @@ class CCommonTW : public Sync, public CCommonTWAS
 //   using Sync::sync;
 protected:
    uint8_t ub[1];
-   
+
    int transfer1 (const uint8_t devAddr, uint8_t b[], const uint8_t n, const TWM::FragMode m, uint8_t t=3)
    {
       int r;
@@ -119,7 +119,7 @@ protected:
       return(r);
    } // transfer1
 
-   int transfer2 
+   int transfer2
    (
       const uint8_t devAddr,
       uint8_t b1[], const uint8_t n1, const TWM::FragMode m1,
@@ -138,13 +138,13 @@ protected:
 
 public:
    using Clk::set;
-   
+
    int readFrom (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::RD); }
+      { return transfer1(devAddr,b,n,TWM::READ); }
 
    int writeTo (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::WR); }
-      
+      { return transfer1(devAddr,b,n,TWM::WRITE); }
+
    int writeTo (const uint8_t devAddr, const uint8_t b)
    {
       if (I2C.sync())
@@ -156,19 +156,37 @@ public:
    } // writeTo
 
    int readFromRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::REV|TWM::RD); }
+      { return transfer1(devAddr,b,n,TWM::REV|TWM::READ); }
 
    int writeToRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
-      { return transfer1(devAddr,b,n,TWM::REV|TWM::WR); }
+      { return transfer1(devAddr,b,n,TWM::REV|TWM::WRITE); }
 
    int writeToRevThenFwd (uint8_t devAddr, const uint8_t bRev[], const int nRev, const uint8_t bFwd[], const int nFwd)
    {
       if ((nRev > 0) && (nFwd > 0))
       {
-         return transfer2(devAddr, bRev, nRev, TWM::REV|TWM::WR, bFwd, nFwd, TWM::WR);
+         return transfer2(devAddr, bRev, nRev, TWM::REV|TWM::WRITE, bFwd, nFwd, TWM::WRITE);
       }
       else return(0);
    } // writeToRevThenFwd
+
+   int writeToThenReadFromRev (uint8_t devAddr, const uint8_t bWF[], const int nWF, const uint8_t bRR[], const int nRR)
+   {
+      if ((nWF > 0) && (nRR > 0))
+      {//TWM::RESTART|
+         return transfer2(devAddr, bWF, nWF, TWM::WRITE, bRR, nRR, TWM::REV|TWM::READ);
+      }
+      else return(0);
+   } // writeToThenReadFrom
+
+   int writeToRevThenReadFromFwd (uint8_t devAddr, const uint8_t bWR[], const int nWR, const uint8_t bRF[], const int nRF)
+   {
+      if ((nWR > 0) && (nRF > 0))
+      {//TWM::RESTART|
+         return transfer2(devAddr, bWR, nWR, TWM::REV|TWM::WRITE, bRF, nRF, TWM::READ);
+      }
+      else return(0);
+   } // writeToThenReadFrom
 
 }; // class CCommonTW
 

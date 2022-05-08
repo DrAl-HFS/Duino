@@ -32,11 +32,12 @@ enum StateFlag : uint8_t {
 enum CountId : uint8_t { NOUT, NIN, NVER, NUM };
 
 enum FragMode : uint8_t {
-   RD=0x01, VA=0x03, VF=0x05, // read, verify all, verify until fail (early terminate) mask (all contain TW_READ flag)
-   WR=0x02, // write (compatible with TW_WRITE flag)
+   READ=0x01, VERA=0x03, VERF=0x05, // read, verify all, verify until fail (early terminate) mask (all contain TW_READ flag)
+   WRITE=0x02, // write (compatible with TW_WRITEITE flag)
    RWVM=0x07, // read/write/verify mask
    REV= 0x08, // reverse byte order
-   REP= 0x10  // repeated single byte
+   REPB= 0x10,  // repeated single byte
+   RESTART= 0x80
 };
 
 struct Frag { uint8_t *pB, nB; FragMode m; };
@@ -83,8 +84,17 @@ protected:
    } // addFrag
 
    bool nextFragValid (uint8_t i) const { return(((i+1) < nF) && (frag[i+1].nB > 0)); }
+   uint8_t nextFrag (void)
+   {
+      if (nextFragValid(iF))
+      {
+         return(1 + (frag[++iF].m & RESTART));
+      }
+      //else
+      return(0);
+   }
 
-   bool continuation (uint8_t i) const { return( nextFragValid(i) && ((RD & frag[i].m) == (RD & frag[i+1].m)) ); }
+   bool continuation (uint8_t i) const { return( nextFragValid(i) && ((READ & frag[i].m) == (READ & frag[i+1].m)) ); }
 
    uint8_t& next (void)
    {
@@ -92,7 +102,7 @@ protected:
       if (iB < frag[iF].nB) { iB++; } // next byte
       else if (continuation(iF)) { i= 0; iB= 1; iF++; } // next frag
       else { i= frag[iF].nB - 1; } // else error - repeat last (should never happen...)
-      if (frag[iF].m & REP) { i= 0; } // single byte repeated
+      if (frag[iF].m & REPB) { i= 0; } // single byte repeated
       else if (frag[iF].m & REV) { i= frag[iF].nB - (1+i); } // reverse order -> invert index
       return(frag[iF].pB[i]);
    } // next
@@ -108,10 +118,10 @@ protected:
       count[NIN]++;
       switch(getMode())
       {
-         case FragMode::RD : next()= b; return(true);
-         case FragMode::VA : count[NVER]+= (b == next()); return(true);
-         case FragMode::VF : if (b == next()) { count[NVER]++; return(true); } break;
-         //case FragMode::WR : return(false);
+         case FragMode::READ : next()= b; return(true);
+         case FragMode::VERA : count[NVER]+= (b == next()); return(true);
+         case FragMode::VERF : if (b == next()) { count[NVER]++; return(true); } break;
+         //case FragMode::WRITE : return(false);
       }
       return(false);
    } // incoming
@@ -119,7 +129,7 @@ protected:
 public:
    Buffer (void) : state{0} { ; }
 
-   uint8_t getHWAddr (void) const { return(hwAddr| getMode(FragMode::RD)); }
+   uint8_t getHWAddr (void) const { return(hwAddr| getMode(FragMode::READ)); }
 
    bool sync (void) const { return(LOCK != (LOCK & state)); }
 
@@ -154,6 +164,8 @@ protected:
 
    void start (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTA); }
 
+   void restart (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWSTO) | _BV(TWSTA); }
+
    void stop (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); }
 
    void ack (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWEA); }
@@ -170,13 +182,13 @@ protected:
       TWSR= 0x00; // clear PS1&0 so clock prescale= 1 (high speed)
       TWBR= t;
    } // set
-   
+
    ClkTok getClkT (void) { return(TWSR); }
 
    void setClkPS (uint8_t s) { TWSR= s; } //& 0x3);
 
    uint8_t getClkPS (void) { return(TWSR & 0x3); }
-   
+
 }; // class HWRC
 
 //class CCommonTWAS; // forward decl.
@@ -222,10 +234,14 @@ public:
                send();
                HWRC::nack();
             }
-            else // TODO : if non-continuation frag, issue restart
+            else switch(nextFrag())
             {
-               HWRC::stop();
-               Buffer::unlock();
+               case 2 : HWRC::restart(); break;
+               case 1 : HWRC::start(); break; // repeated start or restart ?
+               default :
+                  HWRC::stop();
+                  Buffer::unlock();
+                  break;
             }
             break;
 
@@ -359,25 +375,25 @@ public:
 
    int readFromAS (const uint8_t devAddr, uint8_t b[], const int n)
    {
-      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::RD); }
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::READ); }
       else return(0);
    } // readFromAS
 
    int writeToAS (const uint8_t devAddr, const uint8_t b[], const int n)
    {
-      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::WR); }
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::WRITE); }
       else return(0);
    } // writeToAS
 
    int readFromRevAS (const uint8_t devAddr, uint8_t b[], const int n)
    {
-      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::RD); }
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::READ); }
       else return(0);
    } // readFromRevAS
 
    int writeToRevAS (const uint8_t devAddr, const uint8_t b[], const int n)
    {
-      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::WR); }
+      if (n > 0) { return I2C.transfer1AS(devAddr, b, n, TWM::REV|TWM::WRITE); }
       else return(0);
    } // writeToRevAS
 
@@ -386,7 +402,7 @@ public:
    {
       if ((nRev > 0) && (nFwd > 0))
       {
-         return I2C.transfer2AS(devAddr, bRev, nRev, TWM::REV|TWM::WR, bFwd, nFwd, TWM::WR);
+         return I2C.transfer2AS(devAddr, bRev, nRev, TWM::REV|TWM::WRITE, bFwd, nFwd, TWM::WRITE);
       }
       else return(0);
    } // writeToRevThenFwdAS
