@@ -83,6 +83,7 @@ void loop (void)
     if (digitalRead(PIN_PWR) < HIGH) { digitalWrite(PIN_PWR, HIGH); }
     int vB= analogRead(A7);
     int r= gRTC.printTime(DEBUG,' ');
+    I2C.logEv(DEBUG);
     DEBUG.print(": vB="); DEBUG.println(vB);
     if (r < 0)
     {
@@ -96,5 +97,6 @@ void loop (void)
     gIter++;
     gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
     if (mode & 0x1) { digitalWrite(PIN_PWR, LOW); }
+    I2C.clrEv();
   }
 } // loop

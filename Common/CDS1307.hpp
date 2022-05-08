@@ -31,6 +31,8 @@ namespace DS1307HW
 class CDS1307 : protected I2C_BASE_CLASS
 {
 protected:
+   uint8_t devAddr (void) { return(DS1307HW::ADDR); }
+
    // CAVEATS:
    // 1) due to order reversal, <n> measures from rightmost
    // arg ie. truncation is conceptually from left so that
@@ -42,7 +44,7 @@ protected:
       if ((0x7 & n) != n) { return(0); }
       // Functionally elegant but programmatically obscure...
       ymdwhmsA[n]= DS1307HW::SQ_CTRL-n; // starting register address
-      return writeToRev(DS1307HW::ADDR, ymdwhmsA, n+1)-1;
+      return writeToRev(devAddr(), ymdwhmsA, n+1)-1;
    } // setDateTimeBCD
 
 public:
@@ -51,15 +53,21 @@ public:
 
    int readTimeBCD (uint8_t hms[], int n=3)
    {
-      int r= writeTo(DS1307HW::ADDR, DS1307HW::T_SS);
-      if (r > 0) { r= readFromRev(DS1307HW::ADDR, hms, n); }
+#if 0
+      uint8_t w[1]={ DS1307HW::T_SS }; // Garbage...
+      int r= writeToThenReadFromRev(devAddr(), w, sizeof(w), hms, n);
+      if (r >= n) { return(n); } else { return(0); }
+#else
+      int r= writeTo(devAddr(), DS1307HW::T_SS);
+      if (r > 0) { r= readFromRev(devAddr(), hms, n); }
       return(r);
+#endif
    } // readTimeBCD
 
    int readDateBCD (uint8_t ymdw[], int n=3)
    {
-      int r= writeTo(DS1307HW::ADDR, DS1307HW::D_DD-(4 == n));
-      if (r > 0) { r= readFromRev(DS1307HW::ADDR, ymdw, n); }
+      int r= writeTo(devAddr(), DS1307HW::D_DD-(4 == n));
+      if (r > 0) { r= readFromRev(devAddr(), ymdw, n); }
       return(r);
    } // readDateBCD
 
@@ -80,7 +88,7 @@ public:
    void setSqCtrl (DS1307HW::SqCtrl mode)
    {
       const uint8_t am[2]={DS1307HW::SQ_CTRL, mode}; // This works
-      writeTo(DS1307HW::ADDR, am, 2);
+      writeTo(devAddr(), am, 2);
    } // setSqCtrl
 
    int adjustSec (const int dSec=1)
@@ -96,7 +104,7 @@ public:
             if (r != s)
             {
                bcd4FromU8(bcd, r);
-               //writeTo(DS1307HW::ADDR, bcd, 2);
+               //writeTo(devAddr(), bcd, 2);
                setDateTimeBCD(bcd,1);
             }
          }
@@ -230,14 +238,14 @@ public:
       uint8_t b[32];
       uint16_t tm[2];
       uint8_t q=sizeof(b), r, i=0, dt=0;
-      writeTo(DS1307HW::ADDR,0x00); // reset internal r/w ptr
+      writeTo(devAddr(),0x00); // reset internal r/w ptr
       s.println("CDS1307A::dump() - ");
       do
       {
          tm[0]= millis();
          r= 1+DS1307HW::LAST - i;
          if (r < q) { q= r; }
-         r= readFrom(DS1307HW::ADDR, b, q);
+         r= readFrom(devAddr(), b, q);
          tm[1]= millis(); //  s.print('/'); s.print(DS1307HW::USR_LAST);
          //s.print("q,r,i= "); s.print(q); s.print(','); s.print(r); s.print(','); s.print(i); s.print(": ");
          dumpHexTab(s, b, r);

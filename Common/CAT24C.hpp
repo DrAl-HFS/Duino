@@ -31,16 +31,24 @@ protected:
 
    int setAddr (const UU16 a) { return writeToRev(devAddr(), a.u8, 2); }
 
-   int setPageAddr (uint8_t page) { UU16 a; a.u16= page<<5; return setAddr(a); }
+   uint16_t pageAddr (uint8_t pageNum) { return(pageNum<<5); }
+
+   int setPageAddr (uint8_t page) { UU16 a; a.u16= pageAddr(page); return setAddr(a); }
 
 public:
    CAT24C (void) { ; }
 
    int readPage (const uint8_t page, uint8_t b[], int n)
    {
+#if 0
+      UU16 a= { pageAddr(page) };
+      int r= writeToRevThenReadFromFwd(devAddr(), a.u8, sizeof(a), b, n);
+      if (r >= n) { return(n); } else { return(0); }
+#else
       int r= setPageAddr(page);
       if (r > 0) { r= readFrom(devAddr(), b, n); }
       return(r);
+#endif
    } // readPage
 
    int writeAddr (const UU16 a, const uint8_t b[], int n)
@@ -52,7 +60,7 @@ public:
 
    int writePage (const uint8_t page, const uint8_t b[], int n)
    {
-      UU16 a={page<<5};
+      UU16 a= { pageAddr(page) };
       return writeAddr(a,b,n);
    } // readPage
 
