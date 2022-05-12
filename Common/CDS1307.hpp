@@ -1,7 +1,7 @@
 // Duino/Common/CDS1307.hpp - class wrapper for Dallas basic RTC with battery backed storage
 // https://github.com/DrAl-HFS/Duino.git ?
 // Licence: GPL V3A
-// (c) Project Contributors Mar 2022
+// (c) Project Contributors Mar-May 2022
 
 #ifndef CDS1307_HPP
 #define CDS1307_HPP
@@ -21,10 +21,10 @@ namespace DS1307HW
   enum Reg : uint8_t {
     T_SS, T_MM, T_HH,   DOW,
     D_DD, D_MM, D_YY,   SQ_CTRL };
-  enum User : uint8_t { FIRST=8, LAST=63 };
+  enum User : uint8_t { FIRST=8, LAST=63, COUNT=56 };
   enum TDFlag : uint8_t { T_SS_STOP=0x80, T_HH_12H=0x40, T_HH_12H_PM=0x20 };
   //enum Mask : uint8_t { T_SS_MASK=0x7F,
-  enum SqCtrl : uint8_t { SQ_OUT=0x80, SQWE=0x20, RSM=0x3 };
+  enum SqCtrl : uint8_t { SQ_OUT=0x80, SQWE=0x10, RSM=0x3 };
   //_B6=0x80
 }; // namespace DS1307HW
 
@@ -48,13 +48,13 @@ protected:
    } // setDateTimeBCD
 
 public:
-   //using Clk::set;
+   using CClk::getSet;
    //CDS1307 (void) { ; }
 
    int readTimeBCD (uint8_t hms[], int n=3)
    {
 #if 1
-      uint8_t w[1]={ DS1307HW::T_SS }; // Garbage...
+      uint8_t w[1]={ DS1307HW::T_SS };
       int r= writeToThenReadFromRev(devAddr(), w, sizeof(w), hms, n);
       if (r >= n) { return(n); } else { return(0); }
 #else
@@ -82,14 +82,67 @@ int clamp (const int x, const int a, const int b)
 
 class CDS1307Util : public CDS1307
 {
+   int constrainA (uint8_t& a, int& n)
+   {
+      if ((a > DS1307HW::User::LAST) || (n < 0)) { return(-1); }
+      if (a+n > 64)
+      {
+         int m= 64 - a;
+         if (n > m) { n= m; }
+         return(1);
+      }
+      return(0);
+   } // constrainA
+
 public:
    //CDS1307Util (void) { ; }
 
-   void setSqCtrl (DS1307HW::SqCtrl mode)
+   int setSqCtrl (DS1307HW::SqCtrl mode)
    {
-      const uint8_t am[2]={DS1307HW::SQ_CTRL, mode}; // This works
-      writeTo(devAddr(), am, 2);
+#if 1
+      const uint8_t sqam[2]={DS1307HW::SQ_CTRL, mode};
+      return writeTo(devAddr(), sqam, 2);
+#else
+      uint8_t tsas[2]={DS1307HW::T_SS,};
+      int r= writeToThenReadFrom(devAddr(), tsas, 1, tsas+1, 1);
+      if (r >= 2)
+      {
+         uint8_t ts= 0x80;
+         if (0 == (tsas[1] & 0x80))
+         {
+            ts= tsas[1]; // save sec
+            tsas[1]= 0x80; // stop
+            r+= writeTo(devAddr(), tsas, 2);
+         }
+         const uint8_t sqam[2]={DS1307HW::SQ_CTRL, mode};
+         r+= writeTo(devAddr(), sqam, 2);
+         if (0 == (ts & 0x80))
+         {
+            tsas[1]= ts; // restore sec and resume
+            r+= writeTo(devAddr(), tsas, 2);
+         }
+      }
+      return(r);
+#endif
    } // setSqCtrl
+
+   int writeV (uint8_t a, uint8_t b[], int n)
+   {
+      if (constrainA(a,n) < 0) { return(-1); }
+      return writeTo(devAddr(),a,b,n);
+   } // writeV
+
+   int readV (uint8_t a, uint8_t b[], int n)
+   {
+      if (constrainA(a,n) < 0) { return(-1); }
+      return writeToThenReadFrom(devAddr(),&a,1,b,n);
+   } // readV
+
+   int clearV (uint8_t a, uint8_t b, int n)
+   {
+      if (constrainA(a,n) < 0) { return(-1); }
+      writeToFill(devAddr(),a,b,n);
+   } // clearV
 
    int adjustSec (const int dSec=1)
    {
