@@ -17,7 +17,7 @@
 
 namespace TWUtil {
 
-class Clk
+class CClk
 {
 protected:
    uint8_t getBT0 (uint8_t r)
@@ -50,24 +50,29 @@ protected:
 
 public:
 
-   uint32_t set (uint32_t fHz)
+   // General clock rate quert/change, inefficient for regular use on AVR
+   // due (sloooow) software division.
+   uint32_t getSet (uint32_t fHz=0)
    {
       uint32_t sc= 0;
-      if (fHz >= 100000) { TWSR= 0x00; sc= CORE_CLK; }
-      else if (fHz >= 475)
+      if (fHz > 0)
       {
-         I2C.setClkPS(0x3);
-         sc= CORE_CLK / 64;
-      }
-      if (sc > 0)
-      {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX); TWBR=
-         uint8_t t= ((sc / fHz) - 16) / 2;
-         I2C.setClkT(t);
-      }
-      return(sc / ((TWBR * 2) + 16));
-   } // set
+         if (fHz >= 100000) { I2C.setClkPS(0x00); sc= CORE_CLK; }
+         else if (fHz >= 475)
+         {
+            I2C.setClkPS(0x03);
+            sc= CORE_CLK / 64;
+         }
+         if (sc > 0)
+         {  //s.print(" -> "); s.print(TWBR,HEX); s.print(','); s.println(TWSR,HEX); TWBR=
+            uint8_t t= ((sc / fHz) - 16) / 2;
+            I2C.setClkT(t);
+         }
+      } else { sc= CORE_CLK / (1 << (4 * I2C.getClkPS())); }
+      return(sc / ((I2C.getClkT() * 2) + 16));
+   } // getSet
 
-}; // class Clk
+}; // class CClk
 
 /* using Clk::set;
    void reset (ClkTok c)
@@ -77,10 +82,12 @@ public:
    } // reset
 */
 
-class Sync : public Clk
+class CSync : public CClk
 {
 public:
    Sync (void) { set_sleep_mode(SLEEP_MODE_IDLE); sleep_enable(); }
+
+   //using CClk::getSet;
 
    bool sync (const uint8_t nB) const
    {
@@ -88,20 +95,20 @@ public:
       if (r || (nB <= 0)) { return(r); }
       //else
       const uint16_t u0= micros();
-      const uint16_t u1= u0 + nB * Clk::getBT(); // (uint16_t) ?
+      const uint16_t u1= u0 + nB * CClk::getBT(); // (uint16_t) ?
       uint16_t t;
       do
       {
          if (I2C.sync()) { return(true); }
-         //sleep_cpu();
+         sleep_cpu();
          t= micros();
       } while ((t < u1) || (t > u0)); // wrap safe (order important)
       return I2C.sync();
    } // sync
 
-}; // class Sync
+}; // class CSync
 
-class CCommonTW : public Sync, public CCommonTWAS
+class CCommonTW : public CSync, public CCommonTWAS
 {
 //public:
 //   using Sync::sync;
@@ -137,7 +144,7 @@ protected:
    } // transfer1
 
 public:
-   using Clk::set;
+   //using CClk::getSet;
 
    int readFrom (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
       { return transfer1(devAddr,b,n,TWM::READ); }
@@ -145,15 +152,23 @@ public:
    int writeTo (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
       { return transfer1(devAddr,b,n,TWM::WRITE); }
 
-   int writeTo (const uint8_t devAddr, const uint8_t b)
+   int writeTo (const uint8_t devAddr, const uint8_t a, const uint8_t *p=NULL, const uint8_t n=0)
    {
-      if (I2C.sync())
+      if ((NULL == p) || (0 == n)) { return transfer1(devAddr,&a,1,TWM::WRITE); }
+      //else
+      return transfer2(devAddr, &a,1,TWM::WRITE, p,n,TWM::WRITE);
+#if 0
+      if (I2C.sync()) // async ?
       {
          ub[0]= b;
          return writeTo(devAddr,ub,1);
       }
       else { return(0); }
+#endif
    } // writeTo
+
+   int writeToFill (const uint8_t devAddr, const uint8_t a, const uint8_t b, const uint8_t n)
+      { return transfer2(devAddr, &a,1, TWM::WRITE, &b,n, TWM::REPB|TWM::WRITE); }
 
    int readFromRev (const uint8_t devAddr, const uint8_t b[], const uint8_t n)
       { return transfer1(devAddr,b,n,TWM::REV|TWM::READ); }
@@ -170,10 +185,19 @@ public:
       else return(0);
    } // writeToRevThenFwd
 
+   int writeToThenReadFrom (uint8_t devAddr, const uint8_t bWF[], const int nWF, const uint8_t bRR[], const int nRR)
+   {
+      if ((nWF > 0) && (nRR > 0))
+      {
+         return transfer2(devAddr, bWF, nWF, TWM::WRITE, bRR, nRR, TWM::READ);
+      }
+      else return(0);
+   } // writeToThenReadFrom
+
    int writeToThenReadFromRev (uint8_t devAddr, const uint8_t bWF[], const int nWF, const uint8_t bRR[], const int nRR)
    {
       if ((nWF > 0) && (nRR > 0))
-      {//TWM::RESTART|
+      {
          return transfer2(devAddr, bWF, nWF, TWM::WRITE, bRR, nRR, TWM::REV|TWM::READ);
       }
       else return(0);

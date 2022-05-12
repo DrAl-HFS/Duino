@@ -173,9 +173,13 @@ protected:
 
    void nack (void) { TWCR= _BV(TWINT) | _BV(TWEN) | _BV(TWIE); }
 
+   void halt (void) { TWCR= 0; }
+
    void send (uint8_t b) { TWDR= b; }
 
    uint8_t recv (void) { return(TWDR); }
+
+public:
 
    void setClkT (ClkTok t)
    {
@@ -184,11 +188,11 @@ protected:
       TWBR= t;
    } // set
 
-   ClkTok getClkT (void) { return(TWSR); }
+   ClkTok getClkT (void) { return(TWBR); }
 
-   void setClkPS (uint8_t s) { TWSR= s; } //& 0x3);
+   void setClkPS (uint8_t s) { TWSR= s; } // & 0x3 (unnecessary)
 
-   uint8_t getClkPS (void) { return(TWSR & 0x3); }
+   uint8_t getClkPS (void) { return(TWSR & 0x3); } // 0,1,2,3 -> 1,4,16,64
 
 }; // class HWRC
 
@@ -216,6 +220,7 @@ protected:
 
 public:
    //ISR (void) { HWRC::setClk(CLK_100); }
+   //~ISR (void) { HWRC::halt(); }
 
 #define SZ(i,v)  if (0 == i) { i= v; }
 
@@ -285,6 +290,11 @@ public:
 
    // Wire compatibility hack
    void begin (uint8_t dummyHWAddr=0x00) { setClkT(CLK_100); }
+   void end (bool syn=true)
+   {
+      if (syn && !sync()) { return; }
+      else { HWRC::halt(); }
+   } // end
 
    int transfer1AS (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m)
    {
@@ -367,8 +377,8 @@ SIGNAL(TWI_vect)
 #define I2C gTWM
 #endif
 
-// Now basic functionality provided by accessability layer, 
-// stateless hence easily inheritable by device drivers 
+// Now basic functionality provided by accessability layer,
+// stateless hence easily inheritable by device drivers
 class CCommonTWAS
 {
 public:
