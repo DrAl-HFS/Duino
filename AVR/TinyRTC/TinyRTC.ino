@@ -6,7 +6,8 @@
 #define SERIAL_TYPE HardwareSerial  // UART
 #define DEBUG      Serial
 
-#define PIN_PWR 13 // Nano D13
+// NB: LED_BUILTIN=13
+#define PIN_PWR 12
 #define PIN_VB  A7
 #define PIN_TCK 2
 
@@ -19,12 +20,24 @@
 DNTimer gT(1000);
 CDS1307A gRTC;
 CAT24C gERM;
-volatile uint8_t gFlags=0x00; // 0x1 -> power cycle (battery test)
+volatile uint8_t gFlags=0x00; // 0x80 -> power cycle (battery test)
 volatile uint16_t gV[3];
 
-void tick (void) { gV[2]++; }
-//ISR (INT4_vect)
 //ISR (PCINT2_vect)
+//ISR (INT4_vect)
+void tick (void) { gV[2]++; gFlags|= 0x02; }
+
+void setupPCI (void)
+{
+  memset(gV,0,sizeof(gV));
+  pinMode(PIN_TCK,INPUT_PULLUP);
+#if 1
+  attachInterrupt(digitalPinToInterrupt(PIN_TCK), tick, CHANGE); // D2->I0 (virtual for Uno compatibility)
+#else // MEGA2560
+  EICRB= 0x1; // Any edge on Pin2 -> INT4
+  EIMSK|= 0x1<<4; // enable INT4
+#endif
+} // setupPCI
 
 void power (bool reset=false)
 {
@@ -39,7 +52,7 @@ void power (bool reset=false)
 } // power
 
 void i2cPower (bool on)
-{ // 0 == INPUT -> high impedance ie. low leakage current
+{ // 0 == INPUT -> high impedance ie. low leakage current (pull up/down ?)
   pinMode(SDA, on);
   pinMode(SCL, on);
 } // i2cPower
@@ -56,7 +69,7 @@ void setRTC (Stream& s)
 {
   int8_t r;
   s.println("setRTC() -");
-  r= gRTC.setSqCtrl(DS1307HW::SQWE);
+  r= gRTC.setSqCtrl(DS1307HW::SQ_OUT|DS1307HW::SQWE);
   s.print(" setSqCtrl()->"); s.println(r);
   r= gRTC.clearV(DS1307HW::User::FIRST,0xFF,DS1307HW::User::COUNT);
   s.print(" clearV()->"); s.println(r);
@@ -82,21 +95,10 @@ void setup (void)
   //dumpHexTab(DEBUG, b, sizeof(b));
   //dump(DEBUG, b, sizeof(b), " b", "\n");
   // gRTC.clearV(DS1307HW::User::FIRST,0xFF,DS1307HW::User::COUNT); *ERROR* missing last byte..?
-
-#if 1
-  //DEBUG.print("D2->I"); DEBUG.println(digitalPinToInterrupt(PIN_TCK)); // ???pin2->int0???
-  attachInterrupt(digitalPinToInterrupt(PIN_TCK), tick, CHANGE); // ???pin2->int0???
-  //for (int8_t i=0; i<8; i++) { attachInterrupt(i, tick, CHANGE); }
-  DEBUG.print("EICR:");DEBUG.print(EICRB,HEX);DEBUG.print(',');DEBUG.println(EICRA,HEX);
-#else
-  EICRB= 0x1; // Any edge on Pin2 -> INT4
-  EIMSK|= 0x1<<4; // enable INT4
-#endif
-
+  setupPCI();
+  //DEBUG.print("LED_BUILTIN="); DEBUG.println(LED_BUILTIN);
   //analogReadResolution(8);  A7 // Nano D13
   pinMode(PIN_VB,INPUT); // ANALOG);
-  pinMode(PIN_TCK,INPUT_PULLUP); // OUTPUT);
-  memset(gV,0,sizeof(gV));
   //DEBUG.print("getSet()->"); DEBUG.println(gRTC.getSet());
   //pinMode(LED_BUILTIN,INPUT); ???
   gRTC.dump(DEBUG);
@@ -120,16 +122,19 @@ int8_t err=3;
 
 void loop (void)
 {
-  //if (gFlags & 0x80) { DEBUG.println("INT"); gFlags&= ~0x80; }
-  uint8_t t= digitalRead(PIN_TCK);
+  const uint8_t t= digitalRead(PIN_TCK);
+  if (gFlags & 0x02)
+  {
+    digitalWrite(LED_BUILTIN, t);
+    gFlags&= ~0x02;
+  }
   gV[t]++;
   if (gT.update())
   {
-    digitalWrite(LED_BUILTIN, 1);
-    //digitalWrite(PIN_TCK, 1);
     i2cPower(true);
     if (digitalRead(PIN_PWR) < HIGH) { digitalWrite(PIN_PWR, HIGH); }
     int vB= analogRead(PIN_VB);
+    I2C.setClkT(TWM::CLK_100);
     int r= gRTC.printTime(DEBUG);
     //I2C.logEv(DEBUG);
     DEBUG.print("vB="); DEBUG.print(vB);
@@ -143,16 +148,13 @@ void loop (void)
         err= 3;
       }
     }
-    gIter++;
-    I2C.setClkT(TWM::CLK_400);
+    //I2C.setClkT(TWM::CLK_400);
     gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
-    if (gFlags & 0x1) { digitalWrite(PIN_PWR, LOW); }
+    if (gFlags & 0x80) { digitalWrite(PIN_PWR, LOW); }
     I2C.clrEv();
-    I2C.setClkT(TWM::CLK_100);
     I2C.end();
     i2cPower(false); // ready for power-off
-    digitalWrite(LED_BUILTIN, 0);
-    //digitalWrite(PIN_TCK, 0);
+    gIter++;
   }
-  sleep_cpu(); // NB sleep setup inside CSync
+  sleep_cpu(); // NB: sleep setup inside CSync
 } // loop
