@@ -290,10 +290,12 @@ public:
 
    // Wire compatibility hack
    void begin (uint8_t dummyHWAddr=0x00) { setClkT(CLK_100); }
-   void end (bool syn=true)
+   bool end (bool syn=true)
    {
-      if (syn && !sync()) { return; }
-      else { HWRC::halt(); }
+      if (syn && !sync()) { return(false); }
+      //else
+      HWRC::halt();
+      return(true);
    } // end
 
    int transfer1AS (const uint8_t devAddr, uint8_t b[], const uint8_t n, const FragMode m)
