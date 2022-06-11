@@ -18,7 +18,7 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 //#include "Common/DN_Util.hpp"
 #include "Common/dateTimeUtil.hpp"
 #include "Common/STM32/ST_Util.hpp"
-#include "Common/STM32/ST_Analogue.hpp"
+//#include "Common/STM32/ST_Analogue.hpp"
 #include "Common/STM32/ST_HWH.hpp"
 #include "Common/STM32/ST_F4HWRTC.hpp"
 #include <SPI.h>
@@ -26,6 +26,8 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 
 
 #define DEBUG Serial1 // PA9/10 (F1xx compatible)
+#define ESP82 Serial2 // PA3/2 -> RX2/TX2
+#define ESP82_BAUD 9600
 
 #define PIN_LED     PC13  // = LED_BUILTIN
 #define PIN_BTN     PA0   // ? BTN_BUILTIN ?
@@ -73,18 +75,20 @@ void bootMsg (Stream& s)
 #define SCAN_BLOCKS 256
 void hackInit (Stream& s)
 {
+#ifdef ST_ANALOGUE_HPP
   gADC.log(s,0x81);
+#endif // ST_ANALOGUE_HPP
   if (gW25QDbg.statf & 0x1)
   {
     uint16_t aP= 0x0000;
     UU32 a={ (uint32_t) aP << 8 };
     uint32_t i=0, t[2], n[SCAN_BLOCKS];
     
-    s.println("scanEqual()"); 
+    s.println("scan()"); 
     t[0]= millis();
     do
     {
-      n[i]= gW25QDbg.scanEqual(a);
+      n[i]= gW25QDbg.dataScan(a); //scanEqual(a);
       a.u32+= 0x10000; // +64K
     } while (++i < SCAN_BLOCKS);
     t[1]= millis();
@@ -124,7 +128,7 @@ void hackInit (Stream& s)
 void hackTest (Stream& s, uint16_t i)
 {
   //__QADD(); asm("QADD");
-#if 0gCRC
+#if 0
   if (i < 1)
   {
     uint32_t *p= (uint32_t*)0x1FFFC000; // OPT 0x1FFF7800; // OTP 16*32= 512 (+16lk = 528)
@@ -148,6 +152,47 @@ void hackTest (Stream& s, uint16_t i)
   //for (uint8_t i=1; i<=5; i++) { dumpTimReg(DEBUG, i); }
 } // hackTest
 
+int echo (Stream& out, Stream& in, const char unp='?', const char end='\n')
+{
+  int n= 0;
+  signed char ch, last=0;
+  do
+  {
+    ch= in.read();
+    if (ch < 0) { if (end >= ' ') { out.write(end); } }
+    else
+    {
+      ++n;
+      if (ch >= ' ') { out.write(ch); }
+      else if (unp >= ' ') { out.write(unp); }
+      last= ch;
+    }
+  } while (ch > -1);
+  if ((n > 1) && ('\n' != last) && ('\r' != last)) { out.println(); }
+  return(n);
+} // echo
+
+int ping (Stream& log, Stream& dev, int ticks=20)
+{
+  int n, r= 0, t=0;
+  log.println("ping()");
+      dev.println("AT");
+  do
+  {
+    n= echo(log, dev);
+    if (n > 0)
+    {
+      t+=n;
+      ++r;
+      dev.println("AT");
+    }
+    delay(1);
+  } while (--ticks > 0);
+  log.print(" t="); log.println(t);
+  return(r);
+} // ping
+
+
 void setup (void)
 {
   noInterrupts();
@@ -162,13 +207,16 @@ void setup (void)
 
   gW25QDbg.init(DEBUG,0);
   gRTCDbg.init(DEBUG, __TIME__, __DATE__);
-  hackInit(DEBUG);
+  //hackInit(DEBUG);
 
 #ifdef ST_ANALOGUE_HPP
   gADC.pinSetup(PA0,ADC_TEST_NUM_CHAN); // PA0~7?
   gADC.init(DEBUG);
   gADC.clk(DEBUG);
 #endif // ST_ANALOGUE_HPP
+
+  ESP82.begin(ESP82_BAUD);
+  if (ping(DEBUG, ESP82) < 0) { DEBUG.println("ERR: ESP82?"); }
 } // setup
 
 void loop (void)
@@ -183,7 +231,7 @@ void loop (void)
 static const uint16_t np[]={ 0x0 , (16<<10)-0x10 };
       uint16_t ap=0;
       if (gIter < 1) { ap= np[0] + gIter; } else { ap= np[1] + (gIter-1); }
-      gW25QDbg.dumpPage(DEBUG, ap);
+      gW25QDbg.pageDump(DEBUG, ap);
       /*
       if ((0 == gIter) && (2048 == bs))
       {

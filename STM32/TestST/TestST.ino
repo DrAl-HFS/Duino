@@ -12,13 +12,26 @@
 typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif
 
-//include "Common/DN_Util.hpp"
+#include "Common/DN_Util.hpp"
 #include "Common/STM32/ST_HWH.hpp"
 #include "Common/STM32/ST_Util.hpp"
 #include "Common/STM32/ST_Timing.hpp"
 #include <SPI.h>
 #include "Common/CW25Q.hpp"
 #include "Common/MFDHacks.hpp"
+
+
+void printFrac (Stream& s, uint32_t f, uint32_t h)
+{
+  //if (0 == f) { h= 1; }
+  s.print('.');
+  while (f <= h) { h/= 10; s.print('0'); }
+  s.print(f);
+} // printFrac
+
+//#include <Wire.h>
+//#define I2C Wire
+#include "Common/CMAX10302.hpp"
 
 
 /***/
@@ -30,6 +43,11 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 
 /***/
 
+
+CMAX10302 gM2;
+
+uint8_t gSampleBuff[32*6]; // 3/4 kB
+
 CClock gClock;
 CTimer gT;
 void tickFunc (void) { gT.nextIvl(); }
@@ -38,15 +56,6 @@ CW25QDbg gW25QDbg(36);
 MFDHack mfd;
 #ifdef TEST_CRC
 HWCRC gCRC;
-/*  No sign of life. Fake F103C8T6 likely.
-/*  No sign of life. Fake F103C8T6 likely.
-  DEBUG.print("RCC_BASE->AHBENR: 0x");
-  DEBUG.println(RCC_BASE->AHBENR, HEX);
-  gCRC.power();
-  gCRC.reset();
-  DEBUG.print("RCC_BASE->AHBENR: 0x");
-  DEBUG.println(RCC_BASE->AHBENR, HEX);
-*/
 #endif
 
 
@@ -91,6 +100,15 @@ void setup (void)
   //dump(DEBUG);
   
   mfd.test(DEBUG,gW25QDbg,gClock);
+  
+  Wire.begin(I2C_FAST_MODE);
+  
+  if (gM2.identify(DEBUG))
+  {
+    gM2.dump(DEBUG);
+    gM2.start();
+  }
+  //DEBUG.print("id:"); DEBUG.println(detect(MAX103HW::ADDR,MAX103HW::REV,2),HEX); 
 } // setup
 
 W25Q::PageScan scan(0x0000,1<<12);
@@ -102,8 +120,15 @@ uint8_t c=0;
 void loop (void)
 {
   const uint16_t d= gT.diff();
-  if (d >= 1000)
+  if (d >= 100)
   {
+    gM2.temp(DEBUG,true);
+    int r= gM2.readData(gSampleBuff,sizeof(gSampleBuff));
+    if (r > 0)
+    {
+      DEBUG.print("data["); DEBUG.print(r); DEBUG.print("]=");
+      dumpHexTab(DEBUG, gSampleBuff, r,"\n", ' ', 6);
+    }
 #ifdef TEST_CRC
     testCRC(DEBUG,gCRC);
 #else
@@ -119,16 +144,16 @@ void loop (void)
     digitalWrite(PIN_LED, 1);
     gClock.print(DEBUG);
     //gRC522.hack(DEBUG);
-    gT.retire(1000);
+    gT.retire(100);
     c= 100;
-    scan.next(DEBUG,gW25QDbg);
+    //scan.next(DEBUG,gW25QDbg);
   }
   if (d != last)
   {
     c-= (c>0);
     digitalWrite(PIN_LED, c > 0);
     last= d;
-#if 1
+#if 0
     uint16_t t[2], j;
     for (int i=0; i<20; i++)
     {
