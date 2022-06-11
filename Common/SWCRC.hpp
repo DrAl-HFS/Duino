@@ -9,9 +9,9 @@
 
 /***/
 
-class CRC4
+class CRC4 // (2^4)-1 = 15bits reliably protected
 {
-static const uint8_t kPoly[16];
+static const uint8_t kPoly[16]; // inefficient
 
    // MB: 0xF mask applied AFTER xor : this protects against error where input exceeds 0xF
    uint8_t compute4bit (const uint8_t c4, const uint8_t i4) const { return kPoly[ (c4 ^ i4) & 0xF ]; }
@@ -36,9 +36,9 @@ public:
 const uint8_t CRC4::kPoly[16]= {
    0x0, 0x7, 0xe, 0x9, 0xb, 0xc, 0x5, 0x2,
    0x1, 0x6, 0xf, 0x8, 0xa, 0xd, 0x4, 0x3
-};
+}; // class CRC4
 
-class CRC8
+class CRC8 // (2^8)-1 = 255 bits reliably protected
 {
 static const uint8_t kPoly[256];
 
