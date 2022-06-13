@@ -244,6 +244,13 @@ void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end=
    if (end) { s.print(end); }
 } // dumpHexTab
 
+void printFrac (Stream& s, uint32_t f, uint32_t h)
+{
+  s.print('.');
+  while ((h > 10) && (f <= h)) { h/= 10; s.print('0'); }
+  s.print(f);
+} // printFrac
+
 // temporary conflict resolution
 #ifndef DA_UTIL_HPP
 
