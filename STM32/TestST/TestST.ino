@@ -22,7 +22,7 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 
 
 
-#include "Common/CMAX10302.hpp"
+#include "Common/CMAX30102.hpp"
 
 
 /***/
@@ -35,7 +35,7 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 /***/
 
 
-CMAX10302 gM2;
+CMAX30102 gM2;
 
 uint8_t gRawBuff[10*3];
 uint32_t gSamples[16];
@@ -105,8 +105,9 @@ void setup (void)
 W25Q::PageScan scan(0x0000,1<<12);
 
 volatile uint32_t r=0, v=0xFF0F01;
-uint16_t last=0, uic=0, tS=0, lS=0;
-uint8_t ivl=50;
+uint32_t tD=0, tS=0;
+uint16_t last=0, uic=0, lS=0;
+uint8_t ivl=50, chanIdx=0;
 
 uint32_t rbe18 (const uint8_t b[])
 {
@@ -129,12 +130,17 @@ void loop (void)
     if (rB > 0)
     {
       uint8_t rS= rB / 3;
-      DEBUG.print(rS); DEBUG.print(' ');
+      //DEBUG.print(rS); DEBUG.print(' ');
       for (uint8_t i=0; i<rS; i++)
       {
-        gSamples[(tS+i)&0xF]= rbe18(gRawBuff+i*3);
+        uint8_t j= (tS+i) & 0xF;
+        gSamples[j]= rbe18(gRawBuff+i*3);
+        DEBUG.print(gSamples[j]);
+        if (++chanIdx & 0x1) { DEBUG.println(); } else { DEBUG.print(' '); }
       }
+      tD+= d;
       tS+= rS;
+      DEBUG.print((tS * 1000)/tD); DEBUG.println("s/s");
     }
     /*
     gM2.logData(DEBUG);
@@ -148,11 +154,13 @@ void loop (void)
   if (uic > 500)
   {
     digitalWrite(PIN_LED, 1);
+#if 0
     DEBUG.println();
     gClock.print(DEBUG, 0x01);
     if (gM2.temp(true)) { gM2.printT(DEBUG," "); }
     DEBUG.print("tS,dS="); DEBUG.print(tS); DEBUG.print(','); DEBUG.println(tS-lS);
     DEBUG.print(gSamples[0]); DEBUG.print(' '); DEBUG.println(gSamples[1]);
+#endif
     lS= tS;
     uic-= 500;
     //scan.next(DEBUG,gW25QDbg);
