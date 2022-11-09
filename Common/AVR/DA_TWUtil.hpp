@@ -10,8 +10,9 @@
 #include "DA_TWMISR.hpp"
 #include <avr/sleep.h>
 
-
-#ifndef CORE_CLK
+#ifdef F_CPU // Defined by 'duino toolchain
+#define CORE_CLK F_CPU
+#else
 #define CORE_CLK 16000000UL	// 16MHz
 #endif
 

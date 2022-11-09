@@ -45,7 +45,7 @@ class CMAX72SPI : public CCommonSPI
    uint8_t nR;
 
 public:
-   CMAX72SPI (uint8_t n) { nR= n-1; }
+   CMAX72SPI (uint8_t n=1) { nR= n-1; }
 
    void init (void)
    {
@@ -53,9 +53,20 @@ public:
       CCommonSPI::begin();
    } // init
 
-   void release (void) { HSPI.end(); }
+   void release (void) { CCommonSPI::end(); }
 
-   void writeRegRep (const MAX72::Reg r, const uint8_t v, const uint8_t n)
+   void writeRegSeq (const MAX72::Reg r, const uint8_t v[], const uint8_t n)
+   {  // for single unit only!
+      for (uint8_t i= 0; i < n; i++)
+      {
+         CCommonSPI::start();
+         HSPI.transfer(r+i);
+         HSPI.transfer(v[i]);
+         CCommonSPI::complete();
+      } 
+   } // writeRegSeq
+
+   void writeRegRep (const MAX72::Reg r, const uint8_t v, const uint8_t n)//=nR
    {
       uint8_t i= 0;
       CCommonSPI::start();
@@ -65,18 +76,18 @@ public:
          HSPI.transfer(v);
       } while (i++ < n);
       CCommonSPI::complete();
-
       //if (pS) { pS->print(r, HEX); pS->print(','); pS->print(v, HEX); pS->print('*'); pS->print(1+n); pS->print(';'); }
-   } // writeReg
+   } // writeRegRep
 
+   void test (bool on=true) { writeRegRep(MAX72::TEST, on, nR); }
    void power (bool on=true) { writeRegRep(MAX72::SHUTDOWN, on, nR); }
    void bright (const uint8_t v) { writeRegRep(MAX72::INTENSITY, v & 0x7, nR); }
-   void reset (void)
+   void reset (uint8_t s=7, uint8_t i=0x3, uint8_t d=0)
    {
       writeRegRep(MAX72::TEST, 0, nR);
-      writeRegRep(MAX72::SCAN, 0x7, nR);   // all
-      writeRegRep(MAX72::INTENSITY, 0x3, nR); // 25%
-      writeRegRep(MAX72::DECODE, 0, nR); // off
+      writeRegRep(MAX72::SCAN, s, nR);   // all
+      writeRegRep(MAX72::INTENSITY, i, nR); // 25%
+      writeRegRep(MAX72::DECODE, d, nR); // off
    } // reset
 
    void testPattern (uint8_t k=1)

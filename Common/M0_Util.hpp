@@ -1,4 +1,4 @@
-// Duino/Common/M0_Util.hpp - ARM Cortex M0+ general utilities (uBitV1)
+// Duino/Common/M0_Util.hpp - ARM Cortex M0+ general utilities (uBitV1, RP2040)
 // https://github.com/DrAl-HFS/Duino.git
 // Licence: GPL V3A
 // (c) Project Contributors Jan 2021
@@ -6,10 +6,20 @@
 #ifndef M0_UTIL
 #define M0_UTIL
 
+#if 0 //def TARGET_RP2040
+#include "pico/stdlib.h"
+#include "hardware/divider.h"
+// TODO assess efficiency on RP2040 (hardware divider "coprocessor").
+uint32_t divmod32 (uint32_t& q, const uint32_t n, const uint32_t d)
+{  // divmod_* unknown ?!?
+   divmod_result_t dmr= divmod_u32u32(n,d);
+   uint32_t r; q= divmod_u32u32_rem(n,d,&r); return(r);
+} // divmod32
+#else
 // TODO : assess mod&div performance on NRF51 (no HW div on Cortex-M0+)
-// Compute numerator / divisor, store quotient & return remainder,.
+// Compute numerator / divisor, store quotient & return remainder.
 uint32_t divmod32 (uint32_t& q, const uint32_t n, const uint32_t d) { q= n / d; return(n % d); }
-
+#endif
 
 // Packed BCD remains useful as an intermediate format for stream IO
 // as it results in very compact and efficient code for the majority
@@ -38,7 +48,7 @@ int bcd4FromU16 (uint8_t bcd[2], uint16_t u)
 {
    if (u > 9999) { return(-1); }
    if (u > 99) // likely
-   {  
+   {
       uint32_t q;
       bcd4FromU8(bcd+1, divmod32(q,u,100));
       return(2 + bcd4FromU8(bcd+0,q));
