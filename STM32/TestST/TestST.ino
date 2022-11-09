@@ -12,7 +12,7 @@
 typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #endif
 
-//include "Common/DN_Util.hpp"
+#include "Common/DN_Util.hpp"
 #include "Common/STM32/ST_HWH.hpp"
 #include "Common/STM32/ST_Util.hpp"
 #include "Common/STM32/ST_Timing.hpp"
@@ -21,14 +21,24 @@ typedef union { uint32_t u32; uint16_t u16[2]; uint8_t u8[4]; } UU32;
 #include "Common/MFDHacks.hpp"
 
 
+
+#include "Common/CMAX30102.hpp"
+
+
 /***/
 
 #define PIN_LED    PC13
 #define PIN_PULSE  PB12
-#define DEBUG_BAUD 115200 
+#define DEBUG_BAUD 115200
 
 
 /***/
+
+
+CMAX30102 gM2;
+
+uint8_t gRawBuff[10*3];
+uint32_t gSamples[16];
 
 CClock gClock;
 CTimer gT;
@@ -38,15 +48,6 @@ CW25QDbg gW25QDbg(36);
 MFDHack mfd;
 #ifdef TEST_CRC
 HWCRC gCRC;
-/*  No sign of life. Fake F103C8T6 likely.
-/*  No sign of life. Fake F103C8T6 likely.
-  DEBUG.print("RCC_BASE->AHBENR: 0x");
-  DEBUG.println(RCC_BASE->AHBENR, HEX);
-  gCRC.power();
-  gCRC.reset();
-  DEBUG.print("RCC_BASE->AHBENR: 0x");
-  DEBUG.println(RCC_BASE->AHBENR, HEX);
-*/
 #endif
 
 
@@ -69,7 +70,7 @@ void dump (Stream& s)
 void setup (void)
 {
   noInterrupts();
-  
+
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, 0);
 
@@ -81,29 +82,94 @@ void setup (void)
 
   interrupts();
   if (beginSync(DEBUG)) { bootMsg(DEBUG); }
-  
+
   //gRC522.init();
   gT.dbgPrint(DEBUG);
-  
+
   gW25QDbg.init(DEBUG);
   gW25QDbg.dataEraseDirty(0x2900,0x1000); // 1MB
-  
-  //dump(DEBUG);
-  
+
   mfd.test(DEBUG,gW25QDbg,gClock);
+
+  Wire.begin(I2C_FAST_MODE);
+
+  if (gM2.identify(DEBUG))
+  {
+    //DEBUG.print("M2Rst="); DEBUG.println(
+    gM2.reset();
+    gM2.dumpReg(DEBUG);
+    gM2.start();
+  }
 } // setup
 
 W25Q::PageScan scan(0x0000,1<<12);
 
 volatile uint32_t r=0, v=0xFF0F01;
-uint16_t last=0;
-uint8_t c=0;
+uint32_t tD=0, tS=0;
+uint16_t last=0, uic=0, lS=0;
+uint8_t ivl=50, chanIdx=0;
+
+uint32_t rbe18 (const uint8_t b[])
+{
+  uint32_t r= (b[0] & 0x3) << 16;
+  r|= b[1] << 8;
+  r|= b[2];
+  return(r);
+} // rbe18
 
 void loop (void)
 {
   const uint16_t d= gT.diff();
-  if (d >= 1000)
+  if (d >= ivl)
   {
+    gT.retire(ivl);
+    uic+= ivl;
+    if (uic >= 500-ivl) { gM2.startTemp(); }
+
+    int rB= gM2.readData(gRawBuff,30);
+    if (rB > 0)
+    {
+      uint8_t rS= rB / 3;
+      //DEBUG.print(rS); DEBUG.print(' ');
+      for (uint8_t i=0; i<rS; i++)
+      {
+        uint8_t j= (tS+i) & 0xF;
+        gSamples[j]= rbe18(gRawBuff+i*3);
+        DEBUG.print(gSamples[j]);
+        if (++chanIdx & 0x1) { DEBUG.println(); } else { DEBUG.print(' '); }
+      }
+      tD+= d;
+      tS+= rS;
+      DEBUG.print((tS * 1000)/tD); DEBUG.println("s/s");
+    }
+    /*
+    gM2.logData(DEBUG);
+    if (r > 0)
+    {
+      DEBUG.print("data["); DEBUG.print(r); DEBUG.print("]=");
+      dumpHexTab(DEBUG, gSampleBuff, r,"\n", ' ', 6);
+    }
+    */
+  }
+  if (uic > 500)
+  {
+    digitalWrite(PIN_LED, 1);
+#if 0
+    DEBUG.println();
+    gClock.print(DEBUG, 0x01);
+    if (gM2.temp(true)) { gM2.printT(DEBUG," "); }
+    DEBUG.print("tS,dS="); DEBUG.print(tS); DEBUG.print(','); DEBUG.println(tS-lS);
+    DEBUG.print(gSamples[0]); DEBUG.print(' '); DEBUG.println(gSamples[1]);
+#endif
+    lS= tS;
+    uic-= 500;
+    //scan.next(DEBUG,gW25QDbg);
+    digitalWrite(PIN_LED, 0);
+  }
+
+} // loop
+
+/*
 #ifdef TEST_CRC
     testCRC(DEBUG,gCRC);
 #else
@@ -116,19 +182,13 @@ void loop (void)
     DEBUG.print("dt="); DEBUG.println(dt);
     //DEBUG.println(sysTick.rvr());
 #endif
-    digitalWrite(PIN_LED, 1);
-    gClock.print(DEBUG);
-    //gRC522.hack(DEBUG);
-    gT.retire(1000);
-    c= 100;
-    scan.next(DEBUG,gW25QDbg);
-  }
+
   if (d != last)
   {
     c-= (c>0);
     digitalWrite(PIN_LED, c > 0);
     last= d;
-#if 1
+#if 0
     uint16_t t[2], j;
     for (int i=0; i<20; i++)
     {
@@ -142,4 +202,4 @@ void loop (void)
     digitalWrite(PIN_PULSE, gT.swTickVal() & 0x1 );
 #endif
   }
-} // loop
+*/

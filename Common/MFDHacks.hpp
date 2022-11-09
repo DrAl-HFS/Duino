@@ -222,11 +222,11 @@ public:
    int validate (const uint8_t b[], const int n, const CFCUH **pp=NULL)
    {
       ValInf vi;
-      if ((n > HDR_UHF_BYTES) &&    // min size (reject no payload) and
+      if ((n > (int)HDR_UHF_BYTES) &&    // min size (reject no payload) and
          (0xB0 == (b[0] & 0xF0)))   // start mark
       {
          vi.s= b[0] & 0x0F; // size
-         if ((vi.s+HDR_UHF_BYTES) <= n) // ensure complete
+         if ((int)(vi.s+HDR_UHF_BYTES) <= n) // ensure complete
          {
             const uint8_t i= vi.s + HDR_UHF_BYTES - 1; // index of end mark
             if ( ((b[i] >> 4) == vi.s) &&   // match size and
@@ -325,7 +325,9 @@ public:
          s.print(';');
          return(r + HDR_UHF_BYTES);
       }
-   }
+      return(r);
+   } // dissect
+
 }; // class MFDHeader
 
 #define MAX_BB 32 // KISS
@@ -367,7 +369,7 @@ protected:
    uint8_t iF;    // CONSIDER: merge index & flag
    uint8_t flag;  // = whether last fragment is in BBuff
 
-   // PARANOID: (i < MAX_FRAG) && 
+   // PARANOID: (i < MAX_FRAG) &&
    bool nonEmpty (const uint8_t i=0) const { return ((NULL != pF[i]) && (0 != lF[i])); }
 
    bool newFrag (const uint8_t *p, uint16_t n)
@@ -503,7 +505,7 @@ public:
       int k= 0;
       for (uint8_t i=0; i<=iF; i++)
       {
-         const uint8_t n= lF[i], *p= pF[i];
+         const uint8_t *p= pF[i]; // n= lF[i]
          for (uint8_t j=0; j < lF[i]; j++)
          {
             b[k]= p[j];

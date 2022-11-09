@@ -66,9 +66,10 @@ typedef union { uint32_t reg[4]; struct { uint32_t CSR, RVR, CVR, CALIB; }; } sy
 #endif
 //#define SYST_RVR ((uint32_t*)0xE000E014)
 //#define SYST_CVR ((uint32_t*)0xE000E018)
-#ifndef BIT_MASK
-#define BIT_MASK(b) ((1<<(b))-1)
-#endif
+// -> DN_Util
+//#ifndef BIT_MASK
+//#define BIT_MASK(b) ((1<<(b))-1)
+//#endif
 
 }; // extern "C"
 // [Bit-twiddling hacks]

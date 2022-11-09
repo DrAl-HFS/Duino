@@ -15,7 +15,7 @@ class CTimer : protected HardwareTimer
 protected:
    volatile uint16_t nIvl; // event count
    uint16_t nRet;           // & tracking
-   
+
    uint16_t diffWrap16 (uint16_t a, uint16_t b) const
    {
       int16_t d= a - b;
@@ -33,13 +33,13 @@ public:
       setCompare( TIMER_CH1, -1 );  // clamp to overflow defined by setPeriod()
       setPeriod(ivl_us);            // set appropriate prescale & overflow
       attachInterrupt( TIMER_CH1, func );
-#else // simple overflow interrupt - 
+#else // simple overflow interrupt -
       //setMode( 0, 0 ); setOverflow(?); ticks or us?
       setPeriod(ivl_us);
       setMode( 1, TIMER_OUTPUT_COMPARE );
       refresh();  // Commit parameters count, prescale, and overflow
-      attachInterrupt( 0 , func ); 
-      attachInterrupt( 1 , func ); 
+      attachInterrupt( 0 , func );
+      attachInterrupt( 1 , func );
 #endif
       resume();   // Start counting
    }
@@ -109,7 +109,7 @@ void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aSt
    } // u8ToBCD4ToA
 
    int bytesBCD4 (void) { return(6); } // yy/mm/dd,hh:mm:ss 12digits = 6bytes
-   
+
    int getBCD4 (uint8_t bcd[6])
    {
       bcd4FromU8(bcd+0, (year + 1970) % 100);
@@ -150,7 +150,7 @@ void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aSt
       }
       return(0);
    } // strHMS
-   
+
    int strYMD (char s[], const int m, const char endCh=0) const // return snprintf(s, m, "%u/%u/%u%c", 1970+year, month, day, endCh);
    {
       const int n= 8+(endCh>0);
@@ -174,11 +174,11 @@ void u8bcd4FromA (uint8_t u[], const int8_t n, const char a[], const uint8_t aSt
 
    void print (Stream& s, uint8_t opt=0x00) const
    {
-static const char endCh[]={' ','\t','\n',0x00};
+static const char endCh[]={0x0,' ','\t','\n'};
       char b[16];
       if (opt & 0xF0)
       {
-         //int8_t i= 
+         //int8_t i=
          strYMD(b, sizeof(b)-1, endCh[(opt>>4)&0x3]);
          s.print(b);
       }
@@ -207,7 +207,7 @@ public:
       return DateTime::getBCD4(bcd);
    }
 
-   void print (Stream& s, uint8_t opt=0x82)
+   void print (Stream& s, uint8_t opt=0x13)
    {
       getTime(*this);
       DateTime::print(s,opt);

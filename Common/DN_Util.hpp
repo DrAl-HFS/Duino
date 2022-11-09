@@ -191,6 +191,22 @@ void dumpCharFmt (Stream& s, const uint8_t b[], const int16_t n)
    dumpCharFmt(s,b,n,fs);
 } // dumpCharFmt
 
+void dumpHexByteList (Stream& s, const uint8_t b[], const int16_t n, const char *end="\n")
+{
+   if (n > 0)
+   {
+      char fs[4]="  ";
+      hexChFromU8(fs, b[0], 'a');
+      s.print(fs);
+      if (n > 1)
+      {
+         fs[0]= ',';
+         dumpHexFmt(s,b+1,n-1,fs,1,'a');
+      }
+      if (end) { s.print(end); }
+   }
+} // dumpHexByteList
+
 // Consider: struct { } TabFmt; Move to class ?
 void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end="\n", const char sep=' ', const int16_t w=16)
 {
@@ -214,7 +230,7 @@ void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end=
          {  // trailing partial row alignment padding
             for (int16_t j=0; j<u; j++) { s.print("   "); }
          }
-         s.print('\t');
+         s.print('\t'); // Hacky?
          dumpCharFmt(s, b+i, m-i);
          i= m;
          if (i < n)
@@ -227,6 +243,13 @@ void dumpHexTab (Stream& s, const uint8_t b[], const int16_t n, const char *end=
    }
    if (end) { s.print(end); }
 } // dumpHexTab
+
+void printFrac (Stream& s, uint32_t f, uint32_t h)
+{
+  s.print('.');
+  while ((h > 10) && (f <= h)) { h/= 10; s.print('0'); }
+  s.print(f);
+} // printFrac
 
 // temporary conflict resolution
 #ifndef DA_UTIL_HPP
