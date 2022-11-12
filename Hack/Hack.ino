@@ -83,7 +83,7 @@ void setup (void)
   gRMD.init();
   pinMode(LED_BUILTIN, OUTPUT);
   delay(10); // POR 10ms, MRST 5ms
-  gRMD.identify(DEBUG);
+  if (gRMD.identify(DEBUG)) { gRMD.setup(); }
   dump(DEBUG);
 } // setup
 
