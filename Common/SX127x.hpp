@@ -17,7 +17,7 @@ namespace SX127x
    {
       FIFO, OPM,     // read/write buffer, OPerating Mode
       BRH, BRL,      // Bit Rate (16b, unused in LORA mode)
-      FDEVH, FDEVL,  // Frequency DEViation setting (channel? 16b unused in LORA mode)
+      FDEVH, FDEVL,  // Frequency DEViation setting for FSK
       CFH, CFM, CFL, // Carrier Frequency (24b)
       PAC, PAR,      // Power Amp (output) Config & Ramp
       OCP, LNA,      // Over Current Protection, Low Noise Amp (input)
@@ -98,7 +98,52 @@ namespace SX127x
 
    }; // enum Flag : uint8_t
 
+   // Carrier frequency register values for international bands.
+   // Unsigned fixed point 24.8 representation is used to provide
+   // better accuracy for incremental carrier (channel) changes.
+   // NB: 433 / 868 / 915 bands require specific module variants
+   // as final RF signal path has to be tuned to band.
+   // Caution: transmitting without an appropriate signal path
+   // (including antenna) may result in circuit damage.
+   enum BandU24Q8 : uint32_t { B0= 0, BX_SX_LCSTEP= 0xCCD66, // 0xCCD.663 = 200 kHz
+      // ITU-Region1 "Eurasia" 433.05 - 434.79 MHz (1.74MHz BW)
+      B433= 0x6C484400, //   LPD433, RC, HAM, (69 chan. ea. 25kHz)
+      B433_MAX= 0x6CB7A600, // 434.79 MHz
+      //---
+      B_LOFREQ_T= 0x96070500, // 600MHz (?) Hi/lo band threshold for device internal operation
+      //---
+
+      // LPD868? EU? 865.0 - 870.0 MHz (5.0MHz BW) 6 sub-bands [TxPwr, dwell]
+      // Sub-band 1 865.0 - 868.0 (3MHz BW [25mW, 1%]) RFID, LORA ? (.1,3,5,7,9) * 3 = 12 chan.
+      B868_S1= 0xD84A1F00, // 865.0 = MIN
+      B868_S1_LCMIN= 0xD8508600, // 865.1MHz
+      B868_S1_LCMAX= 0xD903C100, // 867.9 MHz
+
+      B868_S2= 0xD90A2800, // 868.0 - 868.6 (600kHz [25mW, 1%])
+      // SigFox (uplink UNB FH BPSK 2k chan.) 868.0 - 868.2  (downlink GFSK 600bd other band?)
+      // LORA (3 chan.) -
+      B868_S2_LCMIN= 0xD9108F00, // 868.1 MHz *SigFox overlap*
+      //B868_S2_LC2= 0xD91D5C00, // 868.3 MHz
+      B868_S2_LCMAX= 0xD92A2900, // 868.5 MHz
+      // B868_S3 868.7 - 869.2 : (25mW, 0.1%) ? low dwell
+      // B868_S4 869.3 - 869.4 : (10mW, 100%) ? low power
+      // B868_S5 869.4 - 869.65 : (500mW, 10%) ? high power (SigFox downlink?)
+      // B868_S6 869.7 - 870.0 : (25mW, 1%) LORA 869.8 MHz ?
+      B868_MAX= 0xD98A2E00, // 870 MHz
+      //---
+
+      // ITU-Region2 "Americas" 902.0 - 928.0 MHz (Mid 915MHz 26.0MHz BW)
+      B915= 0xE18A8E00, // 902.0
+      // sub-banding ?
+      //B915_S2= 0xE1CA91, // 903.0?
+      B915_MAX= 0xE80ADC00, // 928.0 MHz
+   }; // enum BandU24Q8 : uint32_t
+
 }; // namespace SX127x
+
+// Layering classes by inheritance inncreases the potential for code reuse
+// or adaptation without introducing runtime overhead and with negligible
+// increase in complexity.
 
 class CSX127xSPI : public CCommonSPI
 {
@@ -134,11 +179,26 @@ public:
    } // writeReg
 
 }; // class CSX127xSPI
+/*
+https://www.disk91.com/2017/technology/sigfox/all-what-you-need-to-know-about-regulation-on-rf-868mhz-for-lpwan/
 
+"The first channel 865-688 is a 25mW / 1% channel, it is a large area to add LoRa channels but it is also a zone used by RFIDs.
+
+The 868,7 to 869,2 sub-band is a 25mW area but the duty cycle is 0.1%, this zone can be interesting to communicate when an object is emitting once a day : the risk of collision is really lower and the number of time you will have to re-emit is, as a consequence, lower, so in this sub band you can expect to preserve your energy.
+
+The 869,3 to 869,4 sub-band is not usable for LPWAN as the maximum power is 10mW but you have no duty-cycle so it can be a good area for local object communication.
+
+The 869,4 to 869,65 zone is particularly interesting because you can communicate with 500mW with a 10% duty cycle. An object would ne be able to use a such power when running on battery but in a central network point of view it is a really good channel for downlink communications. The gateway can communicate far away and be listen over the local noise of the object ; the larger duty cycle allows the gateway to communicate with many objects.
+
+The last zone 869,7 to 870 is the last 25mW / 1% zone where you can deploy extra LoRaWan channels."
+
+*/
 class CSX127xRaw : public CSX127xSPI
 {
+   SX127x::BandU24Q8 carrier; // ??? waste of time ???
+
 public:
-   CSX127xRaw (void) { ; }
+   CSX127xRaw (SX127x::BandU24Q8 b=SX127x::B868_S1) : carrier{b} { ; }
 
    // TODO: -> *Util
    bool identify (void)
@@ -147,18 +207,37 @@ public:
       readReg(SX127x::VERID, &id, 1);
       return(0x12 == id);
    }
+   void setup (void)
+   {
+      uint8_t rv[4]; // register values
 
+      // modulation
+      rv[0]= SX127x::MDL_FSK | SX127x::STANDBY;
+      if (carrier <= SX127x::B_LOFREQ_T) { rv[0]|= SX127x::LOFREQ; }
+      writeReg(SX127x::OPM, rv, 1);
+
+      uint32_t c= carrier;
+      for (int i=2; i>=0; i--) { c>>= 8; rv[i]= c; }
+      writeReg(SX127x::CFH, rv, 3);
+
+      // tx amp
+      rv[0]= 0x00; // PAC: min power
+      rv[1]= 0x17; // PAR: GFSK1, 62us ramp (16.1k/s)
+      rv[2]= 0x20; // OCP: limit to min (45mA)
+      // rx amp
+      rv[3]= 0xC0; // LNA: minimum gain (close range testing)
+      writeReg(SX127x::PAC, rv, 4);
+
+      rv[0]= 0x20; // re-lock PLL, AFC/AGC off
+      writeReg(SX127x::RXC, rv, 1);
+   }
 }; // class CSX127xRaw
 
 class CSX127xHelper : public CSX127xRaw
 {
 public:
-   CSX127xHelper (void) { ; }
 
-   // 0xD90A28 * 61.024Hz -> 868MHz
-   // 10E6 / 61.024 = 16386.995
-   uint32_t freqMHztoRV (uint32_t fMHz) { return(fMHz * 16387); } // ((fMHz << 16) + fMHz)
-   uint32_t freqRVtoMHz (uint32_t fRV) { return(fRV / 16387); }
+   CSX127xHelper (void) { ; }
 
 }; // class CSX127xHelper
 
@@ -177,18 +256,48 @@ uint32_t rdbitsMSB (const uint8_t vB[], const int8_t n)
 class CSX127xDebug : public CSX127xHelper
 {
 public:
+   //const float fStep= 61.024; // (Hz)
+   const float scaleMHztoRV= 16386.995; // = 10E6 / 61.024
+   const float scaleRVtoMHz= 61.024E-6; // = 61.024 / 10E6
+
+
    CSX127xDebug (void) { ; }
+
+   float freqMHztoRV (uint32_t fMHz) { return(fMHz * scaleMHztoRV); }
+   float freqRVtoMHz (uint32_t fRV) { return(fRV * scaleRVtoMHz); }
+   float freqRVtokHz (uint32_t fRV) { return(1000 * freqRVtoMHz(fRV)); }
 
    void dump1 (Stream& s)
    {
-      uint8_t reg[16];
-      readReg(SX127x::OPM,reg,16);
-      dumpHexTab(s,reg,16);
-      s.print("br="); s.print(rdbitsMSB(reg+1,16));
-      s.print(" | fd="); s.print(rdbitsMSB(reg+3,14));
-      s.print(" | fc="); s.print(freqRVtoMHz(rdbitsMSB(reg+5,24)));
-      s.println();
-   }
+      int32_t v;
+      uint8_t reg[18]; // First dummy byte for FIFO
+
+      readReg(SX127x::OPM, reg+SX127x::OPM, 16);
+      dumpHexTab(s, reg+SX127x::OPM, 16);
+
+      v= rdbitsMSB(reg+SX127x::BRH, 16);
+      s.print("br="); s.print(v); s.print("bit/s");
+
+      v= rdbitsMSB(reg+SX127x::FDEVH, 14);
+      s.print(" | fd="); s.print(freqRVtokHz(v)); s.print("kHz");
+
+      v= rdbitsMSB(reg+SX127x::CFH, 24);
+      s.print(" | fc=");
+      //s.print(freqRVtokHz(rv)); s.print("kHz, ");
+      s.print(freqRVtoMHz(v)); s.print("MHz");
+
+      s.print(" | PAC="); s.print(reg[SX127x::PAC], HEX);
+      s.print(" | PAR="); s.print(reg[SX127x::PAR], HEX);
+      s.print(" | OCP="); s.print(reg[SX127x::OCP], HEX);
+
+      v= 1 - (reg[SX127x::LNA] >> 5);
+      s.print(" | LNA="); s.print(v);
+
+      float f= -0.5 * reg[SX127x::RSSIVAL];
+      s.print(" | RSSI="); s.print(f);
+
+      s.println("\n---\n");
+   } // dump1
 
    bool identify (Stream& s)
    {
