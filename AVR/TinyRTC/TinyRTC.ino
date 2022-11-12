@@ -8,7 +8,11 @@
 
 // NB: LED_BUILTIN=13
 #define PIN_PWR 12
+#ifdef ARDUINO_AVR_MEGA2560
 #define PIN_VB  A7
+#else
+#define PIN_VB  A3
+#endif
 #define PIN_TCK 2
 
 //#include <avr/pci.h>
@@ -20,7 +24,7 @@
 DNTimer gT(1000);
 CDS1307A gRTC;
 CAT24C gERM;
-volatile uint8_t gFlags=0x00; // 0x80 -> power cycle (battery test)
+volatile uint8_t gFlags=0x40; // 0x80 -> power cycle (battery test), 0x40 -> fast I2C
 volatile uint16_t gV[3];
 
 //ISR (PCINT2_vect)
@@ -148,7 +152,7 @@ void loop (void)
         err= 3;
       }
     }
-    //I2C.setClkT(TWM::CLK_400);
+    if (gFlags & 0x40) { I2C.setClkT(TWM::CLK_400); }
     gERM.dump(DEBUG, gIter & 0x7); // 0x7F 128*32= 4k
     if (gFlags & 0x80) { digitalWrite(PIN_PWR, LOW); }
     I2C.clrEv();
