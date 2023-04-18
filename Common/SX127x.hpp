@@ -105,40 +105,63 @@ namespace SX127x
    // as final RF signal path has to be tuned to band.
    // Caution: transmitting without an appropriate signal path
    // (including antenna) may result in circuit damage.
-   enum BandU24Q8 : uint32_t { B0= 0, BX_SX_LCSTEP= 0xCCD66, // 0xCCD.663 = 200 kHz
-      // ITU-Region1 "Eurasia" 433.05 - 434.79 MHz (1.74MHz BW)
-      B433= 0x6C484400, //   LPD433, RC, HAM, (69 chan. ea. 25kHz)
-      B433_MAX= 0x6CB7A600, // 434.79 MHz
+   // Abuse of enum...
+   enum BandU24Q8 : uint32_t { B0= 0,
+      // ITU-Region1 "Eurasia" LPD433  (1.74MHz BW) RC, HAM, (69 chan. ea. 25kHz)
+      B433_MIN= 0x6C48444C, // 433.05 MHz
+      B433_MAX= 0x6CB7A6B3, // 434.79 MHz
       //---
       B_LOFREQ_T= 0x96070500, // 600MHz (?) Hi/lo band threshold for device internal operation
       //---
+      // LPD868? EU? 865.0 - 870.0 (5.0MHz) (BW [TxPwr, dwell]) 6 sub-bands:-
+      B868_MIN= 0xD84A1EEB, // 865 MHz
+      B868_MAX= 0xD98A2DE5, // 870 MHz
 
-      // LPD868? EU? 865.0 - 870.0 MHz (5.0MHz BW) 6 sub-bands [TxPwr, dwell]
-      // Sub-band 1 865.0 - 868.0 (3MHz BW [25mW, 1%]) RFID, LORA ? (.1,3,5,7,9) * 3 = 12 chan.
-      B868_S1= 0xD84A1F00, // 865.0 = MIN
-      B868_S1_LCMIN= 0xD8508600, // 865.1MHz
-      B868_S1_LCMAX= 0xD903C100, // 867.9 MHz
+      // Sub1 865.0 - 868.0 (3MHz [25mW, 1%]) RFID, LORA ? (.1,3,5,7,9) * 3 = 15 chan.
+      B868_S1_MIN= 0xD84A1EEB, // 865.0
+      B868_S1_MAX= 0xD90A27E7, // 868.0
 
-      B868_S2= 0xD90A2800, // 868.0 - 868.6 (600kHz [25mW, 1%])
+      // Sub2 868.0 - 868.6 (600kHz [25mW, 1%])
+      B868_S2_MIN= 0xD90A27E7, // 868.0
+      B868_S2_MAX= 0xD930901A, // 868.6 (600kHz [25mW, 1%])
+
       // SigFox (uplink UNB FH BPSK 2k chan.) 868.0 - 868.2  (downlink GFSK 600bd other band?)
-      // LORA (3 chan.) -
-      B868_S2_LCMIN= 0xD9108F00, // 868.1 MHz *SigFox overlap*
-      //B868_S2_LC2= 0xD91D5C00, // 868.3 MHz
-      B868_S2_LCMAX= 0xD92A2900, // 868.5 MHz
-      // B868_S3 868.7 - 869.2 : (25mW, 0.1%) ? low dwell
-      // B868_S4 869.3 - 869.4 : (10mW, 100%) ? low power
-      // B868_S5 869.4 - 869.65 : (500mW, 10%) ? high power (SigFox downlink?)
-      // B868_S6 869.7 - 870.0 : (25mW, 1%) LORA 869.8 MHz ?
-      B868_MAX= 0xD98A2E00, // 870 MHz
+      // B868_S3 868.7 - 869.2 : (0.5MHz [25mW, 0.1%]) ? low dwell
+      // B868_S4 869.3 - 869.4 : ([10mW, 100%]) ? low power
+      // B868_S5 869.4 - 869.65 : ([500mW, 10%]) ? high power (SigFox downlink?)
+      // B868_S6 869.7 - 870.0 : (0.3MHz [25mW, 1%]) LORA 869.8 MHz ?
       //---
 
       // ITU-Region2 "Americas" 902.0 - 928.0 MHz (Mid 915MHz 26.0MHz BW)
-      B915= 0xE18A8E00, // 902.0
-      // sub-banding ?
-      //B915_S2= 0xE1CA91, // 903.0?
+      B915_MIN= 0xE18A8E00, // 902.0
+      // LORA uplink (125kHz BW) 902.3 - 914.9 @ 0.2 MHz interval (64 channels)
+      //  " downlink (500kHz BW) 923.3 - 927.5 @ 0.6 MHz interval (8 channels)
       B915_MAX= 0xE80ADC00, // 928.0 MHz
+/*
    }; // enum BandU24Q8 : uint32_t
 
+   enum CarrierU24Q8 : uint32_t
+   {
+*/
+      C_STEP_LORA= 0xCCD66, // 0xCCD.663 = 200 kHz BW (+- 100kHz)
+
+      B868_S1_LCMIN= 0xD850859E, // 865.1MHz  LC1
+      B868_S1_LCMAX= 0xD903C134, // 867.9 MHz LC15
+
+      B868_S2_LCMIN= 0xD9108E9A, // 868.1 MHz *SigFox overlap* _S2_LC1
+      //B868_S2_LC2= 0xD91D5C00, // 868.3 MHz _S2_LC2
+      B868_S2_LCMAX= 0xD92A2967, // 868.5 MHz _S2_LC3
+
+      // S3..S5 not suitable for LORA (power / dwell time)
+
+      B868_S6_LCMIN= 0xD97D607F, // 869.8 _S6_C1
+      B868_S6_LCMAX= 0xD983C732, // 869.9 *C1 overlap*
+
+   }; // enum CarrierU24Q8 : uint32_t
+
+   typedef BandU24Q8 CarrierU24Q8;
+
+   struct ShadowReg { uint8_t opm; };
 }; // namespace SX127x
 
 // Layering classes by inheritance inncreases the potential for code reuse
@@ -157,12 +180,29 @@ public:
    } // init
 
    // void release (void) { CCommonSPI::end(); } ???
+   uint8_t readReg (const SX127x::Reg r)
+   {
+      start();
+      HSPI.transfer(r); // & 0x7F
+      uint8_t v= HSPI.transfer(0x00);
+      complete();
+      return(v);
+   } // readReg
+
+   uint8_t writeReg (const SX127x::Reg r, uint8_t v)
+   {
+      start();
+      HSPI.transfer(0x80|r);
+      v= HSPI.transfer(v);
+      complete();
+      return(v); // previous value ?
+   } // writeReg
 
    int readReg (const SX127x::Reg r, uint8_t v[], int n) // &0x7F
    {
       if (n < 1) { return(0); }
       start();
-      HSPI.transfer(r);
+      HSPI.transfer(r); // & 0x7F
       n= read(v,n);
       complete();
       return(n);
@@ -193,12 +233,25 @@ The 869,4 to 869,65 zone is particularly interesting because you can communicate
 The last zone 869,7 to 870 is the last 25mW / 1% zone where you can deploy extra LoRaWan channels."
 
 */
-class CSX127xRaw : public CSX127xSPI
+
+class CSX127xRaw : public CSX127xSPI, SX127x::ShadowReg
 {
-   SX127x::BandU24Q8 carrier; // ??? waste of time ???
+protected:
+   SX127x::CarrierU24Q8 carrier; // ??? waste of time ???
+
+   uint8_t syncReg (const SX127x::Reg r, const uint8_t mask, int maxIter=10)
+   {
+      uint8_t v;
+      do
+      {
+         v= readReg(r);
+         v&= mask;
+      } while ((0 == v) && (--maxIter > 0));
+      return(v);
+   } // syncReg
 
 public:
-   CSX127xRaw (SX127x::BandU24Q8 b=SX127x::B868_S1) : carrier{b} { ; }
+   CSX127xRaw (SX127x::CarrierU24Q8 c=SX127x::B868_S1_LCMIN) : carrier{c} { ; }
 
    // TODO: -> *Util
    bool identify (void)
@@ -211,10 +264,11 @@ public:
    {
       uint8_t rv[4]; // register values
 
-      // modulation
-      rv[0]= SX127x::MDL_FSK | SX127x::STANDBY;
-      if (carrier <= SX127x::B_LOFREQ_T) { rv[0]|= SX127x::LOFREQ; }
-      writeReg(SX127x::OPM, rv, 1);
+      // re-lock PLL, AFC/AGC off
+      writeReg(SX127x::RXC, 0x20);
+
+      // fast hop on
+      writeReg(SX127x::HOPC, 0x80);
 
       uint32_t c= carrier;
       for (int i=2; i>=0; i--) { c>>= 8; rv[i]= c; }
@@ -228,17 +282,44 @@ public:
       rv[3]= 0xC0; // LNA: minimum gain (close range testing)
       writeReg(SX127x::PAC, rv, 4);
 
-      rv[0]= 0x20; // re-lock PLL, AFC/AGC off
-      writeReg(SX127x::RXC, rv, 1);
+      // modulation
+      opm= SX127x::MDL_FSK | SX127x::FSRX; // start PLL lock
+      if (carrier <= SX127x::B_LOFREQ_T) { opm= SX127x::LOFREQ; }
+      writeReg(SX127x::OPM, opm);
    }
+
+
 }; // class CSX127xRaw
 
 class CSX127xHelper : public CSX127xRaw
 {
+protected:
+   uint8_t rssiMM[2];
+
 public:
 
-   CSX127xHelper (void) { ; }
+   CSX127xHelper (void) { resetMM(); }
 
+   void resetMM (void) { rssiMM[0]= 0xFF; rssiMM[1]= 0x00; }
+
+   void logRSSI (void)
+   {
+/*    switch (opm & MODE_MASK))
+      {
+         case SX127x::FSRX :
+            ready= syncReg(SX127x::IRQS1, 0x10); // PLL lock
+            break;
+         case SX127x::RX :
+            ready= syncReg(SX127x::IRQS1, 0x10); // PLL lock
+            break;
+      }*/
+      if (syncReg(SX127x::IRQS1, 0x80)) // mode ready
+      {
+         uint8_t v= readReg(SX127x::RSSIVAL);
+         rssiMM[0]= min(rssiMM[0], v);
+         rssiMM[1]= max(rssiMM[1], v);
+      }
+   }
 }; // class CSX127xHelper
 
 // ??? -> ???
@@ -272,11 +353,10 @@ public:
       int32_t v;
       uint8_t reg[18]; // First dummy byte for FIFO
 
-      readReg(SX127x::OPM, reg+SX127x::OPM, 16);
-      dumpHexTab(s, reg+SX127x::OPM, 16);
+      readReg(SX127x::OPM, reg+SX127x::OPM, sizeof(reg)-1);
 
       v= rdbitsMSB(reg+SX127x::BRH, 16);
-      s.print("br="); s.print(v); s.print("bit/s");
+      s.print("\nbr="); s.print(v); s.print("bit/s");
 
       v= rdbitsMSB(reg+SX127x::FDEVH, 14);
       s.print(" | fd="); s.print(freqRVtokHz(v)); s.print("kHz");
@@ -290,11 +370,28 @@ public:
       s.print(" | PAR="); s.print(reg[SX127x::PAR], HEX);
       s.print(" | OCP="); s.print(reg[SX127x::OCP], HEX);
 
-      v= 1 - (reg[SX127x::LNA] >> 5);
-      s.print(" | LNA="); s.print(v);
+      s.print(" | LNA=");
+      v= reg[SX127x::LNA] & SX127x::GAIN_MASK;
+      if ((v < SX127x::GAIN_MAX) || (v > SX127x::GAIN_MIN)) { s.print("0x"); s.print(v,HEX); s.print("?"); }
+      else
+      {
+         switch(v)
+         {
+            case SX127x::GAIN_MAX :   v= 0; break;
+            case SX127x::GAIN_MAX+1 : v= -6; break;
+            default : v= ((v >> 5) - 2) * -12; break;
+         }
+         s.print(v); s.print("dB");
+      }
 
       float f= -0.5 * reg[SX127x::RSSIVAL];
-      s.print(" | RSSI="); s.print(f);
+      s.print(" | RSSI="); s.println(f);
+      s.print(" min,max="); s.print(-0.5 * rssiMM[0]);
+      s.print(","); s.print(-0.5 * rssiMM[1]);
+      s.println();
+
+      readReg(SX127x::RXBW, reg, 16);
+      dumpHexTab(s, reg, 16);
 
       s.println("\n---\n");
    } // dump1
