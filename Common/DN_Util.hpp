@@ -294,16 +294,18 @@ typedef uint32_t TickCount;
 
 class DNTimer
 {
-   TickCount nextT, interval;
+   TickCount lastT, nextT, interval;
 
 protected:
    void set (TickCount t) { nextT= t; }
-   void next (void) { nextT+= interval; }
+   void next (void) { lastT= nextT; nextT+= interval; }
 
 public:
-   DNTimer (TickCount ivl) : interval{ivl} { nextT= millis(); }
+   DNTimer (TickCount ivl) : interval{ivl} { lastT= nextT= millis(); }
 
    bool reached (TickCount t) const { return(t >= nextT); }
+
+   //TickCount getLastT const { return(lastT); }
 
    void add (TickCount delay) { set(nextT + delay); }
 
@@ -314,10 +316,11 @@ public:
       if (r)
       {
          next();
-         if (reached(t)) { set(t); }
+         if (reached(t)) { set(t); } // catch up
       }
       return(r);
-   }
+   } // update
+
 }; // DNTimer
 
 #if 0

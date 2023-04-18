@@ -91,10 +91,16 @@ public:
 //#endif
 }; // CCommonState
 
+/* Basic hardware config handled by SPI class:
+   pinMode(SCK, OUTPUT);
+   pinMode(MOSI, OUTPUT);
+   pinMode(MISO, INPUT);
+*/
+
 class CSelect
 {
 public:
-   CSelect (void) { ; } // begin(); }
+   CSelect (void) { ; }
 
    void begin (void) { pinMode(PIN_NCS, OUTPUT); digitalWrite(PIN_NCS,1); }
    void start (void) { digitalWrite(PIN_NCS,0); }
