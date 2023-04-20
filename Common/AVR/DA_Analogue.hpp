@@ -8,6 +8,9 @@
 
 #include <avr/sleep.h>
 
+#ifdef ARDUINO_AVR_MEGA2560
+#define NO_IN_THERM
+#endif
 
 /***/
 
@@ -25,19 +28,56 @@ class CAnMux
 {
 protected:
    uint8_t  vmux[ANLG_MUX_MAX];
-   uint8_t  id;
+   uint8_t  chan;
 
 public:
-   CAnMux (void)
+   enum Mux : uint8_t { // 0..7 Analogue pins, 9..13 reserved
+      // reference values to measure against
+      REF_MASK=0xC0,
+      AREF=0x00, VCC=0x40, 
+#ifdef NO_IN_THERM // and others...
+      IN_MASK=0x01F, IN5_MASK= 0x20,
+      IN_BGREF1=0x1F, IN_GND=0x1F,  // special inputs
+      BGREF1=0x80, BGREF2=0xC0      // dual bandgap refs
+#else // 328P etc.
+      IN_MASK=0x0F,
+      IN_THERM=0x08, IN_BGREF1=0x0E, IN_GND=0x0F, // special inputs
+      INVALIDREF=0x80, BGREF1=0xC0
+#endif
+   }; 
+
+   void setSequence
+   (
+      int8_t n,   // number to set
+      int8_t i=0, // starting index
+      int8_t c=0, // starting mux input id (pin select)
+      Mux ref=VCC // reference for all 
+   )
    {
-      vmux[0]= 0xC0; // A0 / 1.1Vref
-      vmux[1]= 0xC1; // A1 / 1.1Vref
-      vmux[2]= 0xC2; // A2 / 1.1Vref
-      vmux[3]= 0xC8; // thermistor (A8) / 1.1Vref ~0x0161
-      vmux[4]= 0x02; // A2 / Aref
-      vmux[5]= 0x03; // A3 / Aref
-      vmux[6]= 0x04; // A4 / Aref
-      vmux[7]= 0x05; // A5 / Aref
+      ref&= REF_MASK;
+      i&= ANLG_MUX_MSK;
+      c&= IN_MASK;
+      while (i<ANLG_MUX_MAX)
+      { 
+         vmux[i++]= ref | c;
+         c= (c+1) & IN_MASK;
+      }
+   } // setSequence
+   
+   CAnMux (uint8_t profileID)
+   {
+      if (0 == profileID) { setSequence(ANLG_MUX_MAX); return; } //else
+      int8_t i=0; // TODO: factor out application specific hacks...
+#ifndef NO_IN_THERM // internal thermistor only on 328P and a few others
+      if (0x1 & profileID) { vmux[i++]= BGREF1|IN_THERM; } // internal thermistor
+#endif
+      if (0x2 & profileID) { vmux[i++]= BGREF1|0; } // UV sensor (transimpedance amp output) / 1.1Vref
+      if (0x4 & profileID) { vmux[i++]= VCC|IN_BGREF1; } // assess Vcc
+      // VCC|1 : Vcr (return of remote Vcc powering therm dividers etc.)
+      // VCC|2 : ext therm 1
+      // VCC|3 : ext therm 2
+      // others unused...
+      setSequence(ANLG_MUX_MAX-i, i, 1, VCC); // fill out remaining defaults
    } // CTOR
 
    // deferred start essential to prevent overwrite by Arduino setup
@@ -47,69 +87,90 @@ public:
       set(id);
       PORTC&= 0xF0;
       DDRC&= 0xF0;
-      DIDR0= 0x0F; // Disable digital input buffer on A0-A3 ; A5-A4 -> 0x3F
+      DIDR0= 0x0F; // Disable digital input buffer on A0-A3 ; (A5-A4 -> 0x30)
    } // init
 
-   void set (uint8_t muxID=0) { id= muxID & ANLG_MUX_MSK; ADMUX= vmux[id]; }
-   void next (void) { set(id+1); }
+   uint8_t get (uint8_t chanID=0) { return(vmux[chanID & ANLG_MUX_MSK]); }
+   void set (uint8_t chanID=0)
+   { 
+      chan= chanID & ANLG_MUX_MSK;
+#ifdef ARDUINO_AVR_MEGA2560 // and others...
+      const uint8_t mc= vmux[chan];
+      ADMUX= mc & 0xDF; // NB: ADLAR0 = 0x20
+      if (mc & IN5_MASK) { ADCSRB|= _BV(MUX5); } else { ADCSRB&= ~_BV(MUX5); }
+#else
+      ADMUX= vmux[chan];
+#endif
+   }
+   void next (void) { set(chan+1); }
 }; // CAnMux
 
-// Synchronous analogue reading
-class CAnReadSync : public CAnMux
+class CAnCommon : public CAnMux
 {
 public:
-   CAnReadSync (void) : CAnMux() { ; }
-
-   void init (uint8_t id=0, uint8_t clkPS=0x7)
+   CAnCommon (uint8_t profileID) : CAnMux(profileID) { ; }
+   
+   void init (uint8_t clkPS)
    {
-      ADCSRA= clkPS & 0x07; // Disabled, clock prescaler 128 -> 125kHz sampling clock (~12kHz 10b sample rate?)
-      //ADCSRB= 0x00; // Free run (when auto-trigger)
-      CAnMux::init(id);
-   } // init
- 
+      ADCSRA= (1<<ADEN) | clkPS & 0x07; // Enable, clock prescaler 128 -> 125kHz sampling clock (~12kHz 10b sample rate?)
+   }
+   void on (void) { ADCSRA|= (1<<ADEN); }
+   void off (void) { ADCSRA&= ~(1<<ADEN); }
+   void start (void) { ADCSRA|= (1<<ADSC); }
+   void stop (void) { ADCSRA&= ~((1<<ADSC) | (1<<ADIE)); }
+}; // CAnCommon
+
+// Synchronous analogue reading
+class CAnReadSync : public CAnCommon
+{
+public:
+   CAnReadSync (uint8_t profileID) : CAnCommon(profileID) { ; }
+
+   void init (uint8_t c=0, uint8_t clkPS=0x7) { CAnMux::init(c); CAnCommon::init(clkPS); }
+      
    uint16_t read (void)
    {
       ADCSRA= (1<<ADEN) | (1<<ADSC) | (ADCSRA & 0x7); // no interrupt
       while (ADCSRA & (1<<ADSC)); // spin
+      //uint16_t r= ADCL; return(r | (ADCH<<8));
       return(ADCW);
    } // read
    
-   uint16_t readSumND (int8_t n)
+   uint16_t readSumND (const int8_t n, const int8_t d=1)
    {
       uint16_t s= 0;
-      if (n > 0)
+      if ((n > 0) && (n <= 16)) // limit to 14bit sum
       {
-         read(); // setup & discard first
-         do
-         {
-            ADCSRA|= 1<<ADSC;
-            while (ADCSRA & (1<<ADSC)); // spin
-            s+= ADCW;
-         } while (--n > 0);
+         for (int8_t i=0; i<d; i++) { read(); } // discard
+         for (int8_t i=0; i<n; i++) { s+= read(); }
       }
       return(s);
    } // readSumND
    
-   uint16_t readQ (void) //set_sleep_mode(SLEEP_MODE_ADC);
+   // Quiet (low noise) versions
+   
+   // This must be called befor each batch of quiet readings to ensure correct behaviour
+   void setSleepQ (void)
+   {  // NB: interrupt must be defined (or no wake up)
+      // and sleep must be enabled (or no noise reduction)
+      set_sleep_mode(SLEEP_MODE_ADC);
+      ADCSRA= (1<<ADEN) | (1<<ADIE) | (ADCSRA & 0x7); 
+   } // setSleepQ
+   
+   uint16_t readQ (void)
    {
-      ADCSRA= (1<<ADEN) | (1<<ADIE) | (1<<ADSC) | (ADCSRA & 0x7); // interrupt required for wake
+      start();
       do { sleep_cpu(); } while (ADCSRA & (1<<ADSC)); // spin
       return(ADCW);
    } // readQ
    
-   uint16_t readSumNDQ (int8_t n)
+   uint16_t readSumNDQ (const int8_t n, const int8_t d=1)
    {
       uint16_t s=0;
-      if (n > 0)
+      if ((n > 0) && (n <= 16)) // limit to 14bit sum
       {
-         readQ(); // discard (NB - sets interrupt)
-         n&= 0xF;
-         do
-         {
-            ADCSRA|= 1<<ADSC;
-            do { sleep_cpu(); } while (ADCSRA & (1<<ADSC)); // spin
-            s+= ADCW;
-         } while (--n > 0);
+         for (int8_t i=0; i<d; i++) { readQ(); } // discard
+         for (int8_t i=0; i<n; i++) { s+= readQ(); }
       }
       return(s);
    } // readSumNDQ
@@ -117,12 +178,32 @@ public:
    void event (void) { ; } // dummy ISR endpoint for compatibility
 }; // CAnReadSync
 
+// *REMEMBER* declare handler eg. : ISR (ADC_vect) { gADC.event(); }
+
+class CAnReadSyncDbg : public CAnReadSync
+{
+public:
+   CAnReadSyncDbg (uint8_t profileID) : CAnReadSync(profileID) { ; }
+   // using everything...
+
+   void dump (Stream& s) 
+   {
+      s.println("vmux[]=");
+      for (int8_t i=0; i<ANLG_MUX_MAX; i++)
+      {
+         s.print(i); s.print(": 0x"); s.println(vmux[i], HEX); //s.print
+      }
+   } // dump
+   
+}; // CAnReadSyncDbg
+
+
 // Async (interrupt driven)
 #define ANLG_VQ_SH (4)
 #define ANLG_VQ_MAX (1<<ANLG_VQ_SH)
 #define ANLG_VQ_MSK  (ANLG_VQ_MAX-1)
 
-class CAnalogue : public CAnMux
+class CAnalogue : public CAnCommon
 {
 protected:
    volatile uint16_t v[ANLG_VQ_MAX]; // Latest values
@@ -130,7 +211,7 @@ protected:
    uint8_t id, nR;
 
 public:
-   CAnalogue (void) : CAnMux() { ; }
+   CAnalogue (uint8_t profileID=0) : CAnCommon(profileID) { ; }
 
    // deferred start essential to prevent overwrite by Arduino setup
    // (assume memclear, static construction, then handoff to "app" level)
@@ -143,8 +224,6 @@ public:
       CAnMux::init(id);
    } // init
    
-   void start (void) { ADCSRA|= (1<<ADSC); }
-   void stop (void) { ADCSRA&= ~(1<<ADSC); }
    void startAuto (void) { ADCSRA|= (1<<ADSC) | (1<<ADATE); }
    void stopAuto (void) { ADCSRA&= ~((1<<ADSC) | (1<<ADATE)); }
    // Clean event resolution count
@@ -182,6 +261,8 @@ public:
       return(t >> 12); // byte & nybble handling
    } // get
 }; // CAnalogue
+
+// *REMEMBER* declare handler eg. : ISR (ADC_vect) { gADC.event(); }
 
 class CAnalogueDbg : public CAnalogue
 {

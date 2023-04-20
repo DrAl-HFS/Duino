@@ -309,6 +309,15 @@ public:
 
    void add (TickCount delay) { set(nextT + delay); }
 
+   uint16_t ticksSinceLast (void)
+   {
+      TickCount d, t= millis();
+      d= t - lastT;
+      if (d <= 0xFFFF) { return(d); }
+      //else
+      return(0xFFFF);
+   } // ticksSinceLast
+
    bool update (void)
    {
       TickCount t= millis();
